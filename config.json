@@ -1,0 +1,15 @@
+{
+    "compiler": "clang++",
+    "header-suffix": "hpp",
+    "source-suffix": "cpp",
+    "flags": {
+        "compile": {
+            "opt": "-O2",
+            "debug": "-g",
+            "std": "-std=c++17"
+        },
+        "link": {
+
+        }
+    }
+}
