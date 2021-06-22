@@ -278,5 +278,6 @@ int main(int argc, char *argv[]) {
     show_connection_info(remote, false);
 
     modify_qp(rdma, ib_port, remote, local);
+
     return 0;
 }
