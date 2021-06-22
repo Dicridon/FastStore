@@ -10,7 +10,6 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
-
 using namespace Hill;
 const ColorizedString error_msg("Error: ", Colors::Red);
 const ColorizedString warning_msg("Warning: ", Colors::Magenta);
@@ -226,12 +225,12 @@ RDMADevice find_device(const std::string &dev_name) {
     // find target device by its name
     // device name can be obtained using command 'ibstat'
     auto device = dev_list.get_device(dev_name);
-    if (!device.has_value()) {
+    if (!device.is_valid()) {
         std::cout << ">> " << error_msg << "no device " << dev_name << " found\n";
         exit(-1);
     }
     std::cout << ">> Device obtained\n";
-    return device.value();
+    return device;
 }
 
 int main(int argc, char *argv[]) {

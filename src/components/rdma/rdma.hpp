@@ -470,19 +470,20 @@ namespace Hill {
         RDMADevice() = delete;
         ~RDMADevice() = default;
 
-        RDMADevice(const struct ibv_device *in) {
-            memcpy(&dev, in, sizeof(struct ibv_device));
+        RDMADevice(struct ibv_device *in) {
+            dev = in;
+            // memcpy(&dev, in, sizeof(struct ibv_device));
         }
 
-        RDMADevice(const struct ibv_device &in) {
-            dev = in;
-        }
-        
         RDMADevice(const RDMADevice &) = default;
         RDMADevice(RDMADevice &&) = default;
 
 
         // Public APIs
+        bool is_valid() const noexcept {
+            return dev != nullptr;
+        }
+
         // The prefered way to open a ddvice,
         // the RDMAContext will close the associated device upon destruction
         RDMAContext open_device() {
@@ -490,19 +491,19 @@ namespace Hill {
         }
 
         struct ibv_device *get_device_raw() noexcept {
-            return &dev;
+            return dev;
         }
 
         std::string get_device_name() noexcept {
-            return std::string(ibv_get_device_name(&dev));
+            return std::string(ibv_get_device_name(dev));
         }
 
         __be64 get_device_guid() noexcept {
-            return ibv_get_device_guid(&dev);
+            return ibv_get_device_guid(dev);
         }
 
         struct ibv_context *open_device_raw() noexcept {
-            return ibv_open_device(&dev);
+            return ibv_open_device(dev);
         }
 
         int close_device_raw(struct ibv_context *ctx) {
@@ -510,7 +511,7 @@ namespace Hill {
         }
         
     private:
-        struct ibv_device dev;
+        struct ibv_device *dev;
     };
 
     
@@ -532,19 +533,15 @@ namespace Hill {
             return dev_num != 0;
         }
         
-        std::optional<RDMADevice> get_device(const std::string &dev_name) noexcept {
+        RDMADevice get_device(const std::string &dev_name) noexcept {
             auto raw = borrow_device_raw(dev_name);
-            if (raw) {
-                return RDMADevice(raw);
-            } else {
-                return {};
-            }
+            return RDMADevice(raw);
         }
 
         // the returned device is OWNED by the RDMADevieList object
-        const struct ibv_device *borrow_device_raw(const std::string &dev_name) const noexcept {
+        struct ibv_device *borrow_device_raw(const std::string &dev_name) noexcept {
             for (int i = 0; i < dev_num; i++) {
-                if (dev_name.compare(ibv_get_device_name(dev_list[i]))) {
+                if (dev_name.compare(ibv_get_device_name(dev_list[i])) == 0) {
                     return dev_list[i];
                 }
             }
@@ -556,7 +553,7 @@ namespace Hill {
             auto ret = std::make_unique<struct ibv_device>();
             memset(ret.get(), 0, sizeof(struct ibv_device));
             for (int i = 0; i < dev_num; i++) {
-                if (dev_name.compare(ibv_get_device_name(dev_list[i]))) {
+                if (dev_name.compare(ibv_get_device_name(dev_list[i])) == 0) {
                     memcpy(ret.get(), dev_list[i], sizeof(struct ibv_device));
                     return ret;
                 }
