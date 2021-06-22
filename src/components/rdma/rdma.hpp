@@ -29,18 +29,48 @@
 #include <optional>
 #include <functional>
 #include <infiniband/verbs.h>
+#include <byteswap.h>
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+static inline uint64_t htonll(uint64_t x) { return bswap_64(x); }
+static inline uint64_t ntohll(uint64_t x) { return bswap_64(x); }
+#elif __BYTE_ORDER == __BIG_ENDIAN
+static inline uint64_t htonll(uint64_t x) { return x; }
+static inline uint64_t ntohll(uint64_t x) { return x; }
+#else
+#error __BYTE_ORDER is neither __LITTLE_ENDIAN nor __BIG_ENDIAN
+#endif
+
 
 namespace Hill {
+    struct connection_certificate {
+        uint64_t addr;   // registered memory address
+        uint32_t rkey;   // remote key
+        uint32_t qp_num; // local queue pair number
+        uint16_t lid;    // LID of the ib port
+        uint8_t gid[16]; // currently not used
+    } __attribute__((packed));
+    
     // A RAII class over struct ibv_cq
     class RDMACompletionQueue {
     public:
         RDMACompletionQueue() = delete;
         RDMACompletionQueue(const RDMACompletionQueue &) = delete;
-        RDMACompletionQueue(RDMACompletionQueue &&) = delete;
+        RDMACompletionQueue &operator=(const RDMACompletionQueue &) = delete;
+        RDMACompletionQueue(RDMACompletionQueue &&other) {
+            cq = other.cq;
+            other.cq = nullptr;
+        };
+        RDMACompletionQueue &operator=(RDMACompletionQueue &&other) {
+            cq = other.cq;
+            other.cq = nullptr;
+            return *this;
+        }
 
         RDMACompletionQueue(struct ibv_cq *cq_) : cq(cq_) {};
         ~RDMACompletionQueue() {
-            ibv_destroy_cq(cq);
+            if (cq)
+                ibv_destroy_cq(cq);
         }
 
         // Public APIs
@@ -71,11 +101,19 @@ namespace Hill {
     public:
         RDMAMemoryRegion() = default;
         RDMAMemoryRegion(const RDMAMemoryRegion &) = default;
+        RDMAMemoryRegion &operator=(const RDMAMemoryRegion &) = default;
         RDMAMemoryRegion(RDMAMemoryRegion &&) = default;
-
+        RDMAMemoryRegion &operator=(RDMAMemoryRegion &&) = default;
+        
         RDMAMemoryRegion(struct ibv_mr *mr_) : mr(mr_) {};
         ~RDMAMemoryRegion() = default;
 
+
+        // Public APIs
+        bool is_valid() const noexcept {
+            return mr != nullptr;
+        }
+        
         struct ibv_mr *get_mr_raw() noexcept {
             return mr;
         }
@@ -140,11 +178,22 @@ namespace Hill {
     public:
         RDMAQueuePair() = delete;
         RDMAQueuePair(const RDMAQueuePair &) = delete;
-        RDMAQueuePair(RDMAQueuePair &&) = delete;
+        RDMAQueuePair &operator=(const RDMAQueuePair &) = delete;
+        RDMAQueuePair(RDMAQueuePair &&other) {
+            qp = other.qp;
+            other.qp = nullptr;
+        };
+        RDMAQueuePair &operator =(RDMAQueuePair &&other) {
+            qp = other.qp;
+            other.qp = nullptr;
+            return *this;
+        };
+
 
         RDMAQueuePair(struct ibv_qp *in) : qp(in) {}
         ~RDMAQueuePair() {
-            ibv_destroy_qp(qp);
+            if (qp)
+                ibv_destroy_qp(qp);
         }
 
         // Public APIs
@@ -154,6 +203,18 @@ namespace Hill {
 
         struct ibv_qp *get_qp_raw() noexcept {
             return qp;
+        }
+
+        uint32_t get_qp_num() const noexcept {
+            return qp->qp_num;
+        }
+
+        enum ibv_qp_state get_qp_state() const noexcept {
+            return qp->state;
+        }
+
+        enum ibv_qp_type get_qp_type() const noexcept {
+            return qp->qp_type;
         }
 
         // See man page on 'ibv_modify_qp' for detailed attribute fields
@@ -200,7 +261,7 @@ namespace Hill {
         };
 
         // ibv_qp_attr.ah_attr.port_num is set to be the port_num of this qp
-        int modify_qp_rtr_subnet(uint32_t remote_qpn, uint16_t dlid, qp_configer_t configer = default_rtr_configer) {
+        int modify_qp_rtr_subnet(uint32_t remote_qpn, uint16_t dlid, uint8_t ib_port, qp_configer_t configer = default_rtr_configer) {
             struct ibv_qp_attr attr;
             int mask = 0;
             memset(&attr, 0, sizeof(struct ibv_qp_attr));
@@ -209,6 +270,7 @@ namespace Hill {
             attr.qp_state = IBV_QPS_RTR;
             attr.dest_qp_num = remote_qpn;
             attr.ah_attr.dlid = dlid;
+            attr.ah_attr.port_num = ib_port;
             mask |= IBV_QP_STATE;
             return ibv_modify_qp(qp, &attr, mask);
         }
@@ -248,14 +310,25 @@ namespace Hill {
     public:
         RDMAProtectDomain() = delete;
         RDMAProtectDomain(const RDMAProtectDomain &) = delete;
-        RDMAProtectDomain(RDMAProtectDomain &&) = delete;
+        RDMAProtectDomain &operator=(const RDMAProtectDomain &) = delete;
+        RDMAProtectDomain(RDMAProtectDomain &&other) {
+            pd = other.pd;
+            other.pd = nullptr;
+        };
+        RDMAProtectDomain &operator=(RDMAProtectDomain &&other) {
+            pd = other.pd;
+            other.pd = nullptr;
+            return *this;
+        };
+
 
         RDMAProtectDomain(struct ibv_pd *in) noexcept {
             pd = in;
         }
         
         ~RDMAProtectDomain() {
-            ibv_dealloc_pd(pd);
+            if (pd)
+                ibv_dealloc_pd(pd);
         }
 
         // Public APIs
@@ -270,12 +343,8 @@ namespace Hill {
         struct ibv_mr *reg_mr_raw(void *addr, size_t length, int access) noexcept {
             return ibv_reg_mr(pd, addr, length, access);
         }
-        std::optional<RDMAMemoryRegion> reg_mr(void *addr, size_t length, int access) noexcept {
-            auto mr = ibv_reg_mr(pd, addr, length, access);
-            if (mr)
-                return RDMAMemoryRegion(mr);
-            else 
-                return {};
+        RDMAMemoryRegion reg_mr(void *addr, size_t length, int access) noexcept {
+            return RDMAMemoryRegion(reg_mr_raw(addr, length, access));
         }
 
         int rereg_mr_raw(struct ibv_mr *mr, int flags, void *addr, size_t length, int access) noexcept {
@@ -299,7 +368,13 @@ namespace Hill {
         RDMAQueuePair create_qp(struct ibv_qp_init_attr *init_attr) noexcept {
             return RDMAQueuePair(ibv_create_qp(pd, init_attr));
         }
-        
+
+        RDMAQueuePair create_qp(std::function<void(struct ibv_qp_init_attr &)> init) {
+            struct ibv_qp_init_attr attr;
+            memset(&attr, 0, sizeof(struct ibv_qp_init_attr));
+            init(attr);
+            return create_qp(&attr);
+        }
     private:
         struct ibv_pd *pd;
     };
@@ -314,14 +389,25 @@ namespace Hill {
     public:
         RDMAContext() = delete;
         RDMAContext(const RDMAContext &) = delete;
-        RDMAContext(RDMAContext &&) = delete;
+        RDMAContext &operator=(const RDMAContext &) = delete;
+        RDMAContext(RDMAContext &&other) {
+            ctx = other.ctx;
+            other.ctx = nullptr;
+        };
+        RDMAContext &operator=(RDMAContext &&other) {
+            ctx = other.ctx;
+            other.ctx = nullptr;
+            return *this;
+        };
+
         
         RDMAContext(struct ibv_context *in) {
             ctx = in;
         }
 
         ~RDMAContext() {
-            ibv_close_device(ctx);
+            if (ctx)
+                ibv_close_device(ctx);
         };
 
         // Public APIs
@@ -399,7 +485,9 @@ namespace Hill {
         // Public APIs
         // The prefered way to open a ddvice,
         // the RDMAContext will close the associated device upon destruction
-        RDMAContext open_device();
+        RDMAContext open_device() {
+            return RDMAContext(open_device_raw());
+        }
 
         struct ibv_device *get_device_raw() noexcept {
             return &dev;
