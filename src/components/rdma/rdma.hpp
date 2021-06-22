@@ -14,6 +14,19 @@
  *       | used by                              |
  * RDMACompletionQueue <------------------------|                          
  *
+ * A basic illustraion of RDMA workflow:
+ *   1. RDMADeviceList list
+ *   2. device = list.get_device(device_name)
+ *   3. context = device.open_device()
+ *   4. protect_domain = context.create_pd()
+ *   5. completion_queue = context.create_cq(cq_capacity)
+ *   6. memory_region = protect_domain.reg_mr(memory_buffer, access_flags)
+ *   7. queue_pair = protect_domain.create_qp([&](struct ibv_qp_init_attr &attr) {//modify the attr here})
+ *   8. exchange queue number, lid, memory buffer address via socket or other connection
+ *   9. queue_pair.modify_qp_init(ib_port)
+ *   10. queue_pair.modify_qp_rtr(attr)
+ *   11. queue_pair.modify_qp_rts(attr)
+ *   12. queue_pair.post_send(send_ata)
  *
  * Note: 1. event based utility is not included since I'm not familiar with it
  *       2. RAII classes rely on vbers deallocation functions, but these functions do not
@@ -51,7 +64,15 @@ namespace Hill {
         uint8_t gid[16]; // currently not used
     } __attribute__((packed));
     
-    // A RAII class over struct ibv_cq
+    /*
+     * class RDMACompletionQueue
+     *
+     * A RAII class over struct ibv_cq
+     * 'ibv_destroy_cq' is called upon destruction
+     *
+     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
+     * This class is never explicitly instanciated, instead, a call to RDMAContext::create_cq is required
+     */
     class RDMACompletionQueue {
     public:
         RDMACompletionQueue() = delete;
@@ -173,7 +194,15 @@ namespace Hill {
         struct ibv_qp_init_attr init_attr;
     };
 
-    // A RAII class managing queue pair (not shared queue pair)
+    /* 
+     * class RDMAQueuePair
+     *
+     * A RAII class managing queue pair (not shared queue pair)
+     * 'ibv_destroy_qp' is called upon destruction
+     *
+     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
+     * This class is never explicitly instanciated, instead, a call to RDMAProtectDomain::create_qp is required
+     */
     class RDMAQueuePair {
     public:
         RDMAQueuePair() = delete;
@@ -319,9 +348,16 @@ namespace Hill {
         struct ibv_qp *qp;
     };
 
-
-    // A RAII class managing protect domain
-    // never explicitly created by user
+    
+    /* 
+     * class RDMAProtectDomain
+     *
+     * A RAII class managing protect domain
+     * 'ibv_dealloc_pd' is called upon destruction
+     *
+     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
+     * This class is never explicitly instanciated, instead, a call to RDMAContext::create_pd is required
+     */
     class RDMAProtectDomain {
     public:
         RDMAProtectDomain() = delete;
@@ -396,10 +432,13 @@ namespace Hill {
     };
 
     /*
-     * RDMAContext 
+     * class RDMAContext 
+     *
      * A RAII class manageing an opened RDMADevice. 
-     * This class is never explicitly instanciated, instead, a call to RDMADevice::open_device will 
-     * create a RDMAContex object
+     * 'ibv_close_device' is called upon destruction
+     *
+     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
+     * This class is never explicitly instanciated, instead, a call to RDMADevice::open_device is required
      */
     class RDMAContext {
     public:
@@ -481,6 +520,16 @@ namespace Hill {
     };
 
 
+    /*
+     * class RDMADevice
+     *
+     * This is not a RAII class and any instance of this class should be created from a RDMADeviceList
+     * The underlying poiner is deallocated by the associated RDMADeviceList
+     * 
+     * Assigning underlying pointer to another ibv_device pointer is OK, but copying the content pointed
+     * by underlying pointer to create a 'struct ibv_device' instance is invalid. The 'struct ibv_device'
+     * instance can not be opened and 'ibv_open_device' would just fail on the instance.
+     */
     class RDMADevice {
     public:
         RDMADevice() = delete;
@@ -530,7 +579,18 @@ namespace Hill {
         struct ibv_device *dev;
     };
 
-    
+
+    /*
+     * class RDMADeviceList 
+     * 
+     * A RDMADeviceList automatically instance retrieves RDMA NIC list of the machine 
+     * It is important to point out that:
+     *   1. This class is a RAII class, the device list is deallocated if RDMADeviceList object goes out of scope
+     *   2. A RDMA device can not be opened if its associated device list is deallocated
+     *   3. A RDMA device is not supposed to be copied
+     * Thus, to correctly use this class, it is important to ensure RDMADeviceList outlive all RDMADevice 
+     * instances created by RDMADeviceList::get_device
+     */
     class RDMADeviceList {
     public:
         RDMADeviceList() {
