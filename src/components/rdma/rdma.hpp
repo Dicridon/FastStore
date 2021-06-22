@@ -1,4 +1,4 @@
-/*
+>/*
  * rdma.hpp/cpp:
  * A bunch of wrapper classes over libibverbs C bindings. These classes include 
  * RDMADeviceList, RDMADevice, RDMAProtectDomain, RDMACompleteQueue, RDMAQueuePair, etc. 

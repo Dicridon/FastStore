@@ -9,7 +9,7 @@
             "std": "-std=c++17"
         },
         "link": {
-
+            "rdma": "-libverbs"
         }
     }
 }

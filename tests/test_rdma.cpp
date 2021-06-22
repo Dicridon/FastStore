@@ -158,7 +158,7 @@ RDMAGround get_ground(RDMADevice &device) {
     if (!mr.is_valid()) {
         std::cout << ">> " << error_msg << "can not register memory\n";
     }
-    std::cout << "Memory region registered\n";
+    std::cout << ">> Memory region registered\n";
 
     // initialize queue pair for the protect domain for real communication
     // the completion queue previously obtained is associated with this queue pair
@@ -176,6 +176,7 @@ RDMAGround get_ground(RDMADevice &device) {
         std::cout << ">>" << error_msg << "can not create queue pair\n";
         exit(-1);
     }
+    std::cout << ">> Queue pair created\n";
     return RDMAGround(std::move(ctx), std::move(pd), std::move(qp), std::move(cq), std::move(mr), buf);
 }
 
@@ -190,7 +191,7 @@ void modify_qp(RDMAGround &rdma, int ib_port, const connection_certificate &remo
     if (ret != 0) {
         auto code = std::to_string(ret);
         std::cout << ">> " << error_msg << "failed to modify qp to rtr, error code: "
-                  << ColorizedString(code, Colors::Yellow);
+                  << ColorizedString(code, Colors::Yellow) << "\n";
         exit(-1);
     }
 
