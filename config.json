@@ -4,7 +4,7 @@
     "source-suffix": "cpp",
     "flags": {
         "compile": {
-            "opt": "-O2",
+            "opt": "-O0",
             "debug": "-g",
             "std": "-std=c++17"
         },

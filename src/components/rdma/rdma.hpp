@@ -83,8 +83,10 @@ namespace Hill {
             other.cq = nullptr;
         };
         RDMACompletionQueue &operator=(RDMACompletionQueue &&other) {
-            cq = other.cq;
-            other.cq = nullptr;
+            if (this != &other) {
+                cq = other.cq;
+                other.cq = nullptr;
+            }
             return *this;
         }
 
@@ -213,8 +215,10 @@ namespace Hill {
             other.qp = nullptr;
         };
         RDMAQueuePair &operator =(RDMAQueuePair &&other) {
-            qp = other.qp;
-            other.qp = nullptr;
+            if (this != &other) {
+                qp = other.qp;
+                other.qp = nullptr;
+            }
             return *this;
         };
 
@@ -368,8 +372,10 @@ namespace Hill {
             other.pd = nullptr;
         };
         RDMAProtectDomain &operator=(RDMAProtectDomain &&other) {
-            pd = other.pd;
-            other.pd = nullptr;
+            if (this != &other) {
+                pd = other.pd;
+                other.pd = nullptr;
+            }
             return *this;
         };
 
@@ -450,8 +456,10 @@ namespace Hill {
             other.ctx = nullptr;
         };
         RDMAContext &operator=(RDMAContext &&other) {
-            ctx = other.ctx;
-            other.ctx = nullptr;
+            if (this != &other) {
+                ctx = other.ctx;
+                other.ctx = nullptr;
+            }
             return *this;
         };
 
