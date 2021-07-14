@@ -16,7 +16,7 @@ const ColorizedString warning_msg("Warning: ", Colors::Magenta);
 
 void show_connection_info(const connection_certificate &c, bool is_local = true) {
     std::string from = is_local ? "local" : "remote";
-    std::cout << ">> reporting info" << "(" << from << "):";
+    std::cout << ">> reporting info" << "(" << from << "):\n";
     std::cout << "  [[ address: " << c.addr << "\n";
     std::cout << "  [[ rkey: " << c.rkey << "\n";
     std::cout << "  [[ lid: " << c.lid << "\n";
@@ -282,6 +282,7 @@ int main(int argc, char *argv[]) {
     bool is_server = parser.GetIsServer() == "true";
 
     const int gid_idx = 2;
+    union ibv_gid my_gid;
     
     // first get device list and find the target device
     auto device = find_device(dev_name);
@@ -295,12 +296,15 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
+    ibv_query_gid(rdma.ctx.get_raw_context(), ib_port, 2, &my_gid);
+
     auto sock = socket_connect(is_server, socket_port);
     connection_certificate local, remote;
     local.addr = htonll((uint64_t)rdma.buf);
     local.rkey = htonl(rdma.mr.get_rkey());
     local.qp_num = htonl(rdma.qp.get_qp_num());
     local.lid = htons(port_attr.first->lid);
+    memcpy(local.gid, &my_gid, 16);
     if (!exchange_certificate(sock, &local, &remote)) {
         exit(-1);
     }
