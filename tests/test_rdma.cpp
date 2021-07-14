@@ -305,6 +305,8 @@ int main(int argc, char *argv[]) {
     local.qp_num = htonl(rdma.qp.get_qp_num());
     local.lid = htons(port_attr.first->lid);
     memcpy(local.gid, &my_gid, 16);
+
+    
     if (!exchange_certificate(sock, &local, &remote)) {
         exit(-1);
     }
@@ -313,10 +315,10 @@ int main(int argc, char *argv[]) {
     remote.qp_num = ntohl(remote.qp_num);
     remote.lid = ntohs(remote.lid);
 
-    local.addr = ntohll((uint64_t)rdma.buf);
-    local.rkey = ntohl(rdma.mr.get_rkey());
-    local.qp_num = ntohl(rdma.qp.get_qp_num());
-    local.lid = ntohs(port_attr.first->lid);
+    local.addr = ntohll(local.addr);
+    local.rkey = ntohl(local.rkey);
+    local.qp_num = ntohl(local.qp_num);
+    local.lid = ntohs(local.lid);
 
 
     show_connection_info(local);
