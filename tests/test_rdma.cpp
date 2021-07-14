@@ -21,6 +21,12 @@ void show_connection_info(const connection_certificate &c, bool is_local = true)
     std::cout << "  [[ rkey: " << c.rkey << "\n";
     std::cout << "  [[ lid: " << c.lid << "\n";
     std::cout << "  [[ qp num: " << c.qp_num << "\n";
+    std::cout << "  [[ gid: ";
+    const char *pat = ":%02x";
+    for (int i = 0; i < 16; i++) {
+        printf(pat + (i == 0), c.gid[i]);
+    }
+    std::cout << "\n";
 }
 
 int socket_connect(bool is_server, int socket_port) {
@@ -181,13 +187,41 @@ RDMAGround get_ground(RDMADevice &device) {
 }
 
 void modify_qp(RDMAGround &rdma, int ib_port, const connection_certificate &remote,
-               const connection_certificate &local) {
+               const connection_certificate &local, int dgid_idx = -1) {
+    
     if (rdma.qp.modify_qp_init(ib_port) != 0) {
         std::cout << ">> " << error_msg << "failed to modify qp to init\n";
         exit(-1);
     }
 
-    auto ret = rdma.qp.modify_qp_rtr_subnet(remote.qp_num, remote.lid, ib_port);
+    auto ret = rdma.qp.modify_qp_rtr([&](struct ibv_qp_attr &attr, int &mk) {
+        attr.qp_state = IBV_QPS_RTR;
+        attr.path_mtu = IBV_MTU_256;
+        attr.dest_qp_num = remote.qp_num;
+        attr.rq_psn = 0;
+        attr.max_dest_rd_atomic = 1;
+        attr.min_rnr_timer = 0x12;
+
+        attr.ah_attr.is_global = 0;
+        attr.ah_attr.dlid = remote.lid;
+        attr.ah_attr.sl = 0;
+        attr.ah_attr.src_path_bits = 0;
+        attr.ah_attr.port_num = ib_port;
+        
+        if (dgid_idx >= 0) {
+            attr.ah_attr.is_global = 1;
+            attr.ah_attr.port_num = 1;
+            memcpy(&attr.ah_attr.grh.dgid, remote.gid, 16);
+            attr.ah_attr.grh.flow_label = 0;
+            attr.ah_attr.grh.hop_limit = 1;
+            attr.ah_attr.grh.sgid_index = dgid_idx;
+            attr.ah_attr.grh.traffic_class = 0;
+        }
+
+        mk = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN |
+            IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
+    });
+    
     if (ret != 0) {
         auto code = std::to_string(ret);
         std::cout << ">> " << error_msg << "failed to modify qp to rtr, error code: "
@@ -195,7 +229,7 @@ void modify_qp(RDMAGround &rdma, int ib_port, const connection_certificate &remo
         exit(-1);
     }
 
-    ret = rdma.qp.modify_qp_rts_subnet([&](struct ibv_qp_attr &attr, int &mask) {
+    ret = rdma.qp.modify_qp_rts([&](struct ibv_qp_attr &attr, int &mask) {
         attr.qp_state = IBV_QPS_RTS;
         attr.timeout = 0x12; // 18
         attr.retry_cnt = 6;
@@ -246,6 +280,8 @@ int main(int argc, char *argv[]) {
     int ib_port = std::stoi(parser.GetIbPort());
     int socket_port = std::stoi(parser.GetSocketPort());
     bool is_server = parser.GetIsServer() == "true";
+
+    const int gid_idx = 2;
     
     // first get device list and find the target device
     auto device = find_device(dev_name);
@@ -264,7 +300,7 @@ int main(int argc, char *argv[]) {
     local.addr = htonll((uint64_t)rdma.buf);
     local.rkey = htonl(rdma.mr.get_rkey());
     local.qp_num = htonl(rdma.qp.get_qp_num());
-    local.lid = port_attr.first->lid;
+    local.lid = htons(port_attr.first->lid);
     if (!exchange_certificate(sock, &local, &remote)) {
         exit(-1);
     }
@@ -273,11 +309,16 @@ int main(int argc, char *argv[]) {
     remote.qp_num = ntohl(remote.qp_num);
     remote.lid = ntohs(remote.lid);
 
+    local.addr = ntohll((uint64_t)rdma.buf);
+    local.rkey = ntohl(rdma.mr.get_rkey());
+    local.qp_num = ntohl(rdma.qp.get_qp_num());
+    local.lid = ntohs(port_attr.first->lid);
+
 
     show_connection_info(local);
     show_connection_info(remote, false);
 
-    modify_qp(rdma, ib_port, remote, local);
+    modify_qp(rdma, ib_port, remote, local, gid_idx);
 
     return 0;
 }

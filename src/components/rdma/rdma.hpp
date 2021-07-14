@@ -61,7 +61,7 @@ namespace Hill {
         uint32_t rkey;   // remote key
         uint32_t qp_num; // local queue pair number
         uint16_t lid;    // LID of the ib port
-        uint8_t gid[16]; // currently not used
+        uint8_t gid[16]; // mandatory for RoCE
     } __attribute__((packed));
     
     /*
@@ -279,52 +279,18 @@ namespace Hill {
          * @configer: a lambda or function altering other attributes of this queue pair
          */
         using qp_configer_t = std::function<void(struct ibv_qp_attr &at, int &mk)>;
-        static constexpr auto default_rtr_configer = [](struct ibv_qp_attr &at, int &mk) {
-            at.qp_state = IBV_QPS_RTR;
-            at.path_mtu = IBV_MTU_256;
-            at.rq_psn = 0;
-            at.max_dest_rd_atomic = 1;
-            at.min_rnr_timer = 0x12;
-            at.ah_attr.is_global = 0;
-            at.ah_attr.sl = 0;
-            at.ah_attr.src_path_bits = 0;
-
-            mk = IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
-                IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
-        };
 
         // ibv_qp_attr.ah_attr.port_num is set to be the port_num of this qp
-        int modify_qp_rtr_subnet(uint32_t remote_qpn, uint16_t dlid, uint8_t ib_port, qp_configer_t configer = default_rtr_configer) {
+        int modify_qp_rtr(qp_configer_t configer) {
             struct ibv_qp_attr attr;
             int mask = 0;
             memset(&attr, 0, sizeof(struct ibv_qp_attr));
             
             configer(attr, mask);
-            attr.qp_state = IBV_QPS_RTR;
-            attr.dest_qp_num = remote_qpn;
-            attr.ah_attr.dlid = dlid;
-            attr.ah_attr.port_num = ib_port;
-            mask |= IBV_QP_STATE;
-
-            attr.qp_state = IBV_QPS_RTR;
-            attr.path_mtu = IBV_MTU_256;
-            attr.dest_qp_num = remote_qpn;
-            attr.rq_psn = 0;
-            attr.max_dest_rd_atomic = 1;
-            attr.min_rnr_timer = 0x12;
-            attr.ah_attr.is_global = 0;
-            attr.ah_attr.dlid = dlid;
-            attr.ah_attr.sl = 0;
-            attr.ah_attr.src_path_bits = 0;
-            attr.ah_attr.port_num = ib_port;
-            mask = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN |
-                IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
-
-    
             return ibv_modify_qp(qp, &attr, mask);
         }
 
-        int modify_qp_rts_subnet(qp_configer_t configer) {
+        int modify_qp_rts(qp_configer_t configer) {
             struct ibv_qp_attr attr;
             int mask = 0;
             memset(&attr, 0, sizeof(struct ibv_qp_attr));
