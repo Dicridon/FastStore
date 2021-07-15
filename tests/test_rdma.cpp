@@ -406,5 +406,11 @@ int main(int argc, char *argv[]) {
     } else {
         rdma.post_receive(rdma_msg.length());
     }
+
+    for (size_t i = 0; i < rdma_msg.length(); i++) {
+        std::cout << rdma.buf[i];
+    }
+    std::cout << "\n";
+    close(sock);
     return 0;
 }
