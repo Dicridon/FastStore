@@ -407,6 +407,11 @@ int main(int argc, char *argv[]) {
         rdma.post_receive(rdma_msg.length());
     }
 
+    if (!rdma.poll_completion()) {
+        std::cout << ">> " << error_msg << "polling failed\n";
+        exit(-1);
+    }
+
     for (size_t i = 0; i < rdma_msg.length(); i++) {
         std::cout << rdma.buf[i];
     }
