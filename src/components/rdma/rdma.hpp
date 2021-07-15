@@ -36,6 +36,7 @@
  * 
  */
 
+
 #ifndef __HILL__RDMA__RDMA__
 #define __HILL__RDMA__RDMA__
 #include <memory>
@@ -588,7 +589,6 @@ namespace Hill {
             return RDMADevice(raw);
         }
 
-        // the returned device is OWNED by the RDMADevieList object
         struct ibv_device *borrow_device_raw(const std::string &dev_name) noexcept {
             for (int i = 0; i < dev_num; i++) {
                 if (dev_name.compare(ibv_get_device_name(dev_list[i])) == 0) {
@@ -598,19 +598,6 @@ namespace Hill {
             return nullptr;
         }
 
-        // the returned device is OWNED by the caller;
-        std::unique_ptr<struct ibv_device> get_device_raw(const std::string &dev_name) noexcept {
-            auto ret = std::make_unique<struct ibv_device>();
-            memset(ret.get(), 0, sizeof(struct ibv_device));
-            for (int i = 0; i < dev_num; i++) {
-                if (dev_name.compare(ibv_get_device_name(dev_list[i])) == 0) {
-                    memcpy(ret.get(), dev_list[i], sizeof(struct ibv_device));
-                    return ret;
-                }
-            }
-            return nullptr;
-        }
-        
     private:
         struct ibv_device **dev_list;
         int dev_num;

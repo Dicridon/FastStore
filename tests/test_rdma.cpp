@@ -14,6 +14,8 @@ using namespace Hill;
 const ColorizedString error_msg("Error: ", Colors::Red);
 const ColorizedString warning_msg("Warning: ", Colors::Magenta);
 
+const std::string rdma_msg("Hello RDMA\n");
+
 void show_connection_info(const connection_certificate &c, bool is_local = true) {
     std::string from = is_local ? "local" : "remote";
     std::cout << ">> reporting info" << "(" << from << "):\n";
@@ -71,6 +73,18 @@ int socket_connect(bool is_server, int socket_port) {
     }
 }
 
+bool syncop(int sockfd) {
+    char msg = 'a';
+    if (write(sockfd, &msg, 1) != 1) {
+        return false;
+    }
+
+    if (read(sockfd, &msg, 1) != 1) {
+        return false;
+    }
+    return true;
+}
+
 bool exchange_certificate(int sockfd, const connection_certificate *cm_out, connection_certificate *cm_in) {
     const int normal = sizeof(connection_certificate);
     if (write(sockfd, cm_out, normal) != normal) {
@@ -85,18 +99,17 @@ bool exchange_certificate(int sockfd, const connection_certificate *cm_out, conn
     return true;
 }
 
-// buf is not managed
 struct RDMAGround {
     RDMAContext ctx;
     RDMAProtectDomain pd;
     RDMACompletionQueue cq;
     RDMAQueuePair qp;
-    RDMAMemoryRegion mr;
-    void *buf;
+    RDMAMemoryRegion mr; // not RAII
+    uint8_t *buf;
 
     RDMAGround(RDMAContext &&_ctx, RDMAProtectDomain &&_pd,
                RDMAQueuePair &&_qp, RDMACompletionQueue &&_cq,
-               RDMAMemoryRegion &&_mr, void *&buf_)
+               RDMAMemoryRegion &&_mr, uint8_t *&buf_)
         : ctx(std::move(_ctx)),
           pd(std::move(_pd)),
           cq(std::move(_cq)),
@@ -130,7 +143,69 @@ struct RDMAGround {
         other.buf = nullptr;
         return *this;
     }
+    
+    ~RDMAGround() {
+        ibv_dereg_mr(mr.get_mr_raw());
+        delete[] buf;
+    };
 
+    int poll_completion() {
+        struct ibv_wc wc;
+        int ret;
+        do {
+            ret = ibv_poll_cq(cq.get_cq_raw(), 1, &wc);
+        } while (ret == 0);
+
+        return ret;
+    }
+
+    int post_send(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, const connection_certificate &remote) {
+        struct ibv_send_wr sr;
+        struct ibv_sge sge;
+        struct ibv_send_wr *bad_wr;
+
+        memcpy(buf, msg, msg_len);
+
+        memset(&sge, 0, sizeof(sge));
+        sge.addr = (uintptr_t)buf;
+        sge.length = msg_len;
+        sge.lkey = mr.get_lkey();
+
+        memset(&sr, 0, sizeof(sr));
+        sr.next = nullptr;
+        sr.wr_id = 0;
+        sr.sg_list = &sge;
+
+        sr.num_sge = 1;
+        sr.opcode = opcode;
+        sr.send_flags = IBV_SEND_SIGNALED;
+
+        if (opcode != IBV_WR_SEND) {
+            sr.wr.rdma.remote_addr = remote.addr;
+            sr.wr.rdma.rkey = remote.rkey;
+        }
+
+        return ibv_post_send(qp.get_qp_raw(), &sr, &bad_wr);
+    }
+
+    int post_receive(size_t msg_len) {
+        struct ibv_recv_wr rr;
+        struct ibv_sge sge;
+        struct ibv_recv_wr *bad_wr;
+        
+        memset(&sge, 0, sizeof(sge));
+        sge.addr = (uintptr_t)buf;
+        sge.length = msg_len;
+        sge.lkey = mr.get_lkey();
+
+        memset(&rr, 0, sizeof(rr));
+        rr.next = nullptr;
+        rr.wr_id = 0;
+        rr.sg_list = &sge;
+        rr.num_sge = 1;
+
+        return ibv_post_recv(qp.get_qp_raw(), &rr, &bad_wr);
+    }
 };
 
 RDMAGround get_ground(RDMADevice &device) {
@@ -159,7 +234,7 @@ RDMAGround get_ground(RDMADevice &device) {
     std::cout << ">> Completion queue created\n";
 
     // register memory retion in the protect domain
-    void *buf = malloc(1024);
+    uint8_t *buf = new uint8_t[1024];
     auto mr = pd.reg_mr(buf, 1024, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE);
     if (!mr.is_valid()) {
         std::cout << ">> " << error_msg << "can not register memory\n";
@@ -306,7 +381,6 @@ int main(int argc, char *argv[]) {
     local.lid = htons(port_attr.first->lid);
     memcpy(local.gid, &my_gid, 16);
 
-    
     if (!exchange_certificate(sock, &local, &remote)) {
         exit(-1);
     }
@@ -314,17 +388,23 @@ int main(int argc, char *argv[]) {
     remote.rkey = ntohl(remote.rkey);
     remote.qp_num = ntohl(remote.qp_num);
     remote.lid = ntohs(remote.lid);
-
+    
     local.addr = ntohll(local.addr);
     local.rkey = ntohl(local.rkey);
     local.qp_num = ntohl(local.qp_num);
     local.lid = ntohs(local.lid);
-
-
+    
     show_connection_info(local);
     show_connection_info(remote, false);
 
-    modify_qp(rdma, ib_port, remote, local, gid_idx);
 
+    modify_qp(rdma, ib_port, remote, local, gid_idx);
+    syncop(sock);
+    
+    if (is_server) {
+        rdma.post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length(), IBV_WR_SEND, remote);
+    } else {
+        rdma.post_receive(rdma_msg.length());
+    }
     return 0;
 }
