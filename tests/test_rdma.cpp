@@ -262,7 +262,7 @@ RDMAGround get_ground(RDMADevice &device) {
 }
 
 void modify_qp(RDMAGround &rdma, int ib_port, const connection_certificate &remote,
-               const connection_certificate &local, int dgid_idx = -1) {
+               const connection_certificate &local, int gid_idx = -1) {
     
     if (rdma.qp.modify_qp_init(ib_port) != 0) {
         std::cout << ">> " << error_msg << "failed to modify qp to init\n";
@@ -283,13 +283,13 @@ void modify_qp(RDMAGround &rdma, int ib_port, const connection_certificate &remo
         attr.ah_attr.src_path_bits = 0;
         attr.ah_attr.port_num = ib_port;
         
-        if (dgid_idx >= 0) {
+        if (gid_idx >= 0) {
             attr.ah_attr.is_global = 1;
             attr.ah_attr.port_num = 1;
             memcpy(&attr.ah_attr.grh.dgid, remote.gid, 16);
             attr.ah_attr.grh.flow_label = 0;
             attr.ah_attr.grh.hop_limit = 1;
-            attr.ah_attr.grh.sgid_index = dgid_idx;
+            attr.ah_attr.grh.sgid_index = gid_idx;
             attr.ah_attr.grh.traffic_class = 0;
         }
 
@@ -371,7 +371,7 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
-    ibv_query_gid(rdma.ctx.get_raw_context(), ib_port, 2, &my_gid);
+    ibv_query_gid(rdma.ctx.get_raw_context(), ib_port, gid_idx, &my_gid);
 
     auto sock = socket_connect(is_server, socket_port);
     connection_certificate local, remote;
@@ -423,15 +423,28 @@ int main(int argc, char *argv[]) {
         std::cout << rdma.buf[i];
     }
     std::cout << "\n";
-
+    
+    std::string client_msg = "This is a call from client\n";
     if (!is_server) {
-        std::string client_msg = "This is a call from client\n";
         rdma.post_send((uint8_t *)client_msg.c_str(), client_msg.length(), IBV_WR_RDMA_WRITE, remote);
         rdma.poll_completion();
     }
     syncop(sock);
     std::cout << ">> buf after rdma write\n";
-    for (size_t i = 0; i < rdma_msg.length(); i++) {
+    for (size_t i = 0; i < client_msg.length(); i++) {
+        std::cout << rdma.buf[i];
+    }
+
+    if (!is_server) {
+        client_msg = "This is a gift from client\n";
+    } else {
+        sleep(1);
+        rdma.post_send((uint8_t *)client_msg.c_str(), client_msg.length(), IBV_WR_RDMA_READ, remote);
+        rdma.poll_completion();
+    }
+    
+    std::cout << ">> buf after rdma read\n";
+    for (size_t i = 0; i < client_msg.length(); i++) {
         std::cout << rdma.buf[i];
     }
     
