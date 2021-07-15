@@ -400,8 +400,14 @@ int main(int argc, char *argv[]) {
 
     modify_qp(rdma, ib_port, remote, local, gid_idx);
     syncop(sock);
+
+    std::cout << ">> buf before send/recv\n";
+    for (size_t i = 0; i < rdma_msg.length(); i++) {
+        std::cout << rdma.buf[i];
+    }
     
     if (is_server) {
+        sleep(1); // just ensure server posts send AFTER client's recv
         rdma.post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length(), IBV_WR_SEND, remote);
     } else {
         rdma.post_receive(rdma_msg.length());
@@ -412,10 +418,23 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
+    std::cout << ">> buf after send/recv\n";
     for (size_t i = 0; i < rdma_msg.length(); i++) {
         std::cout << rdma.buf[i];
     }
     std::cout << "\n";
+
+    if (!is_server) {
+        std::string client_msg = "This is a call from client\n";
+        rdma.post_send((uint8_t *)client_msg.c_str(), client_msg.length(), IBV_WR_RDMA_WRITE, remote);
+        rdma.poll_completion();
+    }
+    syncop(sock);
+    std::cout << ">> buf after rdma write\n";
+    for (size_t i = 0; i < rdma_msg.length(); i++) {
+        std::cout << rdma.buf[i];
+    }
+    
     close(sock);
     return 0;
 }
