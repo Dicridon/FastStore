@@ -6,7 +6,8 @@
         "compile": {
             "opt": "-O0",
             "debug": "-g",
-            "std": "-std=c++17"
+            "std": "-std=c++17",
+            "W": "-Wall"
         },
         "link": {
             "rdma": "-libverbs"

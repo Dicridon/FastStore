@@ -44,6 +44,10 @@
 #include <functional>
 #include <infiniband/verbs.h>
 #include <byteswap.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 static inline uint64_t htonll(uint64_t x) { return bswap_64(x); }
@@ -65,543 +69,185 @@ namespace Hill {
         uint8_t gid[16]; // mandatory for RoCE
     } __attribute__((packed));
     
-    /*
-     * class RDMACompletionQueue
-     *
-     * A RAII class over struct ibv_cq
-     * 'ibv_destroy_cq' is called upon destruction
-     *
-     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
-     * This class is never explicitly instanciated, instead, a call to RDMAContext::create_cq is required
-     */
-    class RDMACompletionQueue {
+    enum class RDMAStatus {
+        Ok,
+        NoRDMADeviceList,        
+        DeviceNotFound,
+        DeviceNotOpened,
+        NoGID,
+        CannotOpenDevice,
+        CannotAllocPD,
+        CannotCreateCQ,
+        CannotRegMR,
+        CannotCreateQP,
+        CannotQueryPort,
+        InvalidGIDIdx,
+        InvalidIBPort,
+        InvalidArguments,
+        CannotInitQP,
+        QPRTRFailed,
+        QPRTSFailed,
+        ReadError,
+        WriteError,
+        PostFailed,
+        RecvFailed,
+    };
+    
+    class RDMA {
+    private:
+        struct ibv_context *ctx;
+        struct ibv_pd *pd;        
+        struct ibv_cq *cq;
+        struct ibv_mr *mr;
+        struct ibv_qp *qp;
+        connection_certificate local, remote;
+        int ib_port;
+        int gid_idx;        
+        std::string dev_name;
+        void *buf;
+        
+        auto post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> std::pair<RDMAStatus, int>;
+        
     public:
-        RDMACompletionQueue() = delete;
-        RDMACompletionQueue(const RDMACompletionQueue &) = delete;
-        RDMACompletionQueue &operator=(const RDMACompletionQueue &) = delete;
-        RDMACompletionQueue(RDMACompletionQueue &&other) {
-            cq = other.cq;
-            other.cq = nullptr;
-        };
-        RDMACompletionQueue &operator=(RDMACompletionQueue &&other) {
-            if (this != &other) {
-                cq = other.cq;
-                other.cq = nullptr;
-            }
-            return *this;
-        }
+        using RDMAPtr = std::unique_ptr<RDMA>;
+        static auto make_rdma(std::string &dev_name, int ib_port, int gid_idx) -> std::pair<RDMAPtr, RDMAStatus>;
 
-        RDMACompletionQueue(struct ibv_cq *cq_) : cq(cq_) {};
-        ~RDMACompletionQueue() {
-            if (cq)
-                ibv_destroy_cq(cq);
+        // never explicitly instantiated
+        RDMA() = delete;
+        RDMA(const RDMA &) = delete;
+        RDMA(RDMA &&) = delete;
+        RDMA &operator=(const RDMA &) = delete;
+        RDMA &operator=(RDMA&&) = delete;
+        RDMA(struct ibv_context *ctx_, int gid_idx_, int ib_port_) :
+            ctx(ctx_), pd(nullptr), cq(nullptr), mr(nullptr), qp(nullptr), ib_port(ib_port_), gid_idx(gid_idx_),
+            buf(nullptr) {
+            memset(&local, 0, sizeof(connection_certificate));
+            memset(&remote, 0, sizeof(connection_certificate));            
+        };
+        ~RDMA() {
+            if (qp) ibv_destroy_qp(qp);
+            if (mr) ibv_dereg_mr(mr);
+            if (cq) ibv_destroy_cq(cq);
+            if (pd) ibv_dealloc_pd(pd);
+            if (ctx) ibv_close_device(ctx);
         }
 
         // Public APIs
-        bool is_valid() const noexcept {
-            return cq != nullptr;
+        // following methods are for read-only purposes
+        inline auto get_ctx() const noexcept -> const struct ibv_context * {
+            return ctx;
         }
         
-        struct ibv_cq *get_cq_raw() noexcept {
+        inline auto get_pd() const noexcept -> const struct ibv_pd * {
+            return pd;
+        }
+        
+        inline auto get_cq() const noexcept -> const struct ibv_cq * {
             return cq;
         }
-
-        int cqe() const noexcept {
-            return cq->cqe;
-        }
-
-        int resize(int cqe) noexcept {
-            return ibv_resize_cq(cq, cqe);
-        }
         
-    private:
-        struct ibv_cq *cq;
-    };
-
-    
-    // A wrapper class over struct ibv_mr for unified behavior across all classes
-    // This class is NOT a RAII class
-    class RDMAMemoryRegion {
-    public:
-        RDMAMemoryRegion() = default;
-        RDMAMemoryRegion(const RDMAMemoryRegion &) = default;
-        RDMAMemoryRegion &operator=(const RDMAMemoryRegion &) = default;
-        RDMAMemoryRegion(RDMAMemoryRegion &&) = default;
-        RDMAMemoryRegion &operator=(RDMAMemoryRegion &&) = default;
-        
-        RDMAMemoryRegion(struct ibv_mr *mr_) : mr(mr_) {};
-        ~RDMAMemoryRegion() = default;
-
-
-        // Public APIs
-        bool is_valid() const noexcept {
-            return mr != nullptr;
-        }
-        
-        struct ibv_mr *get_mr_raw() noexcept {
+        inline auto get_mr() const noexcept -> const struct ibv_mr * {
             return mr;
         }
         
-        struct ibv_context *get_context_raw() noexcept {
-            return mr->context;
-        }
-
-        struct ibv_pd *get_pd_raw() noexcept {
-            return mr->pd;
-        }
-
-        void *get_addr_raw() noexcept {
-            return mr->addr;
-        }
-
-        size_t get_length() noexcept {
-            return mr->length;
-        }
-
-        uint32_t get_handle() noexcept {
-            return mr->handle;
-        }
-
-        uint32_t get_lkey() noexcept {
-            return mr->lkey;
-        }
-        
-        uint32_t get_rkey() noexcept {
-            return mr->rkey;
-        }
-        
-    private:
-        struct ibv_mr *mr;
-    };
-
-    struct RDMAQueuePairAttrs {
-        RDMAQueuePairAttrs() = default;
-        RDMAQueuePairAttrs(const RDMAQueuePairAttrs &) = default;
-        RDMAQueuePairAttrs(RDMAQueuePairAttrs &&) = default;
-        ~RDMAQueuePairAttrs() = default;
-
-        RDMAQueuePairAttrs(const struct ibv_qp_attr &a) {
-            memcpy(&attr, &a, sizeof(struct ibv_qp_attr));
-        }
-
-        RDMAQueuePairAttrs(const struct ibv_qp_init_attr &ia) {
-            memcpy(&attr, &ia, sizeof(struct ibv_qp_init_attr));
-        }
-
-        RDMAQueuePairAttrs(const struct ibv_qp_attr &a, const struct ibv_qp_init_attr &ia) {
-            memcpy(&attr, &a, sizeof(struct ibv_qp_attr));
-            memcpy(&init_attr, &ia, sizeof(struct ibv_qp_attr));
-        }
-
-        struct ibv_qp_attr attr;
-        struct ibv_qp_init_attr init_attr;
-    };
-
-    /* 
-     * class RDMAQueuePair
-     *
-     * A RAII class managing queue pair (not shared queue pair)
-     * 'ibv_destroy_qp' is called upon destruction
-     *
-     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
-     * This class is never explicitly instanciated, instead, a call to RDMAProtectDomain::create_qp is required
-     */
-    class RDMAQueuePair {
-    public:
-        RDMAQueuePair() = delete;
-        RDMAQueuePair(const RDMAQueuePair &) = delete;
-        RDMAQueuePair &operator=(const RDMAQueuePair &) = delete;
-        RDMAQueuePair(RDMAQueuePair &&other) {
-            qp = other.qp;
-            other.qp = nullptr;
-        };
-        RDMAQueuePair &operator =(RDMAQueuePair &&other) {
-            if (this != &other) {
-                qp = other.qp;
-                other.qp = nullptr;
-            }
-            return *this;
-        };
-
-
-        RDMAQueuePair(struct ibv_qp *in) : qp(in) {}
-        ~RDMAQueuePair() {
-            if (qp)
-                ibv_destroy_qp(qp);
-        }
-
-        // Public APIs
-        bool is_valid() const noexcept {
-            return qp != nullptr;
-        }
-
-        struct ibv_qp *get_qp_raw() noexcept {
+        inline auto get_qp() const noexcept -> const struct ibv_qp * {
             return qp;
         }
-
-        uint32_t get_qp_num() const noexcept {
-            return qp->qp_num;
+        
+        inline auto get_local() const noexcept -> const connection_certificate & {
+            return local;
+        }
+        
+        inline auto get_remote() const noexcept -> const connection_certificate & {
+            return remote;
         }
 
-        enum ibv_qp_state get_qp_state() const noexcept {
-            return qp->state;
+        inline auto get_ib_port() const noexcept -> const int & {
+            return ib_port;
         }
 
-        enum ibv_qp_type get_qp_type() const noexcept {
-            return qp->qp_type;
+        inline auto get_gid_idx() const noexcept -> const int & {
+            return gid_idx;
         }
 
-        // See man page on 'ibv_modify_qp' for detailed attribute fields
-        int modify_qp(struct ibv_qp_attr *attr, int attr_mask) noexcept {
-            return ibv_modify_qp(qp, attr, attr_mask);
+        inline auto get_dev_name() const noexcept -> const std::string & {
+            return dev_name;            
         }
 
-        int modify_qp_init(int ib_port) noexcept {
-            struct ibv_qp_attr attr;
-
-            memset(&attr, 0, sizeof(attr));
-            attr.qp_state = IBV_QPS_INIT;
-            attr.port_num = ib_port;
-            attr.pkey_index = 0;
-            attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
-                IBV_ACCESS_REMOTE_WRITE;
-            
-            int mask = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
-
-            return ibv_modify_qp(qp, &attr, mask);
+        inline auto get_buf() const noexcept -> const void * {
+            return buf;
         }
 
+        inline auto get_char_buf() const noexcept -> const char * {
+            return (char *)buf;
+        }
+        
+        
         /*
-         * For subnet RDMA communication the
-         * Only ibv_qp_attr.ah_attr.is_global is set to 0
-         * To enable cross subnet communication, use modify_qp above.
-         * @remote_qpn: remote queue pair number
-         * @dlid: remote local ID
-         * @configer: a lambda or function altering other attributes of this queue pair
-         */
-        using qp_configer_t = std::function<void(struct ibv_qp_attr &at, int &mk)>;
+          Open an initialized RDMA device made from `make_rdma`
+          @membuf: memory region to be registered
+          @memsize: memory region size
+          @cqe: completion queue capacity
+          @attr: queue pair initialization attribute.
+                 No need to fill the `send_cq` and `recv_cq` fields, they are filled automatically
+        */
+        auto open(void *membuf, size_t memsize, size_t cqe, int mr_access, struct ibv_qp_init_attr &attr) -> RDMAStatus;
 
-        // ibv_qp_attr.ah_attr.port_num is set to be the port_num of this qp
-        int modify_qp_rtr(qp_configer_t configer) {
-            struct ibv_qp_attr attr;
-            int mask = 0;
-            memset(&attr, 0, sizeof(struct ibv_qp_attr));
-            
-            configer(attr, mask);
-            return ibv_modify_qp(qp, &attr, mask);
-        }
-
-        int modify_qp_rts(qp_configer_t configer) {
-            struct ibv_qp_attr attr;
-            int mask = 0;
-            memset(&attr, 0, sizeof(struct ibv_qp_attr));
-
-            configer(attr, mask);
-            mask |= IBV_QP_STATE;
-            return ibv_modify_qp(qp, &attr, mask);
-        }
-
-        std::pair<RDMAQueuePairAttrs, int> query_qp(int attr_mask) {
-            RDMAQueuePairAttrs attrs;
-            auto ret = ibv_query_qp(qp, &attrs.attr, attr_mask, &attrs.init_attr);
-            return std::make_pair(std::move(attrs), ret);
-        }
-
-        int post_send(struct ibv_send_wr *wr, struct ibv_send_wr **bad_wr) {
-            return ibv_post_send(qp, wr, bad_wr);
-        }
-
-        int post_recv(struct ibv_recv_wr *wr, struct ibv_recv_wr **bad_wr) {
-            return ibv_post_recv(qp, wr, bad_wr);
-        }
-
-    private:
-        struct ibv_qp *qp;
-    };
-
-    
-    /* 
-     * class RDMAProtectDomain
-     *
-     * A RAII class managing protect domain
-     * 'ibv_dealloc_pd' is called upon destruction
-     *
-     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
-     * This class is never explicitly instanciated, instead, a call to RDMAContext::create_pd is required
-     */
-    class RDMAProtectDomain {
-    public:
-        RDMAProtectDomain() = delete;
-        RDMAProtectDomain(const RDMAProtectDomain &) = delete;
-        RDMAProtectDomain &operator=(const RDMAProtectDomain &) = delete;
-        RDMAProtectDomain(RDMAProtectDomain &&other) {
-            pd = other.pd;
-            other.pd = nullptr;
-        };
-        RDMAProtectDomain &operator=(RDMAProtectDomain &&other) {
-            if (this != &other) {
-                pd = other.pd;
-                other.pd = nullptr;
-            }
-            return *this;
-        };
-
-
-        RDMAProtectDomain(struct ibv_pd *in) noexcept {
-            pd = in;
-        }
-        
-        ~RDMAProtectDomain() {
-            if (pd)
-                ibv_dealloc_pd(pd);
-        }
-
-        // Public APIs
-        bool is_valid() const noexcept {
-            return pd != nullptr;
-        }
-        
-        struct ibv_pd *get_pd_raw() noexcept {
-            return pd;
-        }
-
-        struct ibv_mr *reg_mr_raw(void *addr, size_t length, int access) noexcept {
-            return ibv_reg_mr(pd, addr, length, access);
-        }
-        RDMAMemoryRegion reg_mr(void *addr, size_t length, int access) noexcept {
-            return RDMAMemoryRegion(reg_mr_raw(addr, length, access));
-        }
-
-        int rereg_mr_raw(struct ibv_mr *mr, int flags, void *addr, size_t length, int access) noexcept {
-            return ibv_rereg_mr(mr, flags, pd, addr, length, access);
-        }
-        int rereg_mr(RDMAMemoryRegion &mr, int flags, void *addr, size_t length, int access) noexcept {
-            return ibv_rereg_mr(mr.get_mr_raw(), flags, pd, addr, length, access);
-        }
-
-        int dereg_mr_raw(struct ibv_mr *mr) noexcept {
-            return ibv_dereg_mr(mr);
-        }
-        int dereg_mr(RDMAMemoryRegion &mr) noexcept {
-            return ibv_dereg_mr(mr.get_mr_raw());
-        }
-
-        struct ibv_qp *create_qp_raw(struct ibv_qp_init_attr *init_attr) noexcept {
-            return ibv_create_qp(pd, init_attr);
-        }
-
-        RDMAQueuePair create_qp(struct ibv_qp_init_attr *init_attr) noexcept {
-            return RDMAQueuePair(ibv_create_qp(pd, init_attr));
-        }
-
-        RDMAQueuePair create_qp(std::function<void(struct ibv_qp_init_attr &)> init) {
-            struct ibv_qp_init_attr attr;
-            memset(&attr, 0, sizeof(struct ibv_qp_init_attr));
-            init(attr);
-            return create_qp(&attr);
-        }
-    private:
-        struct ibv_pd *pd;
-    };
-
-    /*
-     * class RDMAContext 
-     *
-     * A RAII class manageing an opened RDMADevice. 
-     * 'ibv_close_device' is called upon destruction
-     *
-     * This class resemble std::unique_ptr, thus it is never allowed to be copied.
-     * This class is never explicitly instanciated, instead, a call to RDMADevice::open_device is required
-     */
-    class RDMAContext {
-    public:
-        RDMAContext() = delete;
-        RDMAContext(const RDMAContext &) = delete;
-        RDMAContext &operator=(const RDMAContext &) = delete;
-        RDMAContext(RDMAContext &&other) {
-            ctx = other.ctx;
-            other.ctx = nullptr;
-        };
-        RDMAContext &operator=(RDMAContext &&other) {
-            if (this != &other) {
-                ctx = other.ctx;
-                other.ctx = nullptr;
-            }
-            return *this;
-        };
-
-        
-        RDMAContext(struct ibv_context *in) {
-            ctx = in;
-        }
-
-        ~RDMAContext() {
-            if (ctx)
-                ibv_close_device(ctx);
-        };
-
-        // Public APIs
-        bool is_valid() const noexcept {
-            return ctx != nullptr;
-        }
-        
-        struct ibv_context *get_raw_context() noexcept {
+        inline auto ctx_valid() const noexcept -> bool {
             return ctx;
         }
 
-        // see man page on 'ibv_query_device' for detailed attribute fields
-        std::pair<std::unique_ptr<struct ibv_device_attr>, int> query_device() noexcept {
-            auto attr = std::make_unique<struct ibv_device_attr>();
-            auto ret = ibv_query_device(ctx, attr.get());
-            return std::make_pair(std::move(attr), ret);
+        inline auto pd_valid() const noexcept -> bool {
+            return pd;
         }
 
-        // see man page on 'ibv_query_port' for detailed attribute fields
-        std::pair<std::unique_ptr<struct ibv_port_attr>, int> query_port(uint8_t port_num) noexcept {
-            auto attr = std::make_unique<struct ibv_port_attr>();
-            auto ret = ibv_query_port(ctx, port_num, attr.get());
-            return std::make_pair(std::move(attr), ret);
+        inline auto cq_valid() const noexcept -> bool {
+            return cq;
         }
 
-        // int ibv_query_gid(struct ibv_context *, uint8_t, int, union ibv_gid *) not wrapped
-        // int ibv_query_pkey(struct ibv_context *, uint8_t, int, __be16 *pkey) not wrapped
-        
-        struct ibv_pd *alloc_pd_raw() noexcept {
-            return ibv_alloc_pd(ctx);
+        inline auto mr_valid() const noexcept -> bool {
+            return mr;
         }
 
-        int dealloc_pd_raw(struct ibv_pd *pd) noexcept {
-            return ibv_dealloc_pd(pd);
+        inline auto qp_valid() const noexcept -> bool {
+            return qp;
         }
 
-        RDMAProtectDomain create_pd() noexcept {
-            return RDMAProtectDomain(alloc_pd_raw());
+        inline auto is_opened() const noexcept -> bool {
+            return buf;
         }
 
-        struct ibv_cq *create_cq_raw(int cqe) noexcept {
-            return ibv_create_cq(ctx, cqe, nullptr, nullptr, 0);
-        }
-
-        int destroy_cq(struct ibv_cq *cq) noexcept {
-            return ibv_destroy_cq(cq);
-        }
-
-        RDMACompletionQueue create_cq(int cqe) noexcept {
-            return RDMACompletionQueue(ibv_create_cq(ctx, cqe, nullptr, nullptr, 0));
+        inline auto connectable() const noexcept -> bool {
+            return buf;
         }
         
-    private:
-        struct ibv_context *ctx;
-    };
-
-
-    /*
-     * class RDMADevice
-     *
-     * This is not a RAII class and any instance of this class should be created from a RDMADeviceList
-     * The underlying poiner is deallocated by the associated RDMADeviceList
-     * 
-     * Assigning underlying pointer to another ibv_device pointer is OK, but copying the content pointed
-     * by underlying pointer to create a 'struct ibv_device' instance is invalid. The 'struct ibv_device'
-     * instance can not be opened and 'ibv_open_device' would just fail on the instance.
-     */
-    class RDMADevice {
-    public:
-        RDMADevice() = delete;
-        ~RDMADevice() = default;
-
-        RDMADevice(struct ibv_device *in) {
-            dev = in;
-            // memcpy(&dev, in, sizeof(struct ibv_device));
-        }
-
-        RDMADevice(const RDMADevice &) = default;
-        RDMADevice(RDMADevice &&) = default;
-
-
-        // Public APIs
-        bool is_valid() const noexcept {
-            return dev != nullptr;
-        }
-
-        // The prefered way to open a ddvice,
-        // the RDMAContext will close the associated device upon destruction
-        RDMAContext open_device() {
-            return RDMAContext(open_device_raw());
-        }
-
-        struct ibv_device *get_device_raw() noexcept {
-            return dev;
-        }
-
-        std::string get_device_name() noexcept {
-            return std::string(ibv_get_device_name(dev));
-        }
-
-        __be64 get_device_guid() noexcept {
-            return ibv_get_device_guid(dev);
-        }
-
-        struct ibv_context *open_device_raw() noexcept {
-            return ibv_open_device(dev);
-        }
-
-        int close_device_raw(struct ibv_context *ctx) {
-            return ibv_close_device(ctx);
+        static auto get_default_qp_init_attr(const int ib_port = 1) -> std::unique_ptr<struct ibv_qp_attr>;
+        inline static auto get_default_qp_init_attr_mask() -> int {
+            return IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
         }
         
-    private:
-        struct ibv_device *dev;
-    };
-
-
-    /*
-     * class RDMADeviceList 
-     * 
-     * A RDMADeviceList automatically instance retrieves RDMA NIC list of the machine 
-     * It is important to point out that:
-     *   1. This class is a RAII class, the device list is deallocated if RDMADeviceList object goes out of scope
-     *   2. A RDMA device can not be opened if its associated device list is deallocated
-     *   3. A RDMA device is not supposed to be copied
-     * Thus, to correctly use this class, it is important to ensure RDMADeviceList outlive all RDMADevice 
-     * instances created by RDMADeviceList::get_device
-     */
-    class RDMADeviceList {
-    public:
-        RDMADeviceList() {
-            dev_list = ibv_get_device_list(&dev_num);
-        }
-
-        RDMADeviceList(const RDMADeviceList &) = delete;
-        RDMADeviceList(RDMADeviceList &&) = delete;
-
-        ~RDMADeviceList() {
-            ibv_free_device_list(dev_list);
-        }
-
-        // Public APIs
-        inline bool is_valid() const noexcept {
-            return dev_num != 0;
+        static auto get_default_qp_rtr_attr(const connection_certificate &remote,
+                                            const int ib_port,
+                                            const int sgid_idx) -> std::unique_ptr<struct ibv_qp_attr>;
+        static auto get_default_qp_rtr_attr_mask() -> int {
+            return IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN |
+                IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
         }
         
-        RDMADevice get_device(const std::string &dev_name) noexcept {
-            auto raw = borrow_device_raw(dev_name);
-            return RDMADevice(raw);
+        static auto get_default_qp_rts_attr() -> std::unique_ptr<struct ibv_qp_attr>;
+        static auto get_default_qp_rts_attr_mask() -> int {
+            return IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY |
+                IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC;
         }
+        
+        auto modify_qp(struct ibv_qp_attr &, int mask) noexcept -> std::pair<RDMAStatus, int>;
+        auto exchange_certificate(int sockfd) noexcept -> RDMAStatus;
 
-        struct ibv_device *borrow_device_raw(const std::string &dev_name) noexcept {
-            for (int i = 0; i < dev_num; i++) {
-                if (dev_name.compare(ibv_get_device_name(dev_list[i])) == 0) {
-                    return dev_list[i];
-                }
-            }
-            return nullptr;
-        }
-
-    private:
-        struct ibv_device **dev_list;
-        int dev_num;
+        auto post_send(uint8_t *msg, size_t msg_len) -> std::pair<RDMAStatus, int>;
+        auto post_read(size_t msg_len) -> std::pair<RDMAStatus, int>;
+        auto post_write(uint8_t *msg, size_t msg_len) -> std::pair<RDMAStatus, int>;
+        auto post_recv(size_t msg_len) -> std::pair<RDMAStatus, int>;
+        auto poll_completion() noexcept -> int;
     };
 }
-    
 #endif

@@ -85,262 +85,49 @@ bool syncop(int sockfd) {
     return true;
 }
 
-bool exchange_certificate(int sockfd, const connection_certificate *cm_out, connection_certificate *cm_in) {
-    const int normal = sizeof(connection_certificate);
-    if (write(sockfd, cm_out, normal) != normal) {
-        std::cout << ">> " << error_msg << "failed to write certificate\n";
-        return false;
+std::string decode_rdma_status(const RDMAStatus& status) {
+    switch(status){
+    case Hill::RDMAStatus::Ok:
+        return "Ok";
+    case Hill::RDMAStatus::NoRDMADeviceList:
+        return "NoRDMADeviceList";
+    case Hill::RDMAStatus::DeviceNotFound:
+        return "DeviceNotFound";
+    case Hill::RDMAStatus::NoGID:
+        return "NoGID";
+    case Hill::RDMAStatus::CannotOpenDevice:
+        return "CannotOpenDevice";
+    case Hill::RDMAStatus::CannotAllocPD:
+        return "CannotAllocPD";
+    case Hill::RDMAStatus::CannotCreateCQ:
+        return "CannotCreateCQ";
+    case Hill::RDMAStatus::CannotRegMR:
+        return "CannotRegMR";
+    case Hill::RDMAStatus::CannotCreateQP:
+        return "CannotCreateQP";
+    case Hill::RDMAStatus::CannotQueryPort:
+        return "CannotQueryPort";
+    case Hill::RDMAStatus::InvalidGIDIdx:
+        return "InvalidGIDIdx";
+    case Hill::RDMAStatus::InvalidIBPort:
+        return "InvalidIBPort";
+    case Hill::RDMAStatus::InvalidArguments:
+        return "InvalidArguments";
+    case Hill::RDMAStatus::CannotInitQP:
+        return "CannotInitQP";
+    case Hill::RDMAStatus::QPRTRFailed:
+        return "QPRTRFailed";
+    case Hill::RDMAStatus::QPRTSFailed:
+        return "QPRTSFailed";
+    case Hill::RDMAStatus::DeviceNotOpened:
+        return "DeviceNotOpened";
+    case Hill::RDMAStatus::ReadError:
+        return "ReadError";
+    case Hill::RDMAStatus::WriteError:
+        return "WriteError";
+    default:
+        return "Unknown status";
     }
-
-    if (read(sockfd, cm_in, normal) != normal) {
-        std::cout << ">> " << error_msg << "failed to read certificate\n";
-        return false;
-    }
-    return true;
-}
-
-struct RDMAGround {
-    RDMAContext ctx;
-    RDMAProtectDomain pd;
-    RDMACompletionQueue cq;
-    RDMAQueuePair qp;
-    RDMAMemoryRegion mr; // not RAII
-    uint8_t *buf;
-
-    RDMAGround(RDMAContext &&_ctx, RDMAProtectDomain &&_pd,
-               RDMAQueuePair &&_qp, RDMACompletionQueue &&_cq,
-               RDMAMemoryRegion &&_mr, uint8_t *&buf_)
-        : ctx(std::move(_ctx)),
-          pd(std::move(_pd)),
-          cq(std::move(_cq)),
-          qp(std::move(_qp)),
-          mr(std::move(_mr)),
-          buf(buf_)
-    {
-        buf_ = nullptr;
-    }
-
-    RDMAGround() = delete;
-    RDMAGround(const RDMAGround &) = delete;
-    RDMAGround &operator=(const RDMAGround &) = delete;
-    RDMAGround(RDMAGround &&other)
-        : ctx(std::move(other.ctx)),
-          pd(std::move(other.pd)),
-          cq(std::move(other.cq)),
-          qp(std::move(other.qp)),
-          mr(std::move(other.mr)),
-          buf(other.buf)
-    {
-        other.buf = nullptr;
-    }
-    RDMAGround &operator=(RDMAGround &&other) {
-        ctx = std::move(other.ctx);
-        pd = std::move(other.pd);
-        cq = std::move(other.cq);
-        qp = std::move(other.qp);
-        mr = std::move(other.mr);
-        buf = other.buf;
-        other.buf = nullptr;
-        return *this;
-    }
-    
-    ~RDMAGround() {
-        ibv_dereg_mr(mr.get_mr_raw());
-        delete[] buf;
-    };
-
-    int poll_completion() {
-        struct ibv_wc wc;
-        int ret;
-        do {
-            ret = ibv_poll_cq(cq.get_cq_raw(), 1, &wc);
-        } while (ret == 0);
-
-        return ret;
-    }
-
-    int post_send(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, const connection_certificate &remote) {
-        struct ibv_send_wr sr;
-        struct ibv_sge sge;
-        struct ibv_send_wr *bad_wr;
-
-        memcpy(buf, msg, msg_len);
-
-        memset(&sge, 0, sizeof(sge));
-        sge.addr = (uintptr_t)buf;
-        sge.length = msg_len;
-        sge.lkey = mr.get_lkey();
-
-        memset(&sr, 0, sizeof(sr));
-        sr.next = nullptr;
-        sr.wr_id = 0;
-        sr.sg_list = &sge;
-
-        sr.num_sge = 1;
-        sr.opcode = opcode;
-        sr.send_flags = IBV_SEND_SIGNALED;
-
-        if (opcode != IBV_WR_SEND) {
-            sr.wr.rdma.remote_addr = remote.addr;
-            sr.wr.rdma.rkey = remote.rkey;
-        }
-
-        return ibv_post_send(qp.get_qp_raw(), &sr, &bad_wr);
-    }
-
-    int post_receive(size_t msg_len) {
-        struct ibv_recv_wr rr;
-        struct ibv_sge sge;
-        struct ibv_recv_wr *bad_wr;
-        
-        memset(&sge, 0, sizeof(sge));
-        sge.addr = (uintptr_t)buf;
-        sge.length = msg_len;
-        sge.lkey = mr.get_lkey();
-
-        memset(&rr, 0, sizeof(rr));
-        rr.next = nullptr;
-        rr.wr_id = 0;
-        rr.sg_list = &sge;
-        rr.num_sge = 1;
-
-        return ibv_post_recv(qp.get_qp_raw(), &rr, &bad_wr);
-    }
-};
-
-RDMAGround get_ground(RDMADevice &device) {
-    // open the device to get associated context for communication
-    auto ctx =  device.open_device();
-    if (!ctx.is_valid()) {
-        std::cout << ">> " << error_msg << "can not open device " << "\n";
-        exit(-1);
-    }
-    std::cout << ">> Context created\n";
-
-    // associate a protect domain with the context
-    auto pd = ctx.create_pd();
-    if (!pd.is_valid()) {
-        std::cout << ">> " << error_msg << "can not create protect domain\n";
-        exit(-1);
-    }
-    std::cout << ">> Protect domain created\n";
-
-    // obtain a completion queue from the context
-    auto cq = ctx.create_cq(1);
-    if (!cq.is_valid()) {
-        std::cout << ">> " << error_msg << "can not create completion queue\n";
-        exit(-1);
-    }
-    std::cout << ">> Completion queue created\n";
-
-    // register memory retion in the protect domain
-    uint8_t *buf = new uint8_t[1024];
-    auto mr = pd.reg_mr(buf, 1024, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE);
-    if (!mr.is_valid()) {
-        std::cout << ">> " << error_msg << "can not register memory\n";
-    }
-    std::cout << ">> Memory region registered\n";
-
-    // initialize queue pair for the protect domain for real communication
-    // the completion queue previously obtained is associated with this queue pair
-    auto qp = pd.create_qp([&](struct ibv_qp_init_attr &attr) {
-        attr.qp_type = IBV_QPT_RC;
-        attr.sq_sig_all = 1;
-        attr.send_cq = cq.get_cq_raw();
-        attr.recv_cq = cq.get_cq_raw();
-        attr.cap.max_send_wr = 1;
-        attr.cap.max_recv_wr = 1;
-        attr.cap.max_send_sge = 1;
-        attr.cap.max_recv_sge = 1;
-    });
-    if (!qp.is_valid()) {
-        std::cout << ">>" << error_msg << "can not create queue pair\n";
-        exit(-1);
-    }
-    std::cout << ">> Queue pair created\n";
-    return RDMAGround(std::move(ctx), std::move(pd), std::move(qp), std::move(cq), std::move(mr), buf);
-}
-
-void modify_qp(RDMAGround &rdma, int ib_port, const connection_certificate &remote,
-               const connection_certificate &local, int gid_idx = -1) {
-    
-    if (rdma.qp.modify_qp_init(ib_port) != 0) {
-        std::cout << ">> " << error_msg << "failed to modify qp to init\n";
-        exit(-1);
-    }
-
-    auto ret = rdma.qp.modify_qp_rtr([&](struct ibv_qp_attr &attr, int &mk) {
-        attr.qp_state = IBV_QPS_RTR;
-        attr.path_mtu = IBV_MTU_256;
-        attr.dest_qp_num = remote.qp_num;
-        attr.rq_psn = 0;
-        attr.max_dest_rd_atomic = 1;
-        attr.min_rnr_timer = 0x12;
-
-        attr.ah_attr.is_global = 0;
-        attr.ah_attr.dlid = remote.lid;
-        attr.ah_attr.sl = 0;
-        attr.ah_attr.src_path_bits = 0;
-        attr.ah_attr.port_num = ib_port;
-        
-        if (gid_idx >= 0) {
-            attr.ah_attr.is_global = 1;
-            attr.ah_attr.port_num = 1;
-            memcpy(&attr.ah_attr.grh.dgid, remote.gid, 16);
-            attr.ah_attr.grh.flow_label = 0;
-            attr.ah_attr.grh.hop_limit = 1;
-            attr.ah_attr.grh.sgid_index = gid_idx;
-            attr.ah_attr.grh.traffic_class = 0;
-        }
-
-        mk = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN |
-            IBV_QP_RQ_PSN | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
-    });
-    
-    if (ret != 0) {
-        auto code = std::to_string(ret);
-        std::cout << ">> " << error_msg << "failed to modify qp to rtr, error code: "
-                  << ColorizedString(code, Colors::Yellow) << "\n";
-        exit(-1);
-    }
-
-    ret = rdma.qp.modify_qp_rts([&](struct ibv_qp_attr &attr, int &mask) {
-        attr.qp_state = IBV_QPS_RTS;
-        attr.timeout = 0x12; // 18
-        attr.retry_cnt = 6;
-        attr.rnr_retry = 0;
-        attr.sq_psn = 0;
-        attr.max_rd_atomic = 1;
-
-        mask = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT |
-            IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC;
-    });
-
-    if (ret != 0) {
-        auto code = std::to_string(ret);
-        std::cout << ">> " << error_msg << "failed to modify qp to rtr, error code: "
-                  << ColorizedString(code, Colors::Yellow);
-        exit(-1);
-    }    
-}
-
-RDMADevice find_device(const std::string &dev_name) {
-    auto dev_list = RDMADeviceList();
-    if (!dev_list.is_valid()) {
-        std::cout << ">> " << error_msg << "no device list created on this machine\n";
-        exit(-1);
-    }
-    std::cout << ">> Device list obtained\n";
-
-    // find target device by its name
-    // device name can be obtained using command 'ibstat'
-    auto device = dev_list.get_device(dev_name);
-    if (!device.is_valid()) {
-        std::cout << ">> " << error_msg << "no device " << dev_name << " found\n";
-        exit(-1);
-    }
-    std::cout << ">> Device obtained\n";
-    return device;
 }
 
 int main(int argc, char *argv[]) {
@@ -357,97 +144,103 @@ int main(int argc, char *argv[]) {
     bool is_server = parser.GetIsServer() == "true";
 
     const int gid_idx = 2;
-    union ibv_gid my_gid;
-    
-    // first get device list and find the target device
-    auto device = find_device(dev_name);
-    // see comments in following function
-    auto rdma = get_ground(device);
-    
-    // exchange certificate with peer
-    auto port_attr = rdma.ctx.query_port(ib_port);
-    if (port_attr.second != 0) {
-        std::cout << ">> " << error_msg << "failed to query port attritbue\n";
-        exit(-1);
+    auto [rdma, status] = RDMA::make_rdma(dev_name, ib_port, gid_idx);
+    if (!rdma) {
+        std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
+        return -1;
     }
 
-    ibv_query_gid(rdma.ctx.get_raw_context(), ib_port, gid_idx, &my_gid);
+    auto buf = new char[1024];
+    struct ibv_qp_init_attr at;
+    int mr_access = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
+    at.qp_type = IBV_QPT_RC;
+    at.sq_sig_all = 1;
+    at.cap.max_send_wr = 1;
+    at.cap.max_recv_wr = 1;
+    at.cap.max_send_sge = 1;
+    at.cap.max_recv_sge = 1;
 
-    auto sock = socket_connect(is_server, socket_port);
-    connection_certificate local, remote;
-    local.addr = htonll((uint64_t)rdma.buf);
-    local.rkey = htonl(rdma.mr.get_rkey());
-    local.qp_num = htonl(rdma.qp.get_qp_num());
-    local.lid = htons(port_attr.first->lid);
-    memcpy(local.gid, &my_gid, 16);
-
-    if (!exchange_certificate(sock, &local, &remote)) {
-        exit(-1);
+    if ((status = rdma->open(buf, 1024, 1, mr_access, at)) != RDMAStatus::Ok) {
+        std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
+        return -1;
     }
-    remote.addr = ntohll(remote.addr);
-    remote.rkey = ntohl(remote.rkey);
-    remote.qp_num = ntohl(remote.qp_num);
-    remote.lid = ntohs(remote.lid);
-    
-    local.addr = ntohll(local.addr);
-    local.rkey = ntohl(local.rkey);
-    local.qp_num = ntohl(local.qp_num);
-    local.lid = ntohs(local.lid);
-    
-    show_connection_info(local);
-    show_connection_info(remote, false);
+
+    auto init_attr = RDMA::get_default_qp_init_attr();
+    if (auto [status, err] = rdma->modify_qp(*init_attr, RDMA::get_default_qp_init_attr_mask()); status != RDMAStatus::Ok) {
+        std::cerr << "Modify QP to Init failed, error code: " << err << "\n";
+        return -1;
+    }
+
+    auto rtr_attr = RDMA::get_default_qp_rtr_attr(rdma->get_remote(), rdma->get_ib_port(), rdma->get_gid_idx());
+    if (auto [status, err] = rdma->modify_qp(*rtr_attr, RDMA::get_default_qp_rtr_attr_mask()); status != RDMAStatus::Ok) {
+        std::cerr << "Modify QP to Rtr failed, error code: " << err << "\n";
+        return -1;
+    }
+
+    auto rts_attr = RDMA::get_default_qp_rts_attr();
+    if (auto [status, err] = rdma->modify_qp(*rts_attr, RDMA::get_default_qp_rts_attr_mask()); status != RDMAStatus::Ok) {
+        std::cerr << "Modify QP to Rts failed, error code: " << err << "\n";
+        return -1;
+    }
 
 
-    modify_qp(rdma, ib_port, remote, local, gid_idx);
-    syncop(sock);
+    auto sockfd = socket_connect(is_server, socket_port);
+    if (rdma->exchange_certificate(sockfd) != RDMAStatus::Ok) {
+        std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";        
+    }
 
+    show_connection_info(rdma->get_local());
+    show_connection_info(rdma->get_remote(), false);
+
+    syncop(sockfd);
     std::cout << ">> buf before send/recv\n";
     for (size_t i = 0; i < rdma_msg.length(); i++) {
-        std::cout << rdma.buf[i];
+        std::cout << buf[i];
     }
     
     if (is_server) {
         sleep(1); // just ensure server posts send AFTER client's recv
-        rdma.post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length(), IBV_WR_SEND, remote);
+        rdma->post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length());
     } else {
-        rdma.post_receive(rdma_msg.length());
+        rdma->post_recv(rdma_msg.length());
     }
 
-    if (!rdma.poll_completion()) {
+    if (rdma->poll_completion() < 0) {
         std::cout << ">> " << error_msg << "polling failed\n";
-        exit(-1);
+        return -1;
     }
 
     std::cout << ">> buf after send/recv\n";
     for (size_t i = 0; i < rdma_msg.length(); i++) {
-        std::cout << rdma.buf[i];
+        std::cout << rdma->get_char_buf()[i];
     }
     std::cout << "\n";
     
     std::string client_msg = "This is a call from client\n";
     if (!is_server) {
-        rdma.post_send((uint8_t *)client_msg.c_str(), client_msg.length(), IBV_WR_RDMA_WRITE, remote);
-        rdma.poll_completion();
+        rdma->post_send((uint8_t *)client_msg.c_str(), client_msg.length());
+        rdma->poll_completion();
     }
-    syncop(sock);
+    
+    syncop(sockfd);
     std::cout << ">> buf after rdma write\n";
     for (size_t i = 0; i < client_msg.length(); i++) {
-        std::cout << rdma.buf[i];
+        std::cout << rdma->get_char_buf()[i];
     }
 
     if (!is_server) {
         client_msg = "This is a gift from client\n";
     } else {
         sleep(1);
-        rdma.post_send((uint8_t *)client_msg.c_str(), client_msg.length(), IBV_WR_RDMA_READ, remote);
-        rdma.poll_completion();
+        rdma->post_send((uint8_t *)client_msg.c_str(), client_msg.length());
+        rdma->poll_completion();
     }
     
     std::cout << ">> buf after rdma read\n";
     for (size_t i = 0; i < client_msg.length(); i++) {
-        std::cout << rdma.buf[i];
+        std::cout << rdma->get_char_buf()[i];
     }
     
-    close(sock);
+    close(sockfd);
     return 0;
 }
