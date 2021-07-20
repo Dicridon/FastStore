@@ -152,6 +152,7 @@ int main(int argc, char *argv[]) {
 
     auto buf = new char[1024];
     struct ibv_qp_init_attr at;
+    memset(&at, 0, sizeof(struct ibv_qp_init_attr));
     int mr_access = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
     at.qp_type = IBV_QPT_RC;
     at.sq_sig_all = 1;
@@ -164,6 +165,14 @@ int main(int argc, char *argv[]) {
         std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
         return -1;
     }
+
+    auto sockfd = socket_connect(is_server, socket_port);
+    if (rdma->exchange_certificate(sockfd) != RDMAStatus::Ok) {
+        std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";        
+    }
+
+    show_connection_info(rdma->get_local());
+    show_connection_info(rdma->get_remote(), false);
 
     auto init_attr = RDMA::get_default_qp_init_attr();
     if (auto [status, err] = rdma->modify_qp(*init_attr, RDMA::get_default_qp_init_attr_mask()); status != RDMAStatus::Ok) {
@@ -182,15 +191,7 @@ int main(int argc, char *argv[]) {
         std::cerr << "Modify QP to Rts failed, error code: " << err << "\n";
         return -1;
     }
-
-
-    auto sockfd = socket_connect(is_server, socket_port);
-    if (rdma->exchange_certificate(sockfd) != RDMAStatus::Ok) {
-        std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";        
-    }
-
-    show_connection_info(rdma->get_local());
-    show_connection_info(rdma->get_remote(), false);
+    
 
     syncop(sockfd);
     std::cout << ">> buf before send/recv\n";

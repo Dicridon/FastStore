@@ -1,39 +1,16 @@
 /*
  * rdma.hpp/cpp:
- * A bunch of wrapper classes over libibverbs C bindings. These classes include 
- * RDMADeviceList, RDMADevice, RDMAProtectDomain, RDMACompleteQueue, RDMAQueuePair, etc. 
+ *   A wrapper organizing ibv_context, ibv_pd, ibv_cq, ibv_mr, ibv_qp and some other customized data structure for a RDMA RC connection together.
  * 
- * The main purpose of these classes is for easy use of the ibverbs. The original C bindings 
- * contains too many calling rules over many seemingly irrelative functions, while the wrappers
- * explicitly exhibit the calling order of all the necessary functions:
- *
- * RDMAMemoryRegion <- RDMAProtectDomain <- RDMAContext <- RDMADevice <- RDMADeviceList
- *                             |                |
- * RDMAQueuePair <-------------|                |
- *       |                                      |
- *       | used by                              |
- * RDMACompletionQueue <------------------------|                          
- *
- * A basic illustraion of RDMA workflow:
- *   1. RDMADeviceList list
- *   2. device = list.get_device(device_name)
- *   3. context = device.open_device()
- *   4. protect_domain = context.create_pd()
- *   5. completion_queue = context.create_cq(cq_capacity)
- *   6. memory_region = protect_domain.reg_mr(memory_buffer, access_flags)
- *   7. queue_pair = protect_domain.create_qp([&](struct ibv_qp_init_attr &attr) {//modify the attr here})
- *   8. exchange queue number, lid, memory buffer address via socket or other connection
- *   9. queue_pair.modify_qp_init(ib_port)
- *   10. queue_pair.modify_qp_rtr(attr)
- *   11. queue_pair.modify_qp_rts(attr)
- *   12. queue_pair.post_send(send_ata)
- *
- * Note: 1. event based utility is not included since I'm not familiar with it
- *       2. RAII classes rely on vbers deallocation functions, but these functions do not
- *          guarantee the success of deallocation, thus resource leaks are still possible
- *       3. struct ibv_wc is not wrapped as it is close to raw data
- *       4. All attr structures are not wrapped
- * 
+ * How to use:
+ *    1. auto [rdma, status] = RDMA::make_rdma()
+ *    2. auto status = rdma->open()
+ *    3. rdma->exchange_certificate(socket)
+ *    4. rdma->modify_qp(init_attr, init_mask)
+ *    5. rdma->modify_qp(rtr_attr, rtr_mask)
+ *    6. rdma->modify_qp(rts_attr, rts_mask)
+ *    7. rdma->post_send/recv/read/write
+ *    8. rdma->poll_complection
  */
 
 
@@ -118,7 +95,7 @@ namespace Hill {
         RDMA(RDMA &&) = delete;
         RDMA &operator=(const RDMA &) = delete;
         RDMA &operator=(RDMA&&) = delete;
-        RDMA(struct ibv_context *ctx_, int gid_idx_, int ib_port_) :
+        RDMA(struct ibv_context *ctx_, int ib_port_, int gid_idx_) :
             ctx(ctx_), pd(nullptr), cq(nullptr), mr(nullptr), qp(nullptr), ib_port(ib_port_), gid_idx(gid_idx_),
             buf(nullptr) {
             memset(&local, 0, sizeof(connection_certificate));

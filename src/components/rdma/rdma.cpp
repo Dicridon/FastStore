@@ -18,7 +18,7 @@ namespace Hill {
     }
 
     auto RDMA::open(void *membuf, size_t memsize, size_t cqe, int mr_access, struct ibv_qp_init_attr &attr) -> RDMAStatus {
-        if (!membuf || !cq) {
+        if (!membuf || !cqe) {
             return RDMAStatus::InvalidArguments;
         }
 
