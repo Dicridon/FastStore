@@ -155,17 +155,19 @@ namespace Hill {
         return RDMAStatus::Ok;
     }
 
-    auto RDMA::post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> std::pair<RDMAStatus, int> {
+    auto RDMA::post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode,
+                                size_t offset) -> std::pair<RDMAStatus, int> {
         struct ibv_sge sg;
         struct ibv_send_wr sr;
         struct ibv_send_wr *bad_wr;
 
+        auto tmp = (uint8_t *)buf + offset;
         if (msg) {
-            memcpy(buf, msg, msg_len);
+            memcpy(tmp, msg, msg_len);
         }
         
         memset(&sg, 0, sizeof(sg));
-        sg.addr	  = (uintptr_t)buf;
+        sg.addr	  = (uintptr_t)tmp;
         sg.length = msg_len;
         sg.lkey	  = mr->lkey;
  
@@ -187,25 +189,26 @@ namespace Hill {
         return std::make_pair(RDMAStatus::Ok, 0);
     }
 
-    auto RDMA::post_send(uint8_t *msg, size_t msg_len) -> std::pair<RDMAStatus, int> {
-        return post_send_helper(msg, msg_len, IBV_WR_SEND);
+    auto RDMA::post_send(uint8_t *msg, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+        return post_send_helper(msg, msg_len, IBV_WR_SEND, offset);
     }
     
-    auto RDMA::post_read(size_t msg_len) -> std::pair<RDMAStatus, int> {
-        return post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ);
+    auto RDMA::post_read(size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+        return post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ, offset);
     }
     
-    auto RDMA::post_write(uint8_t *msg, size_t msg_len) -> std::pair<RDMAStatus, int> {
-        return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE);
+    auto RDMA::post_write(uint8_t *msg, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+        return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE, offset);
     }
 
-    auto RDMA::post_recv(size_t msg_len) -> std::pair<RDMAStatus, int> {
+    auto RDMA::post_recv(size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
         struct ibv_sge sg;
         struct ibv_recv_wr wr;
         struct ibv_recv_wr *bad_wr;
- 
+
+        auto tmp = (uint8_t *)buf + offset;
         memset(&sg, 0, sizeof(sg));
-        sg.addr	  = (uintptr_t)buf;
+        sg.addr	  = (uintptr_t)tmp;
         sg.length = msg_len;
         sg.lkey	  = mr->lkey;
  
@@ -230,7 +233,7 @@ namespace Hill {
         return ret;
     }
 
-    auto RDMA::fill_buf(uint8_t *msg, size_t msg_len) -> void{
-        memcpy(buf, msg, msg_len);
+    auto RDMA::fill_buf(uint8_t *msg, size_t msg_len, size_t offset) -> void{
+        memcpy((uint8_t *)buf + offset, msg, msg_len);
     }
 }

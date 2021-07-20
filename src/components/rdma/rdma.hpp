@@ -83,7 +83,7 @@ namespace Hill {
         std::string dev_name;
         void *buf;
         
-        auto post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> std::pair<RDMAStatus, int>;
+        auto post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> std::pair<RDMAStatus, int>;
         
     public:
         using RDMAPtr = std::unique_ptr<RDMA>;
@@ -220,12 +220,12 @@ namespace Hill {
         auto modify_qp(struct ibv_qp_attr &, int mask) noexcept -> std::pair<RDMAStatus, int>;
         auto exchange_certificate(int sockfd) noexcept -> RDMAStatus;
 
-        auto post_send(uint8_t *msg, size_t msg_len) -> std::pair<RDMAStatus, int>;
-        auto post_read(size_t msg_len) -> std::pair<RDMAStatus, int>;
-        auto post_write(uint8_t *msg, size_t msg_len) -> std::pair<RDMAStatus, int>;
-        auto post_recv(size_t msg_len) -> std::pair<RDMAStatus, int>;
+        auto post_send(uint8_t *msg, size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
+        auto post_read(size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
+        auto post_write(uint8_t *msg, size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
+        auto post_recv(size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
         auto poll_completion() noexcept -> int;
-        auto fill_buf(uint8_t *msg, size_t msg_len) -> void;
+        auto fill_buf(uint8_t *msg, size_t msg_len, size_t offset = 0) -> void;
     };
 }
 #endif
