@@ -4,6 +4,8 @@
 
 #include <infiniband/verbs.h>
 #include <iostream>
+#include <sstream>
+
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -13,8 +15,6 @@
 using namespace Hill;
 const ColorizedString error_msg("Error: ", Colors::Red);
 const ColorizedString warning_msg("Warning: ", Colors::Magenta);
-
-const std::string rdma_msg("Hello RDMA\n");
 
 void show_connection_info(const connection_certificate &c, bool is_local = true) {
     std::string from = is_local ? "local" : "remote";
@@ -151,6 +151,7 @@ int main(int argc, char *argv[]) {
     }
 
     auto buf = new char[1024];
+    memset(buf, 0, 1024);
     struct ibv_qp_init_attr at;
     memset(&at, 0, sizeof(struct ibv_qp_init_attr));
     int mr_access = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
@@ -194,54 +195,71 @@ int main(int argc, char *argv[]) {
     
 
     syncop(sockfd);
+    std::string rdma_msg;
+
+ 
     std::cout << ">> buf before send/recv\n";
     for (size_t i = 0; i < rdma_msg.length(); i++) {
         std::cout << buf[i];
     }
-    
-    if (is_server) {
-        sleep(1); // just ensure server posts send AFTER client's recv
-        rdma->post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length());
-    } else {
-        rdma->post_recv(rdma_msg.length());
+
+    for (int i = 0; i < 10; i++) {
+        std::ostringstream stream;
+        stream << "Hello RDMA " << i << "\n";
+        auto rdma_msg = stream.str();
+        if (is_server) {
+            sleep(1); // just ensure server posts send AFTER client's recv
+            rdma->post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length());
+        } else {
+            rdma->post_recv(rdma_msg.length());
+        }
+
+        if (rdma->poll_completion() < 0) {
+            std::cout << ">> " << error_msg << "polling failed\n";
+            return -1;
+        }
+
+        std::cout << ">> buf after send/recv\n";
+        for (size_t i = 0; i < rdma_msg.length(); i++) {
+            std::cout << rdma->get_char_buf()[i];
+        }
+        std::cout << "\n";
     }
 
-    if (rdma->poll_completion() < 0) {
-        std::cout << ">> " << error_msg << "polling failed\n";
-        return -1;
-    }
-
-    std::cout << ">> buf after send/recv\n";
-    for (size_t i = 0; i < rdma_msg.length(); i++) {
-        std::cout << rdma->get_char_buf()[i];
-    }
-    std::cout << "\n";
+    for (int i = 0; i < 10; i++) {
+        std::ostringstream stream;
+        stream << "This is a call from client: " << i;
+        auto client_msg = stream.str();
+        if (!is_server) {
+            rdma->post_write((uint8_t *)client_msg.c_str(), client_msg.length());
+            rdma->poll_completion();
+        }
     
-    std::string client_msg = "This is a call from client\n";
-    if (!is_server) {
-        rdma->post_write((uint8_t *)client_msg.c_str(), client_msg.length());
-        rdma->poll_completion();
-    }
-    
-    syncop(sockfd);
-    std::cout << ">> buf after rdma write\n";
-    for (size_t i = 0; i < client_msg.length(); i++) {
-        std::cout << rdma->get_char_buf()[i];
-    }
-
-    if (!is_server) {
-        client_msg = "This is a gift from client\n";
-        rdma->fill_buf((uint8_t *)client_msg.c_str(), client_msg.length());
         syncop(sockfd);
-    } else {
-        syncop(sockfd);
-        rdma->post_read(client_msg.length());
-        rdma->poll_completion();
+        std::cout << ">> buf after rdma write\n";
+        for (size_t i = 0; i < client_msg.length(); i++) {
+            std::cout << rdma->get_char_buf()[i];
+        }
     }
+
+    for (int i = 0; i < 10; i++) {
+        std::ostringstream stream;
+        stream << "This is a gift from client: " << i;
+        auto client_msg = stream.str();
+        
+        if (!is_server) {
+            rdma->fill_buf((uint8_t *)client_msg.c_str(), client_msg.length());
+            syncop(sockfd);
+        } else {
+            syncop(sockfd);
+            rdma->post_read(client_msg.length());
+            rdma->poll_completion();
+        }
     
-    std::cout << ">> buf after rdma read\n";
-    for (size_t i = 0; i < client_msg.length(); i++) {
-        std::cout << rdma->get_char_buf()[i];
+        std::cout << ">> buf after rdma read\n";
+        for (size_t i = 0; i < client_msg.length(); i++) {
+            std::cout << rdma->get_char_buf()[i];
+        }
     }
     
     close(sockfd);
