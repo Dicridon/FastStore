@@ -157,7 +157,7 @@ namespace Hill {
 
     auto RDMA::post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> std::pair<RDMAStatus, int> {
         struct ibv_sge sg;
-        struct ibv_send_wr wr;
+        struct ibv_send_wr sr;
         struct ibv_send_wr *bad_wr;
 
         if (msg) {
@@ -169,14 +169,19 @@ namespace Hill {
         sg.length = msg_len;
         sg.lkey	  = mr->lkey;
  
-        memset(&wr, 0, sizeof(wr));
-        wr.wr_id      = 0;
-        wr.sg_list    = &sg;
-        wr.num_sge    = 1;
-        wr.opcode     = IBV_WR_SEND;
-        wr.send_flags = IBV_SEND_SIGNALED;
+        memset(&sr, 0, sizeof(sr));
+        sr.wr_id      = 0;
+        sr.sg_list    = &sg;
+        sr.num_sge    = 1;
+        sr.opcode     = IBV_WR_SEND;
+        sr.send_flags = IBV_SEND_SIGNALED;
+
+        if (opcode != IBV_WR_SEND) {
+            sr.wr.rdma.remote_addr = remote.addr;
+            sr.wr.rdma.rkey = remote.rkey;
+        }
  
-        if (auto ret = ibv_post_send(qp, &wr, &bad_wr); ret != 0) {
+        if (auto ret = ibv_post_send(qp, &sr, &bad_wr); ret != 0) {
             return std::make_pair(RDMAStatus::PostFailed, ret);
         }
         return std::make_pair(RDMAStatus::Ok, 0);
