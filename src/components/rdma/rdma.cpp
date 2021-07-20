@@ -173,7 +173,7 @@ namespace Hill {
         sr.wr_id      = 0;
         sr.sg_list    = &sg;
         sr.num_sge    = 1;
-        sr.opcode     = IBV_WR_SEND;
+        sr.opcode     = opcode;
         sr.send_flags = IBV_SEND_SIGNALED;
 
         if (opcode != IBV_WR_SEND) {
