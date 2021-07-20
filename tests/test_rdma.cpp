@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
     
     std::string client_msg = "This is a call from client\n";
     if (!is_server) {
-        rdma->post_send((uint8_t *)client_msg.c_str(), client_msg.length());
+        rdma->post_write((uint8_t *)client_msg.c_str(), client_msg.length());
         rdma->poll_completion();
     }
     
@@ -231,9 +231,11 @@ int main(int argc, char *argv[]) {
 
     if (!is_server) {
         client_msg = "This is a gift from client\n";
+        rdma->fill_buf((uint8_t *)client_msg.c_str(), client_msg.length());
+        syncop(sockfd);
     } else {
-        sleep(1);
-        rdma->post_send((uint8_t *)client_msg.c_str(), client_msg.length());
+        syncop(sockfd);
+        rdma->post_read(client_msg.length());
         rdma->poll_completion();
     }
     

@@ -225,6 +225,7 @@ namespace Hill {
         auto post_write(uint8_t *msg, size_t msg_len) -> std::pair<RDMAStatus, int>;
         auto post_recv(size_t msg_len) -> std::pair<RDMAStatus, int>;
         auto poll_completion() noexcept -> int;
+        auto fill_buf(uint8_t *msg, size_t msg_len) -> void;
     };
 }
 #endif

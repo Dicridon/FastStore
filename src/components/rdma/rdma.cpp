@@ -229,5 +229,8 @@ namespace Hill {
 
         return ret;
     }
-    
+
+    auto RDMA::fill_buf(uint8_t *msg, size_t msg_len) -> void{
+        memcpy(buf, msg, msg_len);
+    }
 }
