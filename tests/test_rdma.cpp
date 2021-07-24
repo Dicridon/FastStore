@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
     at.cap.max_send_sge = 1;
     at.cap.max_recv_sge = 1;
 
-    if ((status = rdma->open(buf, 1024, 1, mr_access, at)) != RDMAStatus::Ok) {
+    if (auto status = rdma->open(buf, 1024, 1, mr_access, at); status != RDMAStatus::Ok) {
         std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
         return -1;
     }

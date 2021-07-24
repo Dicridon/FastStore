@@ -73,8 +73,8 @@ namespace Hill {
     }
 
     auto RDMA::get_default_qp_rtr_attr(const connection_certificate &remote,
-                                 const int ib_port = 1,
-                                 const int sgid_idx = -1) -> std::unique_ptr<struct ibv_qp_attr> {
+                                       const int ib_port = 1,
+                                       const int sgid_idx = -1) -> std::unique_ptr<struct ibv_qp_attr> {
         auto attr = std::make_unique<struct ibv_qp_attr>();
         memset(attr.get(), 0, sizeof(struct ibv_qp_attr));
         
