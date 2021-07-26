@@ -130,14 +130,15 @@ std::string decode_rdma_status(const RDMAStatus& status) {
     }
 }
 
+using namespace CmdParser;
 int main(int argc, char *argv[]) {
-    Cmdparser parser;
+    Parser parser;
     if (argc < 2) {
-        parser.Help();
+        // parser.Help();
         return -1;
     }
-    parser.Parse(argv, argv + argc);
-
+    // parser.Parse(argv, argv + argc);
+#if 0
     std::string dev_name = parser.GetDevice();
     int ib_port = std::stoi(parser.GetIbPort());
     int socket_port = std::stoi(parser.GetSocketPort());
@@ -264,4 +265,5 @@ int main(int argc, char *argv[]) {
     
     close(sockfd);
     return 0;
+#endif
 }

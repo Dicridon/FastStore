@@ -8,10 +8,12 @@
 #include <vector>
 #include <iostream>
 #include <regex>
+#include <sstream>
+#include <optional>
 
 namespace CmdParser {
     namespace CmdParserValues {
-        class BasicValue {
+        class BasicValue : public std::enable_shared_from_this<BasicValue> {
         public:
             BasicValue() = default;
             virtual ~BasicValue() = default;
@@ -23,8 +25,8 @@ namespace CmdParser {
             GenericValue() = default;
             GenericValue(const GenericValue &) = default;
             GenericValue(GenericValue &&) = default;            
-            GenericValue(const T& t) : content(t) {};
-            GenericValue(T &&t) : content(t) {};
+            GenericValue(const T& t, bool p = false) : content(t) {};
+            GenericValue(T &&t, bool p = false) : content(t) {};
             ~GenericValue() = default;
             
             auto operator=(const GenericValue<T> &) -> GenericValue<T>& = default;
@@ -38,11 +40,11 @@ namespace CmdParser {
                 return *this;                
             }
 
-            auto unwrap() -> T& {
+            auto unwrap() noexcept -> T& {
                 return content;
             }
 
-            auto unwrap_const() const -> const T& {
+            auto unwrap_const() const noexcept -> const T& {
                 return content;
             }
 
@@ -50,105 +52,13 @@ namespace CmdParser {
             T content;
         };
     }
-
-    namespace CmdParserOptions {
-        using namespace CmdParserValues;
-
-        // long_name is used as index to find an option
-        class BasicOption : public std::enable_shared_from_this<BasicOption> {
-        protected:
-            std::string full_name;
-            std::string short_name;
-            bool is_switch_;
-
-        public:
-            BasicOption() : is_switch_(false) {};
-            BasicOption(const std::string &f, const std::string s, bool is = false) : full_name(f), short_name(s), is_switch_(is) {};
-            virtual ~BasicOption() = default;
-
-            auto is_switch() const noexcept -> bool {
-                return is_switch_;
-            }
-
-            auto get_full_name() const noexcept -> const std::string & {
-                return full_name;
-            }
-
-            auto get_short_name() const noexcept -> const std::string & {
-                return short_name;
-            }
-        };
-
-        template<typename T>
-        class SingleOption : public BasicOption {
-        public:
-            SingleOption() : BasicOption() {};
-            SingleOption(const std::string &f, const std::string &s) : BasicOption(f, s) {};
-            SingleOption(const std::string &f, const std::string &s, const T& in) : BasicOption(f, s), value(in) {};
-            SingleOption(const SingleOption &) = default;
-            SingleOption(SingleOption &&) = default;
-            ~SingleOption() = default;
-            
-            auto operator=(const SingleOption<T>&) -> SingleOption<T>& = default;
-            auto operator=(SingleOption<T>&&) -> SingleOption<T>& = default;
-
-            auto operator=(const T& t) -> SingleOption<T>& {
-                value = t;
-                return *this;
-            }
-            auto operator=(T&& t) -> SingleOption<T>& {
-                value = t;
-                return *this;                
-            }
-            
-            auto get_value() -> T& {
-                return value.unwrap();
-            }
-
-            auto get_value_const() -> const T& {
-                return value.unwrap_const();
-            }
-        private:
-            GenericValue<T> value;
-        };
-
-        class SwitchOption : public BasicOption {
-        public:
-            SwitchOption() : BasicOption(), value(false) {};
-            SwitchOption(const std::string &f, const std::string &s, bool in = false) : BasicOption(f, s, true), value(in) {};
-            SwitchOption(const SwitchOption &) = default;
-            SwitchOption(SwitchOption &&) = default;            
-            ~SwitchOption() = default;
-
-            SwitchOption& operator=(const bool& t) {
-                value = t;
-                return *this;
-            }
-
-            SwitchOption& operator=(bool&& t) {
-                value = t;
-                return *this;
-            }
-
-            auto is_true() const noexcept -> bool {
-                return value.unwrap_const() == true;
-            }
-
-            auto is_false() const noexcept -> bool {
-                return value.unwrap_const() == false;
-            }
-
-        private:
-            GenericValue<bool> value;
-        };
-    }
-
+    
     class Parser {
     public:
-        using BasicOptionPtr = std::shared_ptr<CmdParserOptions::BasicOption>;
+        using BasicValuePtr = std::shared_ptr<CmdParserValues::BasicValue>;
         using OptionMap = std::unordered_map<std::string, std::string>;
         using RegexMap = std::unordered_map<std::string, std::pair<std::string, std::string>>;
-        using ParsedOptionMap = std::unordered_map<std::string, BasicOptionPtr>;
+        using ParsedOptionMap = std::unordered_map<std::string, BasicValuePtr>;
 
         Parser() = default;
         Parser(const Parser &) =default;
@@ -163,36 +73,169 @@ namespace CmdParser {
         
         auto add_switch(const std::string &full, const std::string &shrt, bool default_value) -> bool {
             auto pair = std::make_pair(full + regex_long_suffix, shrt + regex_short_suffix);
-
-            BasicOptionPtr ptr = CmdParserOptions::SwitchOption(full, shrt, default_value).shared_from_this();
-            if (auto ret = regex_map.insert({full, pair}).second; ret) {
-                return parsed_map.insert({full, ptr}).second;
+            if (!add_switch(full, shrt)) {
+                return false;
             }
-            
-            return false;
+            return plain_map.insert({full, default_value ? "true" : "false"}).second;
         }
 
         auto add_option(const std::string &full, const std::string &shrt) -> bool {
             return regex_map.insert({full, {full + regex_long_suffix, shrt + regex_short_suffix}}).second;
         }
-        
+
         template<typename T>
         auto add_option(const std::string &full, const std::string &shrt, const T& default_value) -> bool {
             auto pair = std::make_pair(full + regex_long_suffix, shrt + regex_short_suffix);
-            BasicOptionPtr ptr = CmdParserOptions::SingleOption<T>(default_value).shared_from_this();
+            if (!add_option(full, shrt)) {
+                return false;
+            }
 
-            if (auto ret = regex_map.insert({full, pair}).second; ret) {
-                return parsed_map.insert({full, ptr}).second;
+            if constexpr (std::is_floating_point_v<T>) {
+                return plain_map.insert({full, std::to_string(default_value)}).second;
+            } else {
+                std::stringstream stream;
+                stream << default_value;
+                return plain_map.insert({full, stream.str()}).second;
             }
             return false;
         }
 
         auto parse(int argc, char *argv[]) -> void {
-            
+            std::stringstream buf;
+            for (int i = 1; i < argc; i++) {
+                buf << argv[i] << " ";
+            }
+            auto str = buf.str();
+
+            for (const auto &reg : regex_map) {
+                std::regex lregex(reg.second.first);
+                std::regex sregex(reg.second.second);                
+                std::smatch match;
+                if (std::regex_search(str, match, lregex) || std::regex_search(str, match, sregex)) {
+                    if (auto ret = plain_map.find(reg.first); ret == plain_map.end()) {
+                        plain_map.insert({reg.first, match[1]});                        
+                    } else {
+                        ret->second = match[1];
+                    }
+                }
+            }
         }
+
+        template<typename Target>
+        auto parse_value(const std::string &in) -> std::optional<Target> {
+            Target holder;
+            std::stringstream buf(in);
+            buf >> holder;
+            if (buf.fail()) {
+                return {};
+            }
+            return holder;
+        }
+        
+
+        auto get_plain(const std::string &opt) const noexcept -> std::optional<std::string> {
+            if (auto ret = plain_map.find(opt); ret != plain_map.end()) {
+                return {ret->second};
+            }
+            return {};
+        }
+
+        auto get_as(const std::string &opt) -> std::optional<bool> {
+            auto maybe_parsed = parsed_map.find(opt);
+
+            // find a parsed value
+            if (maybe_parsed != parsed_map.end()) {
+                auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<bool>>(maybe_parsed->second);
+                return tmp->unwrap();
+            }                 
+
+            // not parsed, thus parse it
+            bool parsed = false;
+            if (auto plain = plain_map.find(opt); plain != plain_map.end()) {
+                std::regex false_regex("(f|F)(alse)?|0");
+                if (std::regex_match(plain->second, false_regex)) {
+                    parsed = false;
+                }
+                parsed = true;
+            } else {
+                return {};
+            }
+
+            // parsed, add this to the parsed_map
+            if (maybe_parsed == parsed_map.end()) {
+                auto value = std::make_shared<CmdParserValues::GenericValue<bool>>(parsed, true);
+                BasicValuePtr ptr = value->shared_from_this();
+                    
+                parsed_map.insert({opt, ptr});
+            } else {
+                auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<bool>>(maybe_parsed->second);
+                *tmp = parsed;
+            }
+            return parsed;
+        }
+
+
+        template<typename Target>
+        auto get_as(const std::string &opt) -> std::optional<Target> {
+            auto maybe_parsed = parsed_map.find(opt);
+
+            // find a parsed value
+            if (maybe_parsed != parsed_map.end()) {
+                auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<Target>>(maybe_parsed->second);
+                return tmp->unwrap();
+            }                 
+
+            // not parsed, thus parse it
+            Target parsed{};
+            
+            auto plain = plain_map.find(opt);
+            if (plain == plain_map.end()) {
+                // switch not supplied, check for a default value
+                if (maybe_parsed != parsed_map.end()) {
+                    auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<Target>>(maybe_parsed->second);
+                    return tmp->unwrap();
+                } else {
+                    return {};
+                }
+            }
+            
+            if (auto r = parse_value<Target>(plain->second); r.has_value()) {
+                parsed = r.value();
+            } else {
+                return {};
+            }
+
+            // parsed, add this to the parsed_map
+            if (maybe_parsed == parsed_map.end()) {
+                auto value = std::make_shared<CmdParserValues::GenericValue<Target>>(parsed, true);
+                BasicValuePtr ptr = value->shared_from_this();
+                    
+                parsed_map.insert({opt, ptr});
+            } else {
+                auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<Target>>(maybe_parsed->second);
+                *tmp = parsed;
+            }
+            return parsed;
+        }
+
+        auto dump_regex() const noexcept -> void {
+            for (const auto &p : regex_map) {
+                std::cout << ">> Option: " << p.first << "\n";
+                std::cout << "   Regex:  " << p.second.first << "\n";
+                std::cout << "   Regex:  " << p.second.second << "\n";                
+            }
+        }
+
+        auto dump_plain() const noexcept -> void {
+            for (const auto &p : plain_map) {
+                std::cout << ">> Option: " << p.first << "\n";
+                std::cout << "   Value:  " << get_plain(p.first).value() << "\n";
+            }
+        }
+        
     private:
-        const std::string regex_long_suffix = "=(\\S+)";
-        const std::string regex_short_suffix = "\\s+(\\S+)";
+        static const std::string regex_long_suffix;
+        static const std::string regex_short_suffix;
         OptionMap plain_map;
         RegexMap regex_map;
         ParsedOptionMap parsed_map;
