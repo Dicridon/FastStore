@@ -164,15 +164,10 @@ namespace CmdParser {
             }
 
             // parsed, add this to the parsed_map
-            if (maybe_parsed == parsed_map.end()) {
-                auto value = std::make_shared<CmdParserValues::GenericValue<bool>>(parsed);
-                BasicValuePtr ptr = value->shared_from_this();
+            auto value = std::make_shared<CmdParserValues::GenericValue<bool>>(parsed);
+            BasicValuePtr ptr = value->shared_from_this();
+            parsed_map.insert({opt, ptr});
 
-                parsed_map.insert({opt, ptr});
-            } else {
-                auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<bool>>(maybe_parsed->second);
-                *tmp = parsed;
-            }
             return parsed;
         }
 
@@ -188,40 +183,35 @@ namespace CmdParser {
                 return tmp->unwrap();
             }
 
-            // not parsed, thus parse it
-            Target parsed{};
-
             auto plain = plain_map.find(opt);
             if (plain == plain_map.end()) {
-                // switch not supplied, check for a default value
-                if (maybe_parsed != parsed_map.end()) {
-                    auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<Target>>(maybe_parsed->second);
-                    return tmp->unwrap();
-                } else {
-                    return {};
-                }
-            }
-
-            if (auto r = parse_value<Target>(plain->second); r.has_value()) {
-                parsed = r.value();
-            } else {
+                // switch not supplied
                 return {};
             }
 
-            // parsed, add this to the parsed_map
-            if (maybe_parsed == parsed_map.end()) {
+            if (auto r = parse_value<Target>(plain->second); r.has_value()) {
+                auto parsed = r.value();
                 auto value = std::make_shared<CmdParserValues::GenericValue<Target>>(parsed);
                 BasicValuePtr ptr = value->shared_from_this();
-
                 parsed_map.insert({opt, ptr});
+                return parsed;
             } else {
-                auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<Target>>(maybe_parsed->second);
-                *tmp = parsed;
+                return {};
             }
-            return parsed;
         }
 
-        
+        template<typename Target>
+        auto get_as(const std::string &opt,
+                    std::function<std::optional<Target>(const std::string &s)> convertor) -> std::optional<Target> {
+
+            auto plain = plain_map.find(opt);
+            if (plain == plain_map.end()) {
+                // switch not supplied
+                return {};
+            }
+            
+            return convertor(plain->second);
+        }
 
         auto dump_regex() const noexcept -> void {
             for (const auto &p : regex_map) {
