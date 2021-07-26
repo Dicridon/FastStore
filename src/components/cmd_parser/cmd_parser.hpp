@@ -24,11 +24,11 @@ namespace CmdParser {
         public:
             GenericValue() = default;
             GenericValue(const GenericValue &) = default;
-            GenericValue(GenericValue &&) = default;            
-            GenericValue(const T& t, bool p = false) : content(t) {};
-            GenericValue(T &&t, bool p = false) : content(t) {};
+            GenericValue(GenericValue &&) = default;
+            GenericValue(const T& t) : content(t) {};
+            GenericValue(T &&t) : content(t) {};
             ~GenericValue() = default;
-            
+
             auto operator=(const GenericValue<T> &) -> GenericValue<T>& = default;
             auto operator=(GenericValue<T>&&) -> GenericValue<T>& = default;
             auto operator=(const T& t) -> GenericValue<T>& {
@@ -37,7 +37,7 @@ namespace CmdParser {
             }
             auto operator=(T&& t) -> GenericValue<T>& {
                 content = t;
-                return *this;                
+                return *this;
             }
 
             auto unwrap() noexcept -> T& {
@@ -52,7 +52,7 @@ namespace CmdParser {
             T content;
         };
     }
-    
+
     class Parser {
     public:
         using BasicValuePtr = std::shared_ptr<CmdParserValues::BasicValue>;
@@ -70,7 +70,7 @@ namespace CmdParser {
         auto add_switch(const std::string &full, const std::string &shrt) -> bool {
             return regex_map.insert({full, {full + regex_long_suffix, shrt + regex_short_suffix}}).second;
         }
-        
+
         auto add_switch(const std::string &full, const std::string &shrt, bool default_value) -> bool {
             auto pair = std::make_pair(full + regex_long_suffix, shrt + regex_short_suffix);
             if (!add_switch(full, shrt)) {
@@ -109,11 +109,11 @@ namespace CmdParser {
 
             for (const auto &reg : regex_map) {
                 std::regex lregex(reg.second.first);
-                std::regex sregex(reg.second.second);                
+                std::regex sregex(reg.second.second);
                 std::smatch match;
                 if (std::regex_search(str, match, lregex) || std::regex_search(str, match, sregex)) {
                     if (auto ret = plain_map.find(reg.first); ret == plain_map.end()) {
-                        plain_map.insert({reg.first, match[1]});                        
+                        plain_map.insert({reg.first, match[1]});
                     } else {
                         ret->second = match[1];
                     }
@@ -131,7 +131,7 @@ namespace CmdParser {
             }
             return holder;
         }
-        
+
 
         auto get_plain(const std::string &opt) const noexcept -> std::optional<std::string> {
             if (auto ret = plain_map.find(opt); ret != plain_map.end()) {
@@ -147,7 +147,7 @@ namespace CmdParser {
             if (maybe_parsed != parsed_map.end()) {
                 auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<bool>>(maybe_parsed->second);
                 return tmp->unwrap();
-            }                 
+            }
 
             // not parsed, thus parse it
             bool parsed = false;
@@ -163,9 +163,9 @@ namespace CmdParser {
 
             // parsed, add this to the parsed_map
             if (maybe_parsed == parsed_map.end()) {
-                auto value = std::make_shared<CmdParserValues::GenericValue<bool>>(parsed, true);
+                auto value = std::make_shared<CmdParserValues::GenericValue<bool>>(parsed);
                 BasicValuePtr ptr = value->shared_from_this();
-                    
+
                 parsed_map.insert({opt, ptr});
             } else {
                 auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<bool>>(maybe_parsed->second);
@@ -183,11 +183,11 @@ namespace CmdParser {
             if (maybe_parsed != parsed_map.end()) {
                 auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<Target>>(maybe_parsed->second);
                 return tmp->unwrap();
-            }                 
+            }
 
             // not parsed, thus parse it
             Target parsed{};
-            
+
             auto plain = plain_map.find(opt);
             if (plain == plain_map.end()) {
                 // switch not supplied, check for a default value
@@ -198,7 +198,7 @@ namespace CmdParser {
                     return {};
                 }
             }
-            
+
             if (auto r = parse_value<Target>(plain->second); r.has_value()) {
                 parsed = r.value();
             } else {
@@ -207,9 +207,9 @@ namespace CmdParser {
 
             // parsed, add this to the parsed_map
             if (maybe_parsed == parsed_map.end()) {
-                auto value = std::make_shared<CmdParserValues::GenericValue<Target>>(parsed, true);
+                auto value = std::make_shared<CmdParserValues::GenericValue<Target>>(parsed);
                 BasicValuePtr ptr = value->shared_from_this();
-                    
+
                 parsed_map.insert({opt, ptr});
             } else {
                 auto tmp = std::dynamic_pointer_cast<CmdParserValues::GenericValue<Target>>(maybe_parsed->second);
@@ -222,7 +222,7 @@ namespace CmdParser {
             for (const auto &p : regex_map) {
                 std::cout << ">> Option: " << p.first << "\n";
                 std::cout << "   Regex:  " << p.second.first << "\n";
-                std::cout << "   Regex:  " << p.second.second << "\n";                
+                std::cout << "   Regex:  " << p.second.second << "\n";
             }
         }
 
@@ -232,7 +232,7 @@ namespace CmdParser {
                 std::cout << "   Value:  " << get_plain(p.first).value() << "\n";
             }
         }
-        
+
     private:
         static const std::string regex_long_suffix;
         static const std::string regex_short_suffix;
