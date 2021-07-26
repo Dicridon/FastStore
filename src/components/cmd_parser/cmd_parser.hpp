@@ -140,6 +140,8 @@ namespace CmdParser {
             return {};
         }
 
+        template<typename T,
+                 typename = typename std::enable_if_t<std::is_same_v<T, bool>>>
         auto get_as(const std::string &opt) -> std::optional<bool> {
             auto maybe_parsed = parsed_map.find(opt);
 
@@ -150,13 +152,13 @@ namespace CmdParser {
             }
 
             // not parsed, thus parse it
-            bool parsed = false;
+            bool parsed = true;
             if (auto plain = plain_map.find(opt); plain != plain_map.end()) {
                 std::regex false_regex("(f|F)(alse)?|0");
                 if (std::regex_match(plain->second, false_regex)) {
+                    std::cout << ">> matched\n";
                     parsed = false;
                 }
-                parsed = true;
             } else {
                 return {};
             }
@@ -175,7 +177,8 @@ namespace CmdParser {
         }
 
 
-        template<typename Target>
+        template<typename Target,
+                 typename = typename std::enable_if_t<!std::is_same_v<Target, bool>>>
         auto get_as(const std::string &opt) -> std::optional<Target> {
             auto maybe_parsed = parsed_map.find(opt);
 
@@ -217,6 +220,8 @@ namespace CmdParser {
             }
             return parsed;
         }
+
+        
 
         auto dump_regex() const noexcept -> void {
             for (const auto &p : regex_map) {
