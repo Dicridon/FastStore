@@ -161,13 +161,12 @@ namespace Hill {
         struct ibv_send_wr sr;
         struct ibv_send_wr *bad_wr;
 
-        auto tmp = (uint8_t *)buf + offset;
         if (msg) {
-            memcpy(tmp, msg, msg_len);
+            memcpy(buf, msg, msg_len);
         }
         
         memset(&sg, 0, sizeof(sg));
-        sg.addr	  = (uintptr_t)tmp;
+        sg.addr	  = (uintptr_t)buf;
         sg.length = msg_len;
         sg.lkey	  = mr->lkey;
  
@@ -179,7 +178,7 @@ namespace Hill {
         sr.send_flags = IBV_SEND_SIGNALED;
 
         if (opcode != IBV_WR_SEND) {
-            sr.wr.rdma.remote_addr = remote.addr;
+            sr.wr.rdma.remote_addr = remote.addr + offset;
             sr.wr.rdma.rkey = remote.rkey;
         }
  
