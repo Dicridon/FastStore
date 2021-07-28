@@ -133,18 +133,20 @@ std::string decode_rdma_status(const RDMAStatus& status) {
 using namespace CmdParser;
 int main(int argc, char *argv[]) {
     Parser parser;
-    if (argc < 2) {
-        // parser.Help();
-        return -1;
-    }
-    // parser.Parse(argv, argv + argc);
-#if 0
-    std::string dev_name = parser.GetDevice();
-    int ib_port = std::stoi(parser.GetIbPort());
-    int socket_port = std::stoi(parser.GetSocketPort());
-    bool is_server = parser.GetIsServer() == "true";
 
-    const int gid_idx = 2;
+    parser.add_option<std::string>("--device", "-d", "mlx5_1");
+    parser.add_option<int>("--ib_port", "-p", 1);
+    parser.add_option<int>("--socket_port", "-P", 2333);
+    parser.add_option<int>("--gid_idx", "-g", 2);
+    parser.add_switch("--is_server", "-s", true);
+    parser.parse(argc, argv);
+    // parser.Parse(argv, argv + argc);
+    auto dev_name = parser.get_as<std::string>("--device").value();
+    auto ib_port = parser.get_as<int>("--ib_port").value();
+    auto socket_port = parser.get_as<int>("--socket_port").value();
+    auto gid_idx = parser.get_as<int>("--gid_idx").value();    
+    auto is_server = parser.get_as<bool>("--is_server").value();
+    
     auto [rdma, status] = RDMA::make_rdma(dev_name, ib_port, gid_idx);
     if (!rdma) {
         std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
@@ -265,5 +267,4 @@ int main(int argc, char *argv[]) {
     
     close(sockfd);
     return 0;
-#endif
 }
