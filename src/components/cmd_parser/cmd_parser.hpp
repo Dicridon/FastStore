@@ -71,6 +71,11 @@ namespace CmdParser {
             return regex_map.insert({full, {full + regex_long_suffix, shrt + regex_short_suffix}}).second;
         }
 
+        auto more_switch(const std::string &full, const std::string &shrt) -> Parser & {
+            add_switch(full, shrt);
+            return *this;
+        }
+
         auto add_switch(const std::string &full, const std::string &shrt, bool default_value) -> bool {
             auto pair = std::make_pair(full + regex_long_suffix, shrt + regex_short_suffix);
             if (!add_switch(full, shrt)) {
@@ -79,8 +84,18 @@ namespace CmdParser {
             return plain_map.insert({full, default_value ? "true" : "false"}).second;
         }
 
+        auto more_switch(const std::string &full, const std::string &shrt, bool default_value) -> Parser & {
+            add_switch(full, shrt, default_value);
+            return *this;
+        }
+
         auto add_option(const std::string &full, const std::string &shrt) -> bool {
             return regex_map.insert({full, {full + regex_long_suffix, shrt + regex_short_suffix}}).second;
+        }
+
+        auto more_option(const std::string &full, const std::string &shrt) -> Parser & {
+            add_option(full, shrt);
+            return *this;
         }
 
         template<typename T>
@@ -99,6 +114,13 @@ namespace CmdParser {
             }
             return false;
         }
+
+        template<typename T>
+        auto more_option(const std::string &full, const std::string &shrt, const T& default_value) -> Parser & {
+            add_option<T>(full, shrt, default_value);
+            return *this;
+        }
+        
 
         auto parse(int argc, char *argv[]) -> void {
             std::stringstream buf;
