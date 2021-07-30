@@ -2,6 +2,8 @@
 
 namespace Hill {
     namespace Memory {
+        
+        
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
             auto available = page_size - header.cursor;
             if (available < size)

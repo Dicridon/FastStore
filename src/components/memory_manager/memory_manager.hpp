@@ -11,6 +11,11 @@ namespace Hill {
     // Specialized memory manager for KV
     // For durability, use this with a WAL
     namespace Memory {
+        inline void mfence(void) {
+            asm volatile("mfence":::"memory");
+        }
+
+        
         /*
          * A Page(16KB) is the basic memory alloction granularity, more 
          * fine grained allocation is performed within each page in each
@@ -94,6 +99,21 @@ namespace Hill {
             Page *next;
         };
 
+        namespace Constants {
+            static const Page * pTHREAD_LIST_AVAILABLE = nullptr;
+            static const int iTHREAD_LIST_NUM = 64;            
+            static const uint64_t iALLOCATOR_MAGIC = 0xabcddcbaUL;
+
+        }
+
+        namespace Enums {
+            enum class AllocatorRecoveryStatus {
+                Ok,
+                Corrupted,
+                NoAllocator,
+            };
+        }
+
         /*
          * Given a continuous memory region, this calss manages it at 16KB granularity
          * 
@@ -104,10 +124,19 @@ namespace Hill {
          */
         class Allocator {
         private:
+            static const Page *AVAILABLE;
             struct AllocatorHeader {
+                uint64_t magic;
                 size_t total_size;
-                Page *freelist;
+                Page *freelist;              // only for page reuse
                 Page *cursor;
+                Page *thread_free_lists[Constants::iTHREAD_LIST_NUM]; // avoid memory leaks
+
+                // This list is purely for the convenience of unregisteration
+                // Free pages in each thread's free list is moved here upon
+                // unregisteration. If a new thread is to register, the 
+                Page *thread_pending_lists[Constants::iTHREAD_LIST_NUM];
+                Page *thread_busy_pages[Constants::iTHREAD_LIST_NUM];
             };
         public:
             Allocator() = delete;
@@ -117,16 +146,61 @@ namespace Hill {
             auto operator=(const Allocator &) -> Allocator & = delete;
             auto operator=(Allocator &&) -> Allocator & = delete;
 
-            static auto make_allocator(const byte_ptr_t &base, size_t size) -> Allocator & {
+            static auto make_allocator(const byte_ptr_t &base, size_t size) -> Allocator * {
                 auto allocator = reinterpret_cast<Allocator *>(base);
+                switch(allocator->recover()){
+                case Enums::AllocatorRecoveryStatus::Ok:
+                    return allocator;
+                case Enums::AllocatorRecoveryStatus::Corrupted:
+                    return nullptr;
+                case Enums::AllocatorRecoveryStatus::NoAllocator:
+                    [[fallthrough]];
+                default:
+                    break;
+                }
+                
+                allocator->header.magic = Constants::iALLOCATOR_MAGIC;
                 allocator->header.total_size = size;
-
-                // only for page reuse
                 allocator->header.freelist = nullptr;
                 allocator->header.cursor = reinterpret_cast<Page *>(base + sizeof(AllocatorHeader));
-                return *allocator;
+
+                for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
+                    allocator->header.thread_free_lists[i] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
+                    allocator->header.thread_pending_lists[i] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
+                    allocator->header.thread_busy_pages[i] = nullptr;
+                }
+                return allocator;
             }
 
+            auto register_thread() noexcept -> std::optional<int> {
+                for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
+                    if (header.thread_free_lists[i] == Constants::pTHREAD_LIST_AVAILABLE) {
+                        return i;
+                    }
+                }
+                return {};
+            }
+
+            auto unregister_thread(int id) noexcept -> void {
+                if (id < 0 || id > Constants::iTHREAD_LIST_NUM) {
+                    return;
+                }
+
+                header.thread_pending_lists[id] = header.thread_busy_pages[id];
+                header.thread_busy_pages[id] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
+            }
+
+            auto allocate(size_t size, byte_ptr_t &ptr) -> byte_ptr_t {
+                
+            }
+
+            auto free(byte_ptr_t &ptr) -> void {
+
+            }
+
+            auto recover() -> Enums::AllocatorRecoveryStatus {
+                
+            }
         private:
             AllocatorHeader header;
         };
