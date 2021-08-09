@@ -10,7 +10,8 @@
             "W": "-Wall"
         },
         "link": {
-            "rdma": "-libverbs"
+            "rdma": "-libverbs",
+            "pmem": "-lpmem"
         }
     }
 }

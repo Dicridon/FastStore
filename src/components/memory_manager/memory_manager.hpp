@@ -2,6 +2,7 @@
 #define __HILL__MEMORY_MANAGER__MEMORY_MANAGER__
 #include <optional>
 #include <cstring>
+#include <mutex>
 
 #define PMEM
 #ifdef PMEM
@@ -11,13 +12,16 @@ namespace Hill {
     // Specialized memory manager for KV
     // For durability, use this with a WAL
     namespace Memory {
+        static std::mutex global_lock;
+        
         struct Page;
         namespace Constants {
-            static constexpr size_t uPAGE_SIZE = 16 * 1024;
-            static constexpr uint64_t uPAGE_MASK = 0xffffc000UL;
+            static constexpr size_t uPAGE_SIZE = 16 * 1024UL;
+            static constexpr uint64_t uPAGE_MASK = 0xffffffffffffc000UL;
             static constexpr Page * pTHREAD_LIST_AVAILABLE = nullptr;
             static constexpr int iTHREAD_LIST_NUM = 64;            
-            static constexpr uint64_t iALLOCATOR_MAGIC = 0xabcddcbaUL;
+            static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
+            static constexpr size_t uPREALLOCATION = 1;
         }
 
         namespace Enums {
@@ -86,11 +90,11 @@ namespace Hill {
             auto operator=(const Page &) -> Page & = delete;
             auto operator=(Page &&) -> Page & = delete;
 
-            static auto make_page(const byte_ptr_t &in) -> Page & {
+            static auto make_page(const byte_ptr_t &in, Page *n = nullptr) -> Page & {
                 auto page_ptr = reinterpret_cast<Page *>(in);
                 page_ptr->header.records = 0;
                 page_ptr->header.cursor = sizeof(PageHeader); // offsetting the header;
-                page_ptr->next = 0;
+                page_ptr->next = n;
                 void(page_ptr->_content); // silent the warnings
                 return *page_ptr;
             }
@@ -102,7 +106,14 @@ namespace Hill {
                 return header.records == 0;
             }
 
-            inline auto link_next(Page *p) -> void {
+            inline auto reset_cursor() noexcept -> void {
+                header.cursor = sizeof(PageHeader);
+#ifdef PMEM
+                pmem_persist(&header, sizeof(PageHeader));
+#endif
+            }
+
+            inline auto link_next(Page *p) noexcept -> void {
                 next = p;
 #ifdef PMEM
                 pmem_persist(&next, sizeof(Page *));
@@ -110,7 +121,7 @@ namespace Hill {
             }
 
             PageHeader header;
-            uint64_t _content[Constants::uPAGE_SIZE - sizeof(PageHeader)];
+            byte_t _content[Constants::uPAGE_SIZE - sizeof(PageHeader) - sizeof(Page *)];
             Page *next;
         };
 
@@ -136,7 +147,7 @@ namespace Hill {
                 // Free pages in each thread's free list is moved here upon
                 // unregisteration. If a new thread is to register, the move
                 // it back
-                Page *thread_pending_lists[Constants::iTHREAD_LIST_NUM];
+                Page *thread_pending_pages[Constants::iTHREAD_LIST_NUM];
 
                 // This list is used to prevent page leak during a free
                 Page *to_be_freed[Constants::iTHREAD_LIST_NUM];
@@ -152,6 +163,7 @@ namespace Hill {
 
             static auto make_allocator(byte_ptr_t &base, size_t size) -> Allocator * {
                 auto allocator = reinterpret_cast<Allocator *>(base);
+                
                 switch(allocator->recover()){
                 case Enums::AllocatorRecoveryStatus::Ok:
                     return allocator;
@@ -163,7 +175,7 @@ namespace Hill {
                     break;
                 }
                 
-                allocator->header.magic = Constants::iALLOCATOR_MAGIC;
+                allocator->header.magic = Constants::uALLOCATOR_MAGIC;
                 allocator->header.total_size = size;
                 allocator->header.freelist = nullptr;
 
@@ -173,7 +185,7 @@ namespace Hill {
 
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                     allocator->header.thread_free_lists[i] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
-                    allocator->header.thread_pending_lists[i] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
+                    allocator->header.thread_pending_pages[i] = nullptr;
                     allocator->header.thread_busy_pages[i] = nullptr;
                     allocator->header.to_be_freed[i] = nullptr;
                 }
@@ -195,7 +207,7 @@ namespace Hill {
                     // on-going allocation is detected
                     if (header.thread_free_lists[i] == header.freelist) {
                         auto end = header.freelist;
-                        for (int i = 0; i < 10; i++) {
+                        for (size_t i = 0; i < Constants::uPREALLOCATION; i++) {
                             if (end) {
                                 end = end->next;
                             }
@@ -220,7 +232,7 @@ namespace Hill {
             auto recover_global_heap() -> void {
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                     if (header.thread_free_lists[i] == header.cursor) {
-                        header.cursor += 10;
+                        header.cursor += Constants::uPREALLOCATION;
                     }
                 }
             }
@@ -228,10 +240,11 @@ namespace Hill {
             auto recover_pending_list() -> void {
                 // on-going unregisteration
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
-                    if (header.thread_pending_lists[i] == header.thread_busy_pages[i]) {
+                    if (header.thread_pending_pages[i] == header.thread_busy_pages[i]) {
                         header.thread_busy_pages[i]->next = header.thread_free_lists[i];
                         header.thread_free_lists[i] = header.thread_busy_pages[i];
                         header.thread_busy_pages[i] = nullptr;
+                        header.thread_pending_pages[i] = nullptr;
                     }
                 }
             }
