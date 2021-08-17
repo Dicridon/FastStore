@@ -10,23 +10,24 @@ int main() {
     auto space = new byte_t[total];
 
     auto allocator = Allocator::make_allocator(space, total);
+    if (!allocator) {
+        std::cout << "Allocation created failed\n";
+        return -1;
+    }
+    
     auto _id = allocator->register_thread();
-    if (_id.has_value()) {
-        auto id = _id.value();
-        
-        byte_ptr_t ptr = nullptr;
-        allocator->allocate(id, Constants::uPAGE_SIZE - 1024, ptr);
-        allocator->unregister_thread(id);
-    } else {
-        std::cout << "registeration failed\n";
+    if (!_id.has_value()) {
+        std::cout << "Unable to register thread\n";
+        return -1;
     }
 
-    _id = allocator->register_thread();
+    byte_ptr_t ptr = nullptr;
+    std::string data("This is some data\n");
+    allocator->allocate(_id.value(), Constants::uPAGE_SIZE - 128, ptr);
+    allocator->allocate(_id.value(), 64, ptr);    
+    memcpy(ptr, data.c_str(), data.size());
 
-    if (_id.has_value()) {
-        auto id = _id.value();
-        byte_ptr_t ptr = nullptr;
-        allocator->allocate(id, Constants::uPAGE_SIZE - 1024, ptr);
-        allocator->free(id, ptr);
-    }
+    char buf[128];
+    memcpy(buf, ptr, data.size());
+    allocator->free(_id.value(), ptr);
 }

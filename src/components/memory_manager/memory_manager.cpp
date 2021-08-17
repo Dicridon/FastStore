@@ -3,29 +3,31 @@
 namespace Hill {
     namespace Memory {
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
-            auto available = Constants::uPAGE_SIZE - header.cursor;
-            if (available < size)
+            auto unavailable = header.header_cursor + sizeof(RecordHeader) > header.record_cursor - size;
+            if (unavailable)
                 return;
 
             auto snapshot = header;
             auto tmp_ptr = reinterpret_cast<byte_ptr_t>(this);
-            ptr = tmp_ptr + snapshot.cursor;
+            ptr = tmp_ptr + snapshot.record_cursor - size;
 
-            snapshot.cursor += size;
             ++snapshot.records;
+            ++snapshot.valid;
+            snapshot.record_cursor -= size;
+            auto record_header = reinterpret_cast<RecordHeader *>(tmp_ptr + snapshot.header_cursor);
+            record_header->offset = snapshot.record_cursor;
+            snapshot.header_cursor += sizeof(RecordHeader);
 
+            // atomic write, fence required
             header = snapshot;
-#ifdef PMEM
-            pmem_persist(this, sizeof(PageHeader));
-#endif
+            Util::mfence();
         }
 
         auto Page::free(const byte_ptr_t &ptr) noexcept -> void {
-            auto page_address = reinterpret_cast<Page *>((reinterpret_cast<uint64_t>(ptr)) & 0xffffc000UL);
-            --page_address->header.records;
-#ifdef PMEM
-            pmem_persist(this, sizeof(PageHeader));
-#endif
+            auto page_address = Page::get_page(ptr);
+            // atomic write, outside fence required
+            --page_address->header.valid;
+            Util::mfence();            
         }
 
         auto Allocator::allocate(int id, size_t size, byte_ptr_t &ptr) -> void {
@@ -132,13 +134,18 @@ namespace Hill {
             if (!ptr)
                 return;
             
-            auto page = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(ptr) & Constants::uPAGE_MASK);
+            // auto page = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(ptr) & Constants::uPAGE_MASK);
+            auto page = Page::get_page(ptr);
             // on recovery, should check
             header.to_be_freed[id] = page;
             Util::mfence();
-            if (--page->header.records == 0) {
-                // dependent read/write
+            if (--page->header.valid == 0) {
                 page->reset_cursor();
+                if (header.thread_busy_pages[id] == page) {
+                    header.to_be_freed[id] = nullptr;                     
+                    return;
+                }
+                
                 page->next = header.thread_free_lists[id];
                 header.thread_free_lists[id] = page;
             }

@@ -32,6 +32,11 @@ namespace Hill {
             };
         }
 
+        namespace TypeAliases {
+            using byte_t = uint8_t;
+            using byte_ptr_t = uint8_t *;
+        }
+
         namespace Util {
             inline void mfence(void) {
                 asm volatile("mfence":::"memory");
@@ -44,7 +49,7 @@ namespace Hill {
          *
          * 0     7     15                   63
          * |--------------------------------|
-         * |  A  |  B  |         C          |
+         * |  A  |  B  |    C    |    D     |
          * |--------------------------------|
          * |                                |
          * |                                |
@@ -60,21 +65,29 @@ namespace Hill {
          * |--------------------------------|
          * |             NEXT               |
          * |--------------------------------|
-         * A: record counter: 255 at most
-         * B: reserved
-         * C: free space cursor
+         * A: number of total records (valid and invalid)
+         * B: number of total valid records
+         * C: header cursor, grows upward
+         * D: record cursor, grows downward
          * NEXT: free pages are linked as a linked list
          *
          */
-        using byte_t = uint8_t;
-        using byte_ptr_t = uint8_t *;
 
+        /* !!!NEVER INHERIT FROM ANY OTHER STRUCT OR CLASS!!! */
+        using namespace TypeAliases;
+        struct RecordHeader {
+            uint16_t offset;
+        };
+            
         struct Page {
         private:
             struct PageHeader {
+                // how many record headers a in use
                 uint64_t records : 8;
-                uint64_t _reserved: 8;
-                uint64_t cursor: 48;
+                // how many in-use record headers are valid, if 0 on free, the page should be reclaimed
+                uint64_t valid : 8;
+                uint64_t header_cursor: 24;
+                uint64_t record_cursor: 24;
 
                 auto operator=(const PageHeader &in) -> PageHeader & {
                     (*(uint64_t *)this) = (*(uint64_t *)&in);
@@ -93,10 +106,16 @@ namespace Hill {
             static auto make_page(const byte_ptr_t &in, Page *n = nullptr) -> Page & {
                 auto page_ptr = reinterpret_cast<Page *>(in);
                 page_ptr->header.records = 0;
-                page_ptr->header.cursor = sizeof(PageHeader); // offsetting the header;
+                page_ptr->header.valid = 0;
+                page_ptr->header.header_cursor = sizeof(PageHeader); // offsetting the header;
+                page_ptr->header.record_cursor = sizeof(Page) - sizeof(Page *); // offsetting the next pointer
                 page_ptr->next = n;
                 void(page_ptr->_content); // silent the warnings
                 return *page_ptr;
+            }
+
+            static auto get_page(const byte_ptr_t &ptr) -> Page * {
+                return reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(ptr) & Constants::uPAGE_MASK);                
             }
 
             auto allocate(size_t size, byte_ptr_t &ptr) noexcept -> void;
@@ -107,7 +126,8 @@ namespace Hill {
             }
 
             inline auto reset_cursor() noexcept -> void {
-                header.cursor = sizeof(PageHeader);
+                header.header_cursor = sizeof(PageHeader);
+                header.record_cursor = sizeof(Page) - sizeof(Page *);
 #ifdef PMEM
                 pmem_persist(&header, sizeof(PageHeader));
 #endif
@@ -121,17 +141,19 @@ namespace Hill {
             }
 
             PageHeader header;
-            byte_t _content[Constants::uPAGE_SIZE - sizeof(PageHeader) - sizeof(Page *)];
+            byte_t _content[Constants::uPAGE_SIZE - sizeof(PageHeader) - sizeof(Page *)]; // never used
             Page *next;
         };
 
 
         /*
+         * !!!NEVER INHERIT FROM ANY OTHER CLASSES OR STRUCTS!!!
          * Given a continuous memory region, this calss manages it at 16KB granularity
          *
          * The memory region is 16KB aligned and the first page is always reserved
          * for metadata
          */
+        
         class Allocator {
         private:
             static const Page *AVAILABLE;
@@ -194,8 +216,8 @@ namespace Hill {
 
             auto register_thread() noexcept -> std::optional<int>;
             auto unregister_thread(int id) noexcept -> void;
-            auto allocate(int id, size_t size, byte_ptr_t &ptr) -> void;
             
+            auto allocate(int id, size_t size, byte_ptr_t &ptr) -> void;
             auto free(int id, byte_ptr_t &ptr) -> void;
 
             auto recover() -> Enums::AllocatorRecoveryStatus;
