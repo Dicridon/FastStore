@@ -120,6 +120,11 @@ namespace Hill {
 
             auto allocate(size_t size, byte_ptr_t &ptr) noexcept -> void;
             auto free(const byte_ptr_t &ptr) noexcept -> void;
+
+            inline auto get_headers() noexcept -> RecordHeader * {
+                auto tmp = reinterpret_cast<byte_ptr_t>(this);
+                return reinterpret_cast<RecordHeader *>(tmp + sizeof(PageHeader));
+            }
             
             inline auto is_empty() const noexcept -> bool {
                 return header.records == 0;

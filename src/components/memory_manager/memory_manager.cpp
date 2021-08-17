@@ -14,7 +14,7 @@ namespace Hill {
             ++snapshot.records;
             ++snapshot.valid;
             snapshot.record_cursor -= size;
-            auto record_header = reinterpret_cast<RecordHeader *>(tmp_ptr + snapshot.header_cursor);
+            auto record_header = get_headers();
             record_header->offset = snapshot.record_cursor;
             snapshot.header_cursor += sizeof(RecordHeader);
 
@@ -23,11 +23,21 @@ namespace Hill {
             Util::mfence();
         }
 
+        // Delete rarely occurs, we put some heavy work in it
         auto Page::free(const byte_ptr_t &ptr) noexcept -> void {
             auto page_address = Page::get_page(ptr);
+            auto page_as_byte_ptr = reinterpret_cast<byte_ptr_t>(page_address);
+            auto headers = get_headers();
+            auto offset = ptr - page_as_byte_ptr;
+            for (size_t i = 0; i < page_address->header.records; i++) {
+                if (headers[i].offset == offset) {
+                    headers[i].offset = 0;
+                }
+            }
+            // Crash here is fine because on recovery, we scan the page
             // atomic write, outside fence required
+            Util::mfence();
             --page_address->header.valid;
-            Util::mfence();            
         }
 
         auto Allocator::allocate(int id, size_t size, byte_ptr_t &ptr) -> void {
