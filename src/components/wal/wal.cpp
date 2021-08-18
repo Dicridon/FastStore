@@ -1,18 +1,19 @@
 #include "wal.hpp"
 namespace Hill {
     namespace WAL {
-        auto LogRegion::recover(LogEntryAction action) noexcept
-            -> std::unique_ptr<std::vector<Memory::Page *>>
-        {
+        auto LogRegion::recover(LogEntryAction action) noexcept -> page_vector_ptr {
             std::unordered_set<Memory::Page *> page_set;
             auto freed_pages = std::make_unique<std::vector<Memory::Page *>>();
             for (size_t i = checkpointed; i < cursor; i++) {
                 if (entries[i].status == Enums::LogStatus::Uncommited && entries[i].address != 0) {
                     if (!action(recover_op(entries[i], page_set, freed_pages))) {
-
+                        return nullptr;
                     }
                 }
             }
+            checkpointed = 0;
+            Memory::Util::mfence();
+            cursor = 0;
             return freed_pages;
         }
 
@@ -63,6 +64,57 @@ namespace Hill {
             pmem_persist(&page_ptr->header, sizeof(page_ptr->header));
 #endif
             return {};
+        }
+
+        auto LogRegion::make_log(Enums::Ops op) noexcept ->  byte_ptr_t & {
+            entries[cursor].address = nullptr;
+            Memory::Util::mfence();
+            entries[cursor].op = op;
+            entries[cursor].status = Enums::LogStatus::Uncommited;
+            Memory::Util::mfence();
+            ++cursor;
+
+            return entries[cursor].address;
+        }
+
+        auto LogRegion::checkpoint() noexcept -> void {
+            for (size_t i = checkpointed; i < cursor; i++) {
+                entries[i].commit();
+            }
+            checkpointed = 0;
+            Memory::Util::mfence();            
+            cursor = checkpointed;
+
+#ifdef PMEM
+            // checkpointed is not forced to persist since recover just replays the checkpointing
+            pmem_persist(&cursor, sizeof(cursor));
+#endif
+        }
+
+        auto Logger::register_thread() noexcept -> std::optional<int> {
+            for (int i = 0; i < Constants::iREGION_NUM; i++) {
+                if (in_use[i] == false) {
+                    in_use[i] = true;
+                    return i;
+                }
+            }
+            return {};
+        }
+
+        auto Logger::unregister_thread(int id) noexcept -> void {
+            regions->regions[id].checkpoint();
+            in_use[id] = false;
+            counters[id] = 0;
+        }
+
+        auto Logger::make_log(int id, Enums::Ops op) noexcept -> byte_ptr_t & {
+            return regions->regions[id].make_log(op);
+        }
+        
+        auto Logger::commit(int id) noexcept -> void {
+            if (++counters[id] == Constants::uBATCH_SIZE) {
+                regions->regions[id].checkpoint();
+            }
         }
     }
 }

@@ -62,6 +62,32 @@ namespace Hill {
                 tmp->status = Enums::LogStatus::None;
                 return *tmp;
             }
+
+            inline auto get_address() noexcept -> byte_ptr_t & {
+                return address;
+            }
+
+            inline auto set_op(Enums::Ops _op) noexcept -> void {
+                op = _op;
+            }
+
+            inline auto get_op() const noexcept -> const Enums::Ops & {
+                return op;
+            }
+
+            inline auto get_status() const noexcept -> const Enums::LogStatus & {
+                return status;
+            }
+
+            inline auto commit() noexcept -> void {
+                status = Enums::LogStatus::Committed;
+            }
+
+            inline auto reset() noexcept -> void {
+                address = nullptr;
+                status = Enums::LogStatus::None;
+            }
+            
             ~LogEntry() = default;
             LogEntry(const LogEntry &) = delete;
             LogEntry(LogEntry &&) = delete;
@@ -70,8 +96,15 @@ namespace Hill {
             
         };
 
-        using LogEntryAction = std::function<bool(LogEntry &)>;
 
+        /*
+         * A LogRegion is a continuous persistent memory chunk recording operations
+         * 
+         * A thread first get a LogEntry via make_log. Then it decides if a commit
+         * is needed and call LogEntry::commit to actively commit a log. Or it can
+         * wait for a checkpointing for batch commit.
+         */
+        using LogEntryAction = std::function<bool(LogEntry &)>;
         struct LogRegion {
             size_t checkpointed;
             size_t cursor;
@@ -101,6 +134,10 @@ namespace Hill {
             using page_vector_ptr = std::unique_ptr<std::vector<Memory::Page *>>;
             auto recover(LogEntryAction log_action) noexcept -> page_vector_ptr;
 
+            // it is possible that log runs out the region, use with caution
+            auto make_log(Enums::Ops op) noexcept -> byte_ptr_t & ;
+            auto checkpoint() noexcept -> void;
+
             LogRegion() = delete;
             ~LogRegion() = default;
             LogRegion(const LogRegion &) = delete;
@@ -128,7 +165,7 @@ namespace Hill {
                 return *tmp;
             }
 
-            static auto recover_regions(const byte_ptr_t &ptr, LogEntryAction action) noexcept -> LogRegions & {
+            static auto recover_or_make_regions(const byte_ptr_t &ptr, LogEntryAction action) noexcept -> LogRegions & {
                 auto tmp = reinterpret_cast<LogRegions *>(ptr);
 
                 if (tmp->magic == Constants::uLOG_REGIONS_MAGIC) {
@@ -158,6 +195,7 @@ namespace Hill {
          * should be scanned to find the exact number of valid records. Since loggin entryies are 
          * committed in batches, there at most Constants::iREGION_NUM * Constants::uBATCH_SIZE
          * 
+         * 
          */
         class Logger {
         public:
@@ -179,7 +217,7 @@ namespace Hill {
 
             static auto recover_unique_logger(const byte_ptr_t &pm_ptr, LogEntryAction action) -> std::unique_ptr<Logger> {
                 auto out = std::make_unique<Logger>();
-                out->regions = &LogRegions::recover_regions(pm_ptr, action);
+                out->regions = &LogRegions::recover_or_make_regions(pm_ptr, action);
                 out->init_utility();
 
                 return out;
@@ -187,15 +225,16 @@ namespace Hill {
 
             static auto recover_shared_logger(const byte_ptr_t &pm_ptr, LogEntryAction action) -> std::shared_ptr<Logger> {
                 auto out = std::make_shared<Logger>();
-                out->regions = &LogRegions::recover_regions(pm_ptr, action);
+                out->regions = &LogRegions::recover_or_make_regions(pm_ptr, action);
                 out->init_utility();
                 
                 return out;
             }
             
-
             auto register_thread() noexcept -> std::optional<int>;
-            auto unregister_thread() noexcept -> void;
+            auto unregister_thread(int id) noexcept -> void;
+            auto make_log(int id, Enums::Ops op) noexcept -> byte_ptr_t &;
+            auto commit(int id) noexcept -> void;
             
             Logger() = default;
             ~Logger() = default;
@@ -211,7 +250,7 @@ namespace Hill {
 
             auto init_utility() noexcept -> void {
                 for (int i = 0; i < Constants::iREGION_NUM; i++) {
-                    in_use[i] = 0;
+                    in_use[i] = false;
                     counters[i] = 0;
                 }
             }
