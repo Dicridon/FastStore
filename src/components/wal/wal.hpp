@@ -13,7 +13,7 @@ namespace Hill {
     namespace WAL {
         namespace Constants {
             static constexpr int iREGION_NUM = Hill::Memory::Constants::iTHREAD_LIST_NUM;
-            static constexpr size_t uBATCH_SIZE = 1024UL;
+            static constexpr size_t uBATCH_SIZE = 64UL;
             static constexpr size_t uREGION_SIZE = 1024UL;
             static constexpr uint64_t uLOG_REGIONS_MAGIC = 0x1357246813572468UL;
         }

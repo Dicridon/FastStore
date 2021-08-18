@@ -9,6 +9,7 @@ using namespace Hill::Memory;
 
 int main() {
     byte_ptr_t region = new byte_t[1024 * 1024 * 64];
+
     byte_ptr_t memory = new byte_t[1024 * 1024 * 128];
     auto logger = Logger::make_unique_logger(region);
     auto alloc = Allocator::make_allocator(memory, 1024 * 1024 * 128);
