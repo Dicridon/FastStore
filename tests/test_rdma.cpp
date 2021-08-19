@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 using namespace Hill;
+using namespace Hill::RDMAUtil;
 const ColorizedString error_msg("Error: ", Colors::Red);
 const ColorizedString warning_msg("Warning: ", Colors::Magenta);
 
@@ -87,43 +88,43 @@ bool syncop(int sockfd) {
 
 std::string decode_rdma_status(const RDMAStatus& status) {
     switch(status){
-    case Hill::RDMAStatus::Ok:
+    case RDMAUtil::Enums::RDMAStatus::Ok:
         return "Ok";
-    case Hill::RDMAStatus::NoRDMADeviceList:
+    case RDMAUtil::Enums::RDMAStatus::NoRDMADeviceList:
         return "NoRDMADeviceList";
-    case Hill::RDMAStatus::DeviceNotFound:
+    case RDMAUtil::Enums::RDMAStatus::DeviceNotFound:
         return "DeviceNotFound";
-    case Hill::RDMAStatus::NoGID:
+    case RDMAUtil::Enums::RDMAStatus::NoGID:
         return "NoGID";
-    case Hill::RDMAStatus::CannotOpenDevice:
+    case RDMAUtil::Enums::RDMAStatus::CannotOpenDevice:
         return "CannotOpenDevice";
-    case Hill::RDMAStatus::CannotAllocPD:
+    case RDMAUtil::Enums::RDMAStatus::CannotAllocPD:
         return "CannotAllocPD";
-    case Hill::RDMAStatus::CannotCreateCQ:
+    case RDMAUtil::Enums::RDMAStatus::CannotCreateCQ:
         return "CannotCreateCQ";
-    case Hill::RDMAStatus::CannotRegMR:
+    case RDMAUtil::Enums::RDMAStatus::CannotRegMR:
         return "CannotRegMR";
-    case Hill::RDMAStatus::CannotCreateQP:
+    case RDMAUtil::Enums::RDMAStatus::CannotCreateQP:
         return "CannotCreateQP";
-    case Hill::RDMAStatus::CannotQueryPort:
+    case RDMAUtil::Enums::RDMAStatus::CannotQueryPort:
         return "CannotQueryPort";
-    case Hill::RDMAStatus::InvalidGIDIdx:
+    case RDMAUtil::Enums::RDMAStatus::InvalidGIDIdx:
         return "InvalidGIDIdx";
-    case Hill::RDMAStatus::InvalidIBPort:
+    case RDMAUtil::Enums::RDMAStatus::InvalidIBPort:
         return "InvalidIBPort";
-    case Hill::RDMAStatus::InvalidArguments:
+    case RDMAUtil::Enums::RDMAStatus::InvalidArguments:
         return "InvalidArguments";
-    case Hill::RDMAStatus::CannotInitQP:
+    case RDMAUtil::Enums::RDMAStatus::CannotInitQP:
         return "CannotInitQP";
-    case Hill::RDMAStatus::QPRTRFailed:
+    case RDMAUtil::Enums::RDMAStatus::QPRTRFailed:
         return "QPRTRFailed";
-    case Hill::RDMAStatus::QPRTSFailed:
+    case RDMAUtil::Enums::RDMAStatus::QPRTSFailed:
         return "QPRTSFailed";
-    case Hill::RDMAStatus::DeviceNotOpened:
+    case RDMAUtil::Enums::RDMAStatus::DeviceNotOpened:
         return "DeviceNotOpened";
-    case Hill::RDMAStatus::ReadError:
+    case RDMAUtil::Enums::RDMAStatus::ReadError:
         return "ReadError";
-    case Hill::RDMAStatus::WriteError:
+    case RDMAUtil::Enums::RDMAStatus::WriteError:
         return "WriteError";
     default:
         return "Unknown status";
@@ -199,7 +200,6 @@ int main(int argc, char *argv[]) {
 
     syncop(sockfd);
     std::string rdma_msg;
-
  
     std::cout << ">> buf before send/recv\n";
     for (size_t i = 0; i < rdma_msg.length(); i++) {

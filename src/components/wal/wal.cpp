@@ -72,13 +72,13 @@ namespace Hill {
             entries[cursor].op = op;
             entries[cursor].status = Enums::LogStatus::Uncommited;
             Memory::Util::mfence();
-            ++cursor;
 
-            return entries[cursor].address;
+            return entries[cursor++].address;
         }
 
         auto LogRegion::checkpoint() noexcept -> void {
             for (size_t i = checkpointed; i < cursor; i++) {
+                // no need to check if entry is UNCOMMITED because this is a runtime method
                 entries[i].commit();
             }
             checkpointed = 0;
@@ -115,6 +115,10 @@ namespace Hill {
             if (++counters[id] == Constants::uBATCH_SIZE) {
                 regions->regions[id].checkpoint();
             }
+        }
+
+        auto Logger::checkpoint(int id) noexcept -> void {
+            regions->regions[id].checkpoint();
         }
     }
 }

@@ -7,7 +7,6 @@
 #include <functional>
 #include <unordered_set>
 
-
 namespace Hill {
     using namespace Memory::TypeAliases;    
     namespace WAL {
@@ -53,7 +52,7 @@ namespace Hill {
             Enums::Ops op;
             Enums::LogStatus status;
 
-            LogEntry() : address(nullptr), op(Enums::Ops::Unknown),status(Enums::LogStatus::None) {};
+            explicit LogEntry() : address(nullptr), op(Enums::Ops::Unknown),status(Enums::LogStatus::None) {};
 
             static auto make_entry(const byte_ptr_t &ptr) -> LogEntry & {
                 auto tmp = reinterpret_cast<LogEntry *>(ptr);
@@ -235,8 +234,9 @@ namespace Hill {
             auto unregister_thread(int id) noexcept -> void;
             auto make_log(int id, Enums::Ops op) noexcept -> byte_ptr_t &;
             auto commit(int id) noexcept -> void;
+            auto checkpoint(int id) noexcept -> void;
             
-            Logger() = default;
+            explicit Logger() = default;
             ~Logger() = default;
             Logger(const Logger &) = delete;
             Logger(Logger &&) = delete; 
