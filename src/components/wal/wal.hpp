@@ -145,6 +145,11 @@ namespace Hill {
             auto operator=(LogRegion &&) -> LogRegion & = delete;
 
         private:
+            /*
+             * This method learns from garbage collection, but unconditionally reclaim all uncommitted
+             * memory. Contents in reclaimed memory chunk are not touched, so applications can still use
+             * the contents.
+             */
             auto recover_op(LogEntry &, std::unordered_set<Memory::Page *> &, page_vector_ptr &) noexcept -> LogEntry &;
             auto recover_page(Memory::Page *) noexcept -> std::optional<Memory::Page *>;
         };

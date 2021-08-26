@@ -19,7 +19,7 @@ namespace Hill {
             static constexpr size_t uPAGE_SIZE = 16 * 1024UL;
             static constexpr uint64_t uPAGE_MASK = 0xffffffffffffc000UL;
             static constexpr Page * pTHREAD_LIST_AVAILABLE = nullptr;
-            static constexpr int iTHREAD_LIST_NUM = 64;            
+            static constexpr int iTHREAD_LIST_NUM = 64;
             static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
             static constexpr size_t uPREALLOCATION = 1;
         }
@@ -32,6 +32,16 @@ namespace Hill {
             };
         }
 
+        /*
+         * All pointers used in Hill are natural pointers (possibly with some embeded functional bits)
+         * We do not't use offset so that memory deallocation is simplified
+         * 
+         * Considering that ASLR is enabled for security concerns, the mapped PM device is not guaranteed
+         * to be mapped to the same address upon restart. Fortunately, libpmem offsers an environment
+         * variable named PMEM_MMAP_HINT, which will disable ASLR and force libpmem to TRY to map the 
+         * device the the address specified by PMEM_MMAP_HINT. Thus I assume we can finally find an 
+         * address available for such mapping.
+         */
         namespace TypeAliases {
             using byte_t = uint8_t;
             using byte_ptr_t = uint8_t *;
@@ -88,11 +98,6 @@ namespace Hill {
                 uint64_t valid : 8;
                 uint64_t header_cursor: 24;
                 uint64_t record_cursor: 24;
-
-                auto operator=(const PageHeader &in) -> PageHeader & {
-                    (*(uint64_t *)this) = (*(uint64_t *)&in);
-                    return *this;
-                }
             };
             
         public:
@@ -156,7 +161,8 @@ namespace Hill {
          * Given a continuous memory region, this calss manages it at 16KB granularity
          *
          * The memory region is 16KB aligned and the first page is always reserved
-         * for metadata
+         * for metadata. Moreover, this class is used to manage a node's own memory
+         * for this node's own use. To manage another node's memory, use the RemoteAllocator
          */
         
         class Allocator {
