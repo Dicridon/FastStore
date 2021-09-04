@@ -13,8 +13,8 @@ namespace Hill {
         }
 
         /*
-         * This is a simple compact string implemenation
-         * The length field should be copied to the index to avoid unnecessary PM access
+         * This is a simple compact string implementation
+         * The length field should be copied to the index to avoid unnecessary PM accesses
          * 
          */
         struct HillString {
