@@ -45,6 +45,7 @@ namespace Hill {
         namespace TypeAliases {
             using byte_t = uint8_t;
             using byte_ptr_t = uint8_t *;
+            using const_byte_ptr_t = const uint8_t *;
         }
 
         namespace Util {
