@@ -167,7 +167,7 @@ namespace Hill {
             }
         
             memset(&sg, 0, sizeof(sg));
-            sg.addr	  = (uintptr_t)buf;
+            sg.addr	  = (uintptr_t)buf;                
             sg.length = msg_len;
             sg.lkey	  = mr->lkey;
  
@@ -188,7 +188,7 @@ namespace Hill {
             }
             return std::make_pair(RDMAStatus::Ok, 0);
         }
-
+        
         auto RDMA::post_send(uint8_t *msg, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
             return post_send_helper(msg, msg_len, IBV_WR_SEND, offset);
         }
@@ -196,6 +196,15 @@ namespace Hill {
         auto RDMA::post_read(size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
             return post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ, offset);
         }
+
+        auto RDMA::post_read_to(uint8_t *local, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+            auto tmp = buf;
+            buf = local;
+            auto ret = post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ, offset);
+            buf = tmp;
+            return ret;
+        }
+        
     
         auto RDMA::post_write(uint8_t *msg, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
             return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE, offset);
@@ -221,6 +230,14 @@ namespace Hill {
                 return std::make_pair(RDMAStatus::RecvFailed, ret);
             }
             return std::make_pair(RDMAStatus::Ok, 0);
+        }
+
+        auto RDMA::post_recv_to(uint8_t *local, size_t msg_len) -> std::pair<RDMAStatus, int> {
+            auto tmp = buf;
+            buf = local;
+            auto ret = post_recv(msg_len);
+            buf = tmp;
+            return ret;
         }
 
         auto RDMA::poll_completion() noexcept -> int {
