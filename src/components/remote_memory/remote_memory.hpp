@@ -3,12 +3,15 @@
 
 #include "memory_manager/memory_manager.hpp"
 #include "rdma/rdma.hpp"
+#include "misc/misc.hpp"
 namespace Hill {
     namespace Memory {
         namespace Constants {
             static constexpr uint64_t uREMOTE_POINTER_MASK = ~0xffff000000000000UL;
             static constexpr uint64_t uREMOTE_POINTER_BITS_MASK = 0xc000000000000000UL;
             static constexpr uint64_t uREMOTE_POINTER_BITS = 0x2UL;
+            static constexpr uint64_t uREMOTE_REGIONS = 32;
+            static constexpr uint64_t uREMOTE_REGION_SIZE = 1UL << 30;
         }
 
         namespace Enums {
@@ -58,6 +61,8 @@ namespace Hill {
             }
             
             RemotePointer() = default;
+            RemotePointer(std::nullptr_t nu) : ptr(nu) {};
+            
             ~RemotePointer() = default;
             RemotePointer(const RemotePointer &) = default;
             RemotePointer(RemotePointer &&) = default;
@@ -166,12 +171,62 @@ namespace Hill {
 
         using namespace RDMAUtil;
         /*
+         * !!! NEVER INHERIT FROM ANY OTHER CLASSES OR STRUCTS
+         * This class is not thread-safe, intending for thread-local use only
+         */
+        class RemoteAllocator {
+            RemoteAllocator() : base(nullptr) {
+                *reinterpret_cast<uint64_t *>(&meta) = 0UL;
+            };
+            RemoteAllocator(const RemotePointer &) = delete;
+            RemoteAllocator(RemotePointer &&) = delete;
+            auto operator=(const RemotePointer &) -> RemoteAllocator & = delete;
+            auto operator=(RemoteAllocator &&) -> RemoteAllocator & = delete;
+
+            inline auto set_base(const RemotePointer &remote) noexcept -> void {
+                base = remote;
+            }
+            
+            auto allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
+                if (meta.counter + size >= Constants::uREMOTE_REGION_SIZE) {
+                    ptr = nullptr;
+                }
+
+                ptr = base.raw_ptr() + meta.counter;
+                auto snap = meta;
+                ++snap.counter;
+                snap.cursor += size;
+                meta = snap;
+            }
+
+            auto free(const byte_ptr_t &ptr) noexcept -> void {
+                UNUSED(ptr);
+                --meta.counter;
+            }
+
+            inline auto is_empty() const noexcept -> bool {
+                return meta.counter == 0;
+            }
+            
+        private:
+            RemotePointer base;
+            // for persistent atomicity
+            struct {
+                // No. of current objects                
+                uint64_t counter : 32;
+                // Offset within this region => Regions size should not exceed 4GB
+                uint64_t cursor : 32;
+            } meta;
+        };
+        /*
          * My purpose of writing this class is for accessing remote PM. So I will always assume
          * RDMA connections exposing PM on other nodes are recorded here
          */
-        class RemoteAllocator {
-        private:
+        class RemoteMemoryAgent {
+        public:
             
+        private:
+            RemoteAllocator allocators[Constants::iTHREAD_LIST_NUM][Constants::uREMOTE_REGIONS];
         };
     }
 }

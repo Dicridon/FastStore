@@ -9,7 +9,7 @@ int main() {
 
     auto &s = KVPair::HillString::make_string(buf, cnt.c_str(), cnt.size());
 
-    if (cnt.compare(s.raw_chars()) != 0) {
+    if (cnt.compare(0, cnt.size(), s.raw_chars(), 0, s.size()) != 0) {
         std::cout << "content mismatched\n";
         return -1;
     }

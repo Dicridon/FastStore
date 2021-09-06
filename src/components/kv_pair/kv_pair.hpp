@@ -20,6 +20,7 @@ namespace Hill {
         struct HillString {
             uint16_t valid : 1;
             uint16_t length : 15;
+            // not [0] so no warning. 
             byte_t content[1];
 
             static auto make_string(const byte_ptr_t &chunk, const_byte_ptr_t bytes, size_t size) -> HillString & {

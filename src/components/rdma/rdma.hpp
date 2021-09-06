@@ -74,6 +74,11 @@ namespace Hill {
         }
 
         using namespace Enums;
+        /*
+         * A wrapping class over ibv_ structs for RDMA communication
+         * The registered memory is stored in 'buf' field, by default, all RDMA accesses operate on this buffer.
+         * In the context of hybrid memory, we need to separately register memory regions for DRAM and PM 
+         */
         class RDMA {
         private:
             struct ibv_context *ctx;
