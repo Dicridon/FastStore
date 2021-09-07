@@ -11,7 +11,8 @@
         },
         "link": {
             "rdma": "-libverbs",
-            "pmem": "-lpmem"
+            "pmem": "-lpmem",
+            "thread": "-lpthread"
         }
     }
 }

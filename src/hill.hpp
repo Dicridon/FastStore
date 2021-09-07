@@ -22,6 +22,9 @@ namespace Hill {
      * |                            |
      * |                            |
      * |----------------------------|
+     *
+     * DRAM is used for caching and storing BLinkTree's non-leaf nodes.
+     *
      */
     class Engine {
         
