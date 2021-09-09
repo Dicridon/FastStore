@@ -34,6 +34,7 @@ namespace Hill {
 
         struct NodeInfo {
             // starting from 1, 0 is reserved for the monitor
+            uint64_t version;
             int node_id;
             size_t total_pm;
             size_t available_pm;
@@ -63,7 +64,7 @@ namespace Hill {
         /*
          * RangeGroup can be reconstructed, so I place it on DRAM
          */
-        struct __attribute__((packed)) RangeGroup {
+        struct  RangeGroup {
             size_t num_infos;
             std::unique_ptr<RangeInfo[]> infos;
 
@@ -82,9 +83,10 @@ namespace Hill {
             auto append_node(const std::string &s, int node_id, bool is_mem) noexcept -> void;
             auto append_cpu(const std::string &s, int node_id) noexcept -> void;
             auto append_mem(const std::string &s, int node_id) noexcept -> void;
-        };
+        } __attribute__((packed));
 
         struct ClusterMeta {
+            uint64_t version;
             struct {
                 size_t node_num;
                 // cope with remote pointer, 64 at most
@@ -92,6 +94,7 @@ namespace Hill {
             } cluster;
             RangeGroup group;
 
+            auto total_size() const noexcept -> size_t;
             auto serialize() const noexcept -> std::unique_ptr<uint8_t[]>;
             // update current ClusterMeta with this serialized buf
             auto deserialize(const uint8_t *buf) -> void;
@@ -173,8 +176,6 @@ namespace Hill {
             ClusterMeta meta;
             IPV4Addr addr;
         };
-
-
     }
 }
 #endif

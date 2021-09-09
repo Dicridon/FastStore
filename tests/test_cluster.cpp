@@ -12,7 +12,9 @@ using namespace Hill::Cluster;
 auto test_serialization() -> void {
     ClusterMeta meta;
     meta.cluster.node_num = 2;
+    meta.version = 4321;
     for (size_t i = 0; i < meta.cluster.node_num; i++) {
+        meta.cluster.nodes[i].version = 1234;
         meta.cluster.nodes[i].node_id = i + 1;
         meta.cluster.nodes[i].total_pm = 0x12345678;
         meta.cluster.nodes[i].available_pm = 0x1234;
@@ -78,7 +80,9 @@ auto test_network_serialization() -> void {
     std::thread server([&]() {
         ClusterMeta meta;
         meta.cluster.node_num = 2;
+        meta.version = 4321;
         for (size_t i = 0; i < meta.cluster.node_num; i++) {
+            meta.cluster.nodes[i].version = 1234;
             meta.cluster.nodes[i].node_id = i + 1;
             meta.cluster.nodes[i].total_pm = 0x12345678;
             meta.cluster.nodes[i].available_pm = 0x1234;
@@ -95,16 +99,23 @@ auto test_network_serialization() -> void {
         meta.dump();
         
         auto sock = socket_connect(true, 2333);
-        write(sock, meta.serialize().get(), 2160);
+        auto total = meta.total_size();
+        write(sock, &total, sizeof(total));
+        write(sock, meta.serialize().get(), total);
+        shutdown(sock, 0);
     });
 
     std::thread client([&]() {
         ClusterMeta meta2;
+        sleep(1);
         auto sock = socket_connect(false, 2333);
-        auto buf = new uint8_t[2160];
-        read(sock, buf, 2160);
+        auto total = 0UL;
+        read(sock, &total, sizeof(total));
+        auto buf = new uint8_t[total];
+        read(sock, buf, total);
         meta2.deserialize(buf);
         meta2.dump();
+        shutdown(sock, 0);
     });
 
     server.join();

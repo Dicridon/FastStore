@@ -22,7 +22,7 @@ namespace Hill {
             for (size_t i = 0; i < num_infos; i++) {
                 buf[i] = infos[i];
             }
-            
+
             infos.reset(buf);
             infos[num_infos].nodes[0] = node_id;
             infos[num_infos].is_mem[0] = false;
@@ -77,7 +77,7 @@ namespace Hill {
          * sizeof(is_mem) |  is_mem
          * sizeof(nodes)  |  nodes
          */
-        auto ClusterMeta::serialize() const noexcept -> std::unique_ptr<uint8_t[]> {
+        auto ClusterMeta::total_size() const noexcept -> size_t {
             // node_num + nodes
             auto total_size = sizeof(cluster);
             // num_infos
@@ -89,12 +89,17 @@ namespace Hill {
                 total_size += sizeof(group.infos[i].is_mem);
                 total_size += sizeof(group.infos[i].nodes);
             }
+            return total_size;
+        }
 
-            auto buf = new uint8_t[total_size];
+        auto ClusterMeta::serialize() const noexcept -> std::unique_ptr<uint8_t[]> {
+            auto buf = new uint8_t[total_size()];
             auto offset = 0UL;
             // all our machines are little-endian, no need to convert
             // I separate these fields just for easy debugging
-            memcpy(buf, &cluster.node_num, sizeof(cluster.node_num));
+            memcpy(buf, &version, sizeof(version));
+            offset += sizeof(version);
+            memcpy(buf + offset, &cluster.node_num, sizeof(cluster.node_num));
             offset += sizeof(cluster.node_num);
             memcpy(buf + offset, &cluster.nodes, sizeof(cluster.nodes));
             offset += sizeof(cluster.nodes);
@@ -121,7 +126,9 @@ namespace Hill {
 
         auto ClusterMeta::deserialize(const uint8_t *buf) -> void {
             auto offset = 0UL;
-            memcpy(&cluster.node_num, buf, sizeof(cluster.node_num));
+            memcpy(&version, buf, sizeof(version));
+            offset += sizeof(version);
+            memcpy(&cluster.node_num, buf + offset, sizeof(cluster.node_num));
             offset += sizeof(cluster.node_num);
             memcpy(&cluster.nodes, buf + offset, sizeof(cluster.nodes));
             offset += sizeof(cluster.nodes);
@@ -144,10 +151,12 @@ namespace Hill {
 
         auto ClusterMeta::dump() const noexcept -> void {
             std::cout << "--------------------- Meta Info --------------------- \n";
+            std::cout << ">> version: " << version << "\n";
             std::cout << ">> node num: " << cluster.node_num << "\n";
             std::cout << ">> node info: \n";
             for (size_t i = 0; i < cluster.node_num; i++) {
                 std::cout << ">> node " << i << "\n";
+                std::cout << "-->> version: " << cluster.nodes[i].version << "\n";
                 std::cout << "-->> node id: " << cluster.nodes[i].node_id << "\n";
                 std::cout << "-->> total pm: " << cluster.nodes[i].total_pm << "\n";
                 std::cout << "-->> availabel pm: " << cluster.nodes[i].available_pm << "\n";
@@ -164,7 +173,7 @@ namespace Hill {
                     }
                 }
             }
-            
+
         }
     }
 }
