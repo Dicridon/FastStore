@@ -1,6 +1,8 @@
 #include "cluster.hpp"
+#include "misc/misc.hpp"
 
 #include <iostream>
+#include <fstream>
 
 namespace Hill {
     namespace Cluster {
@@ -173,7 +175,93 @@ namespace Hill {
                     }
                 }
             }
+        }
 
+        auto Node::prepare(const std::string &configure_file) -> bool {
+            std::ifstream configuration(configure_file);
+            if (!configuration.is_open()) {
+                return false;
+            }
+
+            std::stringstream buf;
+            buf << configuration.rdbuf();
+            auto content = buf.str();
+
+            std::regex rnode_id("node_id:\\s*(\\d+)");
+            std::regex rtotal_pm("total_pm:\\s*(\\d+)");
+            std::regex ravailable_pm("available_pm:\\s*(\\d+)");            
+            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})");
+            std::regex rmonitor("monitor:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+
+            std::smatch vnode_id, vtotal_pm, vaddr, vavailable_pm, vmonitor;
+            if (!std::regex_search(content, vnode_id, rnode_id)) {
+                std::cerr << ">> Error: invalid or unspecified node id\n";
+                return false;
+            }
+
+            if (!std::regex_search(content, vtotal_pm, rtotal_pm)) {
+                std::cerr << ">> Error: invalid or unspecified total PM\n";
+                return false;
+            }
+
+            if (!std::regex_search(content, vavailable_pm, ravailable_pm)) {
+                std::cerr << ">> Error: invalid or unspecified available PM\n";
+                return false;
+            }
+            
+            if (!std::regex_search(content, vaddr, raddr)) {
+                std::cerr << ">> Error: invalid or unspecified IP address\n";
+                return false;
+            }
+
+            if (!std::regex_search(content, vmonitor, rmonitor)) {
+                std::cerr << ">> Error: invalid or unspecified monitor\n";
+                return false;
+            }            
+
+            node_id = atoi(vnode_id[1].str().c_str());
+            total_pm = atoll(vtotal_pm[1].str().c_str());
+            available_pm = atoll(vavailable_pm[1].str().c_str());
+            // impossible be invalid
+            addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
+            monitor_addr = IPV4Addr::make_ipv4_addr(vmonitor[1].str()).value();
+            monitor_port = atoi(vmonitor[2].str().c_str());
+            return true;
+        }
+
+        auto Node::launch() -> void {
+            run = true;
+            std::thread background([&]() {
+                while(run) {
+                    keepalive();
+                }
+            });
+            background.detach();
+        }
+
+        auto Node::stop() -> void {
+            run = false;
+        }
+
+        // I need extra infomation to update PM usage and CPU usage
+        auto Node::keepalive() const noexcept -> bool {
+            auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
+            if (sock == -1) {
+                return false;
+            }
+
+            // TODO
+            return true;
+        }
+
+        auto Node::dump() const noexcept -> void {
+            std::cout << ">> Node info: \n";
+            std::cout << "-->> Node ID: " << node_id << "\n";
+            std::cout << "-->> Total PM: " << total_pm << "\n";
+            std::cout << "-->> Available PM: " << available_pm << "\n";
+            std::cout << "-->> IP Addr: " << addr.to_string() << "\n";
+            std::cout << "-->> Monitor Addr: " << monitor_addr.to_string() << "\n";
+            std::cout << "-->> Monitor Port: " << monitor_port << "\n";
         }
     }
 }

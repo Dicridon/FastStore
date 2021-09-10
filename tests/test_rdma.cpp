@@ -1,6 +1,7 @@
 #include "rdma/rdma.hpp"
 #include "coloring/coloring.hpp"
 #include "cmd_parser/cmd_parser.hpp"
+#include "misc/misc.hpp"
 
 #include <infiniband/verbs.h>
 #include <iostream>
@@ -13,6 +14,7 @@
 #include <unistd.h>
 
 using namespace Hill;
+using namespace Hill::Misc;
 using namespace Hill::RDMAUtil;
 const ColorizedString error_msg("Error: ", Colors::Red);
 const ColorizedString warning_msg("Warning: ", Colors::Magenta);
@@ -30,48 +32,6 @@ void show_connection_info(const connection_certificate &c, bool is_local = true)
         printf(pat + (i == 0), c.gid[i]);
     }
     std::cout << "\n";
-}
-
-int socket_connect(bool is_server, int socket_port) {
-    struct sockaddr_in seraddr;
-    auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
-        std::cout << ">> " << error_msg << "can not open socket\n";
-        exit(-1);
-    }
-
-    memset(&seraddr, 0, sizeof(struct sockaddr));
-    seraddr.sin_family = AF_INET;
-    seraddr.sin_port = htons(socket_port);
-
-    if (is_server) {
-        seraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-            
-        if (bind(sockfd, (struct sockaddr *)&seraddr, sizeof(struct sockaddr)) == -1) {
-            std::cout << ">> " << error_msg << "can not bind socket\n";
-            exit(-1);
-        }
-
-        if (listen(sockfd, 1) == -1) {
-            std::cout << ">> " << error_msg << "can not listen socket\n";
-            exit(-1);
-        }
-
-        auto ret = accept(sockfd, NULL, 0);
-        if (ret == -1) {
-            std::cout << ">> " << error_msg << "accepting connection failed\n";
-            exit(-1);
-        }
-        return ret;
-    } else {
-        inet_pton(AF_INET, "127.0.0.1", &seraddr.sin_addr);
-        
-        if (connect(sockfd, (struct sockaddr *)&seraddr, sizeof(seraddr)) == -1) {
-            std::cout << ">> " << error_msg << "connecting to server failed\n";
-            exit(-1);
-        }
-        return sockfd;
-    }
 }
 
 bool syncop(int sockfd) {
@@ -171,7 +131,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    auto sockfd = socket_connect(is_server, socket_port);
+    auto sockfd = socket_connect(is_server, socket_port, "127.0.0.1");
     if (rdma->exchange_certificate(sockfd) != RDMAStatus::Ok) {
         std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";        
     }

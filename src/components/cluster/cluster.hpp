@@ -1,9 +1,12 @@
+
 #ifndef __HILL__CLUSTER__CLUSTER__
 #define __HILL__CLUSTER__CLUSTER__
 #include "memory_manager/memory_manager.hpp"
 
 #include <sstream>
 #include <memory>
+#include <regex>
+#include <thread>
 
 namespace Hill {
     namespace Cluster {
@@ -16,6 +19,20 @@ namespace Hill {
         struct IPV4Addr {
             uint8_t content[4];
 
+            static auto make_ipv4_addr(const std::string &in) -> std::optional<IPV4Addr> {
+                std::regex ip_pattern("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})");
+                std::smatch result;
+                if (!std::regex_match(in, result, ip_pattern)) {
+                    return {};
+                }
+
+                IPV4Addr addr;
+                for (int i = 0; i < 4; i++) {
+                    addr.content[i] = atoi(result[i + 1].str().c_str());
+                }
+                return addr;
+            }
+            
             auto to_string() const -> std::string {
                 std::stringstream stream;
                 stream << std::to_string(content[0]);
@@ -124,20 +141,30 @@ namespace Hill {
             /*
              * Activate this node and start connecting monitor listed in configuration file
              */
-            auto launch(const std::string &configure_file) noexcept -> bool;
+            auto prepare(const std::string &configure_file) -> bool;
+
+            // calling object should outlive the background thread
+            auto launch() -> void;
+            auto stop() -> void;
 
             /*
              * Launch a background thread that periodically send heartbeat to the monitor
              * This thread will also receive an update of current cluster metainfo
              */
-            auto keepalive() const noexcept -> void;
+            auto keepalive() const noexcept -> bool;
+
+            auto dump() const noexcept -> void;
+
         private:
             int node_id;
             size_t total_pm;
             size_t available_pm;
             float cpu_usage;
             IPV4Addr addr;
+            IPV4Addr monitor_addr;
+            int monitor_port;
             ClusterMeta cluster_status;
+            bool run;
         };
 
 

@@ -1,7 +1,7 @@
 #include "cluster/cluster.hpp"
+#include "misc/misc.hpp"
 
 #include <iostream>
-#include <thread>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 using namespace Hill::Cluster;
+using namespace Hill::Misc;
 auto test_serialization() -> void {
     ClusterMeta meta;
     meta.cluster.node_num = 2;
@@ -34,48 +35,6 @@ auto test_serialization() -> void {
     meta2.dump();
 }
 
-int socket_connect(bool is_server, int socket_port) {
-    struct sockaddr_in seraddr;
-    auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd == -1) {
-        std::cout << ">> " << "can not open socket\n";
-        exit(-1);
-    }
-
-    memset(&seraddr, 0, sizeof(struct sockaddr));
-    seraddr.sin_family = AF_INET;
-    seraddr.sin_port = htons(socket_port);
-
-    if (is_server) {
-        seraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-            
-        if (bind(sockfd, (struct sockaddr *)&seraddr, sizeof(struct sockaddr)) == -1) {
-            std::cout << ">> " << "can not bind socket\n";
-            exit(-1);
-        }
-
-        if (listen(sockfd, 1) == -1) {
-            std::cout << ">> " << "can not listen socket\n";
-            exit(-1);
-        }
-
-        auto ret = accept(sockfd, NULL, 0);
-        if (ret == -1) {
-            std::cout << ">> " << "accepting connection failed\n";
-            exit(-1);
-        }
-        return ret;
-    } else {
-        inet_pton(AF_INET, "127.0.0.1", &seraddr.sin_addr);
-        
-        if (connect(sockfd, (struct sockaddr *)&seraddr, sizeof(seraddr)) == -1) {
-            std::cout << ">> " << "connecting to server failed\n";
-            exit(-1);
-        }
-        return sockfd;
-    }
-}
-
 auto test_network_serialization() -> void {
     std::thread server([&]() {
         ClusterMeta meta;
@@ -98,7 +57,7 @@ auto test_network_serialization() -> void {
         meta.group.add_main("start start", 2);
         meta.dump();
         
-        auto sock = socket_connect(true, 2333);
+        auto sock = socket_connect(true, 2333, nullptr);
         auto total = meta.total_size();
         write(sock, &total, sizeof(total));
         write(sock, meta.serialize().get(), total);
@@ -108,7 +67,7 @@ auto test_network_serialization() -> void {
     std::thread client([&]() {
         ClusterMeta meta2;
         sleep(1);
-        auto sock = socket_connect(false, 2333);
+        auto sock = socket_connect(false, 2333, "127.0.0.1");
         auto total = 0UL;
         read(sock, &total, sizeof(total));
         auto buf = new uint8_t[total];
@@ -128,4 +87,8 @@ auto main() -> int {
     test_serialization();
     std::cout << "\n>> network serialization\n";
     test_network_serialization();
+
+    Node n1;
+    n1.prepare("./node1.info");
+    n1.dump();
 }
