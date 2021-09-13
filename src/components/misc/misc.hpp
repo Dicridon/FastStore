@@ -11,8 +11,19 @@
 
 namespace Hill {
     namespace Misc {
-        // if is_server == false, supply an IP
+        // make a new socket file descriptor and listen
+        int make_socket(bool is_server, int socket_port, const char *ip);
+        int connect_socket(int sockfd, int socket_port, const char *server);
+        int accept_blocking(int sockfd);
+        int accept_nonblocking(int sockfd);
+        
+        
+        /*
+         * This function serves as a shortcut for establishing blocking socket connection
+         * if is_server == false, supply an IP
+         */
         int socket_connect(bool is_server, int socket_port, const char *server = nullptr);
+
     }
 }
 #endif
