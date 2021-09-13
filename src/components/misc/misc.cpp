@@ -46,11 +46,11 @@ namespace Hill {
         }
 
         int accept_blocking(int sockfd) {
-            return accept(sockfd, NULL, 0);
+            return accept(sockfd, NULL, NULL);
         }
 
         int accept_nonblocking(int sockfd) {
-            return accept4(sockfd, NULL, 0, SOCK_NONBLOCK);
+            return accept4(sockfd, NULL, NULL, SOCK_NONBLOCK);
         }
 
         int socket_connect(bool is_server, int socket_port, const char *server) {

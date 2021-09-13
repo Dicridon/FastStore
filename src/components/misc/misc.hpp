@@ -17,13 +17,11 @@ namespace Hill {
         int accept_blocking(int sockfd);
         int accept_nonblocking(int sockfd);
         
-        
         /*
          * This function serves as a shortcut for establishing blocking socket connection
          * if is_server == false, supply an IP
          */
         int socket_connect(bool is_server, int socket_port, const char *server = nullptr);
-
     }
 }
 #endif
