@@ -86,6 +86,7 @@ namespace Hill {
             total_size += sizeof(group.num_infos);
             // dynamic field
             for (size_t i = 0; i < group.num_infos; i++) {
+                total_size += sizeof(version);
                 total_size += sizeof(uint64_t);
                 total_size += group.infos[i].start.size();
                 total_size += sizeof(group.infos[i].is_mem);
@@ -94,8 +95,8 @@ namespace Hill {
             return total_size;
         }
 
-        auto ClusterMeta::serialize() const noexcept -> std::unique_ptr<uint8_t[]> {
-            auto buf = new uint8_t[total_size()];
+        auto ClusterMeta::serialize() const noexcept -> std::unique_ptr<byte_t[]> {
+            auto buf = new byte_t[total_size()];
             auto offset = 0UL;
             // all our machines are little-endian, no need to convert
             // I separate these fields just for easy debugging
@@ -108,6 +109,8 @@ namespace Hill {
             memcpy(buf + offset, &group.num_infos, sizeof(group.num_infos));
             offset += sizeof(group.num_infos);
             for (size_t i = 0; i < group.num_infos; i++) {
+                memcpy(buf + offset, &group.infos[i].version, sizeof(group.infos[i].version));
+                offset += sizeof(group.infos[i].version);
                 auto tmp = group.infos[i].start.size();
                 // header
                 memcpy(buf + offset, &tmp, sizeof(tmp));
@@ -123,10 +126,11 @@ namespace Hill {
                 offset += sizeof(group.infos[i].nodes);
             }
 
-            return std::unique_ptr<uint8_t[]>(buf);
+            return std::unique_ptr<byte_t[]>(buf);
+            // return buf;
         }
 
-        auto ClusterMeta::deserialize(const uint8_t *buf) -> void {
+        auto ClusterMeta::deserialize(const byte_t *buf) -> void {
             auto offset = 0UL;
             memcpy(&version, buf, sizeof(version));
             offset += sizeof(version);
@@ -138,6 +142,8 @@ namespace Hill {
             offset += sizeof(group.num_infos);
             auto infos = new RangeInfo[group.num_infos];
             for (size_t i = 0; i < group.num_infos; i++) {
+                memcpy(&infos[i].version, buf + offset, sizeof(infos[i].version));
+                buf += sizeof(infos[i].version);
                 auto tmp = 0ULL;
                 memcpy(&tmp, buf + offset, sizeof(tmp));
                 offset += sizeof(tmp);
@@ -167,6 +173,7 @@ namespace Hill {
             std::cout << ">> range group: \n";
             for (size_t j = 0; j < group.num_infos; j++) {
                 std::cout << "-->> range[" << j << "]: " << group.infos[j].start << "\n";
+                std::cout << "-->> version: " << group.infos[j].version << "\n";
                 std::cout << "-->> nodes: \n";
                 for(size_t t = 0; t < Constants::uMAX_NODE; t++) {
                     if (group.infos[j].nodes[t] != 0) {
@@ -232,9 +239,15 @@ namespace Hill {
         auto Node::launch() -> void {
             run = true;
             std::thread background([&]() {
-                while(run) {
-                    keepalive();
+                auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
+                if (sock == -1) {
+                    return;
                 }
+                
+                while(run) {
+                    keepalive(sock);
+                }
+                shutdown(sock, 0);
             });
             background.detach();
         }
@@ -244,13 +257,13 @@ namespace Hill {
         }
 
         // I need extra infomation to update PM usage and CPU usage
-        auto Node::keepalive() const noexcept -> bool {
-            auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
-            if (sock == -1) {
-                return false;
-            }
+        auto Node::keepalive(int socket) const noexcept -> bool {
 
-            // TODO
+            auto size = cluster_status.total_size();
+            // all machines are little-endian
+            write(socket, &size, sizeof(size));
+            write(socket, cluster_status.serialize().get(), size);
+            sleep(1);
             return true;
         }
 
@@ -262,6 +275,64 @@ namespace Hill {
             std::cout << "-->> IP Addr: " << addr.to_string() << "\n";
             std::cout << "-->> Monitor Addr: " << monitor_addr.to_string() << "\n";
             std::cout << "-->> Monitor Port: " << monitor_port << "\n";
+        }
+
+        auto Monitor::launch() -> bool {
+            run = true;
+            auto sock = Misc::make_socket(true, port, addr.to_string().c_str());
+            if (sock == -1) {
+                return false;
+            }
+
+            std::thread work([&]() {
+                while(run) {
+                    std::thread heartbeat([&]() {
+                        if (Misc::accept_nonblocking(sock)) {
+                            ClusterMeta tmp;
+                            auto size = 0UL;
+                            read(sock, &size, sizeof(size));
+                            auto buf = std::make_unique<byte_t[]>(size);
+                            read(sock, buf.get(), size);
+                            tmp.deserialize(buf.get());
+
+                            for (size_t i = 0; i <tmp.cluster.node_num; i++) {
+                                if (meta.cluster.nodes[i].version < tmp.cluster.nodes[i].version) {
+                                    meta.cluster.nodes[i] = tmp.cluster.nodes[i];
+                                }
+                            }
+
+                            /*
+                             * This update is not always correct because range group may change, e.g., more partitions are 
+                             * created. But currently I don't handle this because for experiment, range group is fixed
+                             *
+                             * To fully update a range group, we can make use RPC.
+                             */
+                            for (size_t i = 0; i < tmp.group.num_infos; i++) {
+                                // order of RangeInfo never changes in a range group
+                                if (meta.group.infos[i].version < tmp.group.infos[i].version) {
+                                    meta.group.infos[i].version = tmp.group.infos[i].version;
+                                    memcpy(meta.group.infos[i].nodes, tmp.group.infos[i].nodes,
+                                           sizeof(meta.group.infos[i].nodes));
+                                    memcpy(meta.group.infos[i].is_mem, tmp.group.infos[i].is_mem,
+                                           sizeof(meta.group.infos[i].is_mem));
+                                }
+                            }
+                        }
+                        return_cluster_meta(sock);
+                    });
+                }
+            });
+            work.detach();
+            return true;
+        }
+
+        auto Monitor::return_cluster_meta(int socket) noexcept -> bool {
+            auto buf = meta.serialize();
+            auto size= meta.total_size();
+            for (size_t i = 0; i < meta.cluster.node_num; i++) {
+                write(socket, buf.get(), size);
+            }
+            return true;
         }
     }
 }

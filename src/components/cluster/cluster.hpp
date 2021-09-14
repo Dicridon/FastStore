@@ -10,6 +10,7 @@
 
 namespace Hill {
     namespace Cluster {
+        using namespace ::Hill::Memory::TypeAliases;
         namespace Constants {
             // including the monitor
             static constexpr size_t uMAX_NODE = 64;
@@ -64,6 +65,7 @@ namespace Hill {
         // ranges never overlap
         // nodes[0] is the main server for this range
         struct RangeInfo {
+            uint64_t version;
             std::string start;
             uint8_t nodes[Constants::uMAX_NODE];
             bool is_mem[Constants::uMAX_NODE];
@@ -112,15 +114,23 @@ namespace Hill {
             RangeGroup group;
 
             auto total_size() const noexcept -> size_t;
-            auto serialize() const noexcept -> std::unique_ptr<uint8_t[]>;
+            auto serialize() const noexcept -> std::unique_ptr<byte_t[]>;
+            // auto serialize() const noexcept -> byte_ptr_t;
             // update current ClusterMeta with this serialized buf
-            auto deserialize(const uint8_t *buf) -> void;
+            auto deserialize(const byte_t *buf) -> void;
 
             auto dump() const noexcept -> void;
         } __attribute__((packed));
 
-        class Node {
-        public:
+
+        /*
+         * struct Node
+         * This struct is a high-level abstraction of a node in a cluster. Its only responsibility is to maintain heartbeat 
+         * and inform monitor of its latest resource information. To track the change of a resource, Hill::Engine will do.
+         *
+         * Node is not a class because all its information is used exposed to any other classes for viewing a node's status
+         */
+        struct Node {
             Node() = default;
             ~Node() = default;
             Node(const Node &) = default;
@@ -135,6 +145,8 @@ namespace Hill {
                 ret->total_pm = total_pm;
                 ret->available_pm = total_pm;
                 ret->cpu_usage = 0;
+
+                ret->cluster_status.version = 0;
                 return ret;
             }
 
@@ -151,11 +163,10 @@ namespace Hill {
              * Launch a background thread that periodically send heartbeat to the monitor
              * This thread will also receive an update of current cluster metainfo
              */
-            auto keepalive() const noexcept -> bool;
+            auto keepalive(int socket) const noexcept -> bool;
 
             auto dump() const noexcept -> void;
 
-        private:
             int node_id;
             size_t total_pm;
             size_t available_pm;
@@ -168,6 +179,12 @@ namespace Hill {
         };
 
 
+        /*
+         * class Monitor
+         * This class manage is an abstraction of cluster resources. It also manages heartbeat and keep resource
+         * metadata update-to-date
+         */
+
         class Monitor {
         public:
             Monitor() = default;
@@ -177,10 +194,14 @@ namespace Hill {
             auto operator=(const Monitor &) -> Monitor & = default;
             auto operator=(Monitor &&) -> Monitor & = default;
 
-            static auto make_monitor(const IPV4Addr &addr, size_t node_num) -> std::unique_ptr<Monitor> {
+            static auto make_monitor(const IPV4Addr &addr, int port, size_t node_num) -> std::unique_ptr<Monitor> {
                 auto ret = std::make_unique<Monitor>();
                 ret->addr = addr;
+                ret->port = port;                
                 ret->meta.cluster.node_num = node_num;
+                ret->meta.version = 0;
+                ret->run = false;
+
                 for (size_t i = 0; i < Constants::uMAX_NODE; i++) {
                     ret->meta.cluster.nodes[i].node_id = 0;
                     ret->meta.cluster.nodes[i].is_active = false;
@@ -192,16 +213,19 @@ namespace Hill {
              * Activiate this monitor.
              * Monitor will start listening for income connect request and start monitoring cluster status
              */
-            auto launch() noexcept -> bool;
+            auto launch() -> bool;
+            auto stop() -> void;
 
             /*
              * Broadcast current cluster status including node liveness, node pm usage, etc. to all active nodes
              */
-            auto broadcast_cluster_meta() noexcept -> bool;
+            auto return_cluster_meta(int socket) noexcept -> bool;
 
         private:
             ClusterMeta meta;
             IPV4Addr addr;
+            int port;
+            bool run;
         };
     }
 }

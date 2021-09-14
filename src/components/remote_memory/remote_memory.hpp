@@ -218,6 +218,7 @@ namespace Hill {
                 uint64_t cursor : 32;
             } meta;
         };
+        
         /*
          * My purpose of writing this class is for accessing remote PM. So I will always assume
          * RDMA connections exposing PM on other nodes are recorded here

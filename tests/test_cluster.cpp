@@ -28,10 +28,14 @@ auto test_serialization() -> void {
 
     meta.group.add_main("start", 1);
     meta.group.add_main("start start", 2);
+    meta.group.infos[0].version = 9999;
+    meta.group.infos[1].version = 6666;
+    
     meta.dump();
 
     ClusterMeta meta2;
-    meta2.deserialize(meta.serialize().get());
+    auto buf = meta.serialize();
+    meta2.deserialize(buf.get());
     meta2.dump();
 }
 
@@ -50,11 +54,11 @@ auto test_network_serialization() -> void {
             meta.cluster.nodes[i].addr.content[1] = 0;
             meta.cluster.nodes[i].addr.content[2] = 0;
             meta.cluster.nodes[i].addr.content[3] = i + 1;
-        
-        
         }
         meta.group.add_main("start", 1);
         meta.group.add_main("start start", 2);
+        meta.group.infos[0].version = 9999;
+        meta.group.infos[1].version = 6666;
         meta.dump();
         
         auto sock = socket_connect(true, 2333, nullptr);
@@ -70,9 +74,9 @@ auto test_network_serialization() -> void {
         auto sock = socket_connect(false, 2333, "127.0.0.1");
         auto total = 0UL;
         read(sock, &total, sizeof(total));
-        auto buf = new uint8_t[total];
-        read(sock, buf, total);
-        meta2.deserialize(buf);
+        auto buf = std::make_unique<byte_t[]>(total);
+        read(sock, buf.get(), total);
+        meta2.deserialize(buf.get());
         meta2.dump();
         shutdown(sock, 0);
     });
