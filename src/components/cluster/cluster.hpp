@@ -163,7 +163,7 @@ namespace Hill {
              * Launch a background thread that periodically send heartbeat to the monitor
              * This thread will also receive an update of current cluster metainfo
              */
-            auto keepalive(int socket) const noexcept -> bool;
+            auto keepalive(int socket) noexcept -> bool;
 
             auto dump() const noexcept -> void;
 
@@ -215,6 +215,7 @@ namespace Hill {
              */
             auto launch() -> bool;
             auto stop() -> void;
+            auto check_income_connection(int sock) -> void;
 
             /*
              * Broadcast current cluster status including node liveness, node pm usage, etc. to all active nodes

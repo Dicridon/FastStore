@@ -243,6 +243,12 @@ namespace Hill {
                 if (sock == -1) {
                     return;
                 }
+
+                auto total = 0UL;
+                read(sock, &total, total);
+                auto buf = std::make_unique<byte_t[]>(total);
+                read(sock, buf.get(), total);
+                cluster_status.deserialize(buf.get());
                 
                 while(run) {
                     keepalive(sock);
@@ -257,9 +263,11 @@ namespace Hill {
         }
 
         // I need extra infomation to update PM usage and CPU usage
-        auto Node::keepalive(int socket) const noexcept -> bool {
-
+        auto Node::keepalive(int socket) noexcept -> bool {
             auto size = cluster_status.total_size();
+            // TODO
+            cluster_status.cluster.nodes[node_id].available_pm = available_pm;
+            cluster_status.cluster.nodes[node_id].cpu_usage = cpu_usage;            
             // all machines are little-endian
             write(socket, &size, sizeof(size));
             write(socket, cluster_status.serialize().get(), size);
@@ -286,45 +294,65 @@ namespace Hill {
 
             std::thread work([&]() {
                 while(run) {
-                    std::thread heartbeat([&]() {
-                        if (Misc::accept_nonblocking(sock)) {
-                            ClusterMeta tmp;
-                            auto size = 0UL;
-                            read(sock, &size, sizeof(size));
-                            auto buf = std::make_unique<byte_t[]>(size);
-                            read(sock, buf.get(), size);
-                            tmp.deserialize(buf.get());
-
-                            for (size_t i = 0; i <tmp.cluster.node_num; i++) {
-                                if (meta.cluster.nodes[i].version < tmp.cluster.nodes[i].version) {
-                                    meta.cluster.nodes[i] = tmp.cluster.nodes[i];
-                                }
-                            }
-
-                            /*
-                             * This update is not always correct because range group may change, e.g., more partitions are 
-                             * created. But currently I don't handle this because for experiment, range group is fixed
-                             *
-                             * To fully update a range group, we can make use RPC.
-                             */
-                            for (size_t i = 0; i < tmp.group.num_infos; i++) {
-                                // order of RangeInfo never changes in a range group
-                                if (meta.group.infos[i].version < tmp.group.infos[i].version) {
-                                    meta.group.infos[i].version = tmp.group.infos[i].version;
-                                    memcpy(meta.group.infos[i].nodes, tmp.group.infos[i].nodes,
-                                           sizeof(meta.group.infos[i].nodes));
-                                    memcpy(meta.group.infos[i].is_mem, tmp.group.infos[i].is_mem,
-                                           sizeof(meta.group.infos[i].is_mem));
-                                }
-                            }
-                        }
-                        return_cluster_meta(sock);
-                    });
+                    check_income_connection(sock);
+                    sleep(1);
                 }
+                shutdown(sock, 0);
             });
             work.detach();
             return true;
         }
+
+        auto Monitor::check_income_connection(int sock) -> void {
+            auto socket = Misc::accept_nonblocking(sock);
+            if (socket == -1) {
+                return;
+            }
+
+            std::thread heartbeat([&]() {
+                auto to_size = meta.total_size();
+                write(sock, &to_size, sizeof(to_size));
+                auto to_buf = meta.serialize();
+                write(sock, to_buf.get(), to_size);
+                sleep(1);
+                while(run) {
+                    ClusterMeta tmp;
+                    auto size = 0UL;
+                    read(sock, &size, sizeof(size));
+                    auto buf = std::make_unique<byte_t[]>(size);
+                    read(sock, buf.get(), size);
+                    tmp.deserialize(buf.get());
+
+                    for (size_t i = 0; i <tmp.cluster.node_num; i++) {
+                        if (meta.cluster.nodes[i].version < tmp.cluster.nodes[i].version) {
+                            meta.cluster.nodes[i] = tmp.cluster.nodes[i];
+                        }
+                    }
+
+                    /*
+                     * This update is not always correct because range group may change, e.g., more partitions are 
+                     * created. But currently I don't handle this because for experiment, range group is fixed
+                     *
+                     * To fully update a range group, we can make use RPC.
+                     */
+                    for (size_t i = 0; i < tmp.group.num_infos; i++) {
+                        // order of RangeInfo never changes in a range group
+                        if (meta.group.infos[i].version < tmp.group.infos[i].version) {
+                            meta.group.infos[i].version = tmp.group.infos[i].version;
+                            memcpy(meta.group.infos[i].nodes, tmp.group.infos[i].nodes,
+                                   sizeof(meta.group.infos[i].nodes));
+                            memcpy(meta.group.infos[i].is_mem, tmp.group.infos[i].is_mem,
+                                   sizeof(meta.group.infos[i].is_mem));
+                        }
+                    }
+
+                    return_cluster_meta(sock);
+                    sleep(1);
+                }
+            });
+            heartbeat.detach();
+        }
+        
 
         auto Monitor::return_cluster_meta(int socket) noexcept -> bool {
             auto buf = meta.serialize();
