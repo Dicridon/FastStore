@@ -81,7 +81,7 @@ namespace Hill {
          */
         auto ClusterMeta::total_size() const noexcept -> size_t {
             // node_num + nodes
-            auto total_size = sizeof(cluster);
+            auto total_size = sizeof(cluster) + sizeof(version);
             // num_infos
             total_size += sizeof(group.num_infos);
             // dynamic field
@@ -157,12 +157,40 @@ namespace Hill {
             group.infos.reset(infos);
         }
 
+        auto ClusterMeta::update(const ClusterMeta &newer) -> void {
+            {
+                std::scoped_lock l(lock);
+                for (size_t i = 0; i < Constants::uMAX_NODE; i++) {
+                    if (cluster.nodes[i].version < newer.cluster.nodes[i].version) {
+                        cluster.nodes[i] = newer.cluster.nodes[i];
+                    }
+                }
+
+                /*
+                 * This update is not always correct because range group may change, e.g., more partitions are 
+                 * created. But currently I don't handle this because for experiment, range group is fixed
+                 *
+                 * To fully update a range group, we can make use RPC.
+                 */
+                for (size_t i = 0; i < newer.group.num_infos; i++) {
+                    // order of RangeInfo never changes in a range group
+                    if (group.infos[i].version < newer.group.infos[i].version) {
+                        group.infos[i].version = newer.group.infos[i].version;
+                        memcpy(group.infos[i].nodes, newer.group.infos[i].nodes, sizeof(group.infos[i].nodes));
+                        memcpy(group.infos[i].is_mem, newer.group.infos[i].is_mem, sizeof(group.infos[i].is_mem));
+                    }
+                }
+            }
+        }
+
         auto ClusterMeta::dump() const noexcept -> void {
             std::cout << "--------------------- Meta Info --------------------- \n";
             std::cout << ">> version: " << version << "\n";
             std::cout << ">> node num: " << cluster.node_num << "\n";
             std::cout << ">> node info: \n";
-            for (size_t i = 0; i < cluster.node_num; i++) {
+            for (size_t i = 0; i < Constants::uMAX_NODE; i++) {
+                if (cluster.nodes[i].node_id == 0)
+                    continue;
                 std::cout << ">> node " << i << "\n";
                 std::cout << "-->> version: " << cluster.nodes[i].version << "\n";
                 std::cout << "-->> node id: " << cluster.nodes[i].node_id << "\n";
@@ -238,24 +266,36 @@ namespace Hill {
 
         auto Node::launch() -> void {
             run = true;
-            std::thread background([&]() {
+            // std::thread background([this]() {
                 auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
                 if (sock == -1) {
                     return;
                 }
 
+                std::cout << ">> Monitor connected\n";
                 auto total = 0UL;
-                read(sock, &total, total);
+                read(sock, &total, sizeof(total));
+                std::cout << ">> read size is: " << total << "\n";
                 auto buf = std::make_unique<byte_t[]>(total);
                 read(sock, buf.get(), total);
+
                 cluster_status.deserialize(buf.get());
+                std::cout << ">> First contact info\n";
+                cluster_status.dump();
+
+                // Misc::pend();
+                cluster_status.cluster.nodes[node_id].version = 1;
+                cluster_status.cluster.nodes[node_id].node_id = node_id;
+                cluster_status.cluster.nodes[node_id].total_pm = total_pm;
+                cluster_status.cluster.nodes[node_id].addr = addr;
+                cluster_status.cluster.nodes[node_id].is_active = true;
                 
                 while(run) {
                     keepalive(sock);
                 }
                 shutdown(sock, 0);
-            });
-            background.detach();
+                // });
+                // background.detach();
         }
 
         auto Node::stop() -> void {
@@ -265,12 +305,23 @@ namespace Hill {
         // I need extra infomation to update PM usage and CPU usage
         auto Node::keepalive(int socket) noexcept -> bool {
             auto size = cluster_status.total_size();
-            // TODO
+            // Atomicity is not the first concern, because all these data fields are concurrently atomic
             cluster_status.cluster.nodes[node_id].available_pm = available_pm;
-            cluster_status.cluster.nodes[node_id].cpu_usage = cpu_usage;            
+            cluster_status.cluster.nodes[node_id].cpu_usage = cpu_usage;
+
+            ++cluster_status.cluster.nodes[node_id].version;
+            ++cluster_status.version;
             // all machines are little-endian
             write(socket, &size, sizeof(size));
             write(socket, cluster_status.serialize().get(), size);
+            read(socket, &size, sizeof(size));
+            auto buf = std::make_unique<byte_t>(size);
+            read(socket, buf.get(), size);
+
+            ClusterMeta tmp;
+            tmp.deserialize(buf.get());
+            cluster_status.update(tmp);
+            cluster_status.dump();
             sleep(1);
             return true;
         }
@@ -285,6 +336,43 @@ namespace Hill {
             std::cout << "-->> Monitor Port: " << monitor_port << "\n";
         }
 
+        auto Monitor::prepare(const std::string &configure_file) -> bool {
+            std::ifstream configuration(configure_file);
+            if (!configuration.is_open()) {
+                return false;
+            }
+
+            std::stringstream buf;
+            buf << configuration.rdbuf();
+            auto content = buf.str();
+
+            std::regex rnode_num("node_num:\\s*(\\d+)");
+            std::regex rranges("range: ((\\S+),\\s*(\\d+))");
+            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+
+            std::smatch vnode_num, vranges, vaddr;
+            if (!std::regex_search(content, vnode_num, rnode_num)) {
+                std::cerr << ">> Error: invalid or unspecified node num\n";
+                return false;
+            }
+
+            if (!std::regex_search(content, vaddr, raddr)) {
+                std::cerr << ">> Error: invalid IP address\n";
+                return false;
+            }
+
+            addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
+            port = atoi(vaddr[2].str().c_str());
+            meta.cluster.node_num = atoi(vnode_num[1].str().c_str());                            
+
+            while (std::regex_search(content, vranges, rranges)) {
+                meta.group.add_main(vranges[2].str(), atoi(vranges[3].str().c_str()));
+                content = vranges.suffix();
+            }
+            
+            return true;
+        }
+
         auto Monitor::launch() -> bool {
             run = true;
             auto sock = Misc::make_socket(true, port, addr.to_string().c_str());
@@ -292,7 +380,7 @@ namespace Hill {
                 return false;
             }
 
-            std::thread work([&]() {
+            std::thread work([&, sock]() {
                 while(run) {
                     check_income_connection(sock);
                     sleep(1);
@@ -303,64 +391,55 @@ namespace Hill {
             return true;
         }
 
+        auto Monitor::stop() -> void {
+            run = false;
+        }
+
         auto Monitor::check_income_connection(int sock) -> void {
             auto socket = Misc::accept_nonblocking(sock);
             if (socket == -1) {
                 return;
             }
-
-            std::thread heartbeat([&]() {
+            std::cout << ">> New node is connected\n";
+            std::thread heartbeat([&, socket]() {
+                // on first connection
                 auto to_size = meta.total_size();
-                write(sock, &to_size, sizeof(to_size));
+                write(socket, &to_size, sizeof(to_size));
                 auto to_buf = meta.serialize();
-                write(sock, to_buf.get(), to_size);
-                sleep(1);
+                write(socket, to_buf.get(), to_size);
+
+                // keepalive
                 while(run) {
                     ClusterMeta tmp;
                     auto size = 0UL;
-                    read(sock, &size, sizeof(size));
+
+                    read(socket, &size, sizeof(size));
                     auto buf = std::make_unique<byte_t[]>(size);
-                    read(sock, buf.get(), size);
+                    read(socket, buf.get(), size);
                     tmp.deserialize(buf.get());
 
-                    for (size_t i = 0; i <tmp.cluster.node_num; i++) {
-                        if (meta.cluster.nodes[i].version < tmp.cluster.nodes[i].version) {
-                            meta.cluster.nodes[i] = tmp.cluster.nodes[i];
-                        }
-                    }
-
-                    /*
-                     * This update is not always correct because range group may change, e.g., more partitions are 
-                     * created. But currently I don't handle this because for experiment, range group is fixed
-                     *
-                     * To fully update a range group, we can make use RPC.
-                     */
-                    for (size_t i = 0; i < tmp.group.num_infos; i++) {
-                        // order of RangeInfo never changes in a range group
-                        if (meta.group.infos[i].version < tmp.group.infos[i].version) {
-                            meta.group.infos[i].version = tmp.group.infos[i].version;
-                            memcpy(meta.group.infos[i].nodes, tmp.group.infos[i].nodes,
-                                   sizeof(meta.group.infos[i].nodes));
-                            memcpy(meta.group.infos[i].is_mem, tmp.group.infos[i].is_mem,
-                                   sizeof(meta.group.infos[i].is_mem));
-                        }
-                    }
-
-                    return_cluster_meta(sock);
+                    meta.update(tmp);
+                    meta.dump();
+                    return_cluster_meta(socket);
                     sleep(1);
                 }
             });
             heartbeat.detach();
         }
         
-
-        auto Monitor::return_cluster_meta(int socket) noexcept -> bool {
-            auto buf = meta.serialize();
+        auto Monitor::return_cluster_meta(int socket) noexcept -> void {
+            ++meta.version;
             auto size= meta.total_size();
-            for (size_t i = 0; i < meta.cluster.node_num; i++) {
-                write(socket, buf.get(), size);
-            }
-            return true;
+            write(socket, &size, sizeof(size));
+            auto buf = meta.serialize();
+            write(socket, buf.get(), size);
+        }
+
+        auto Monitor::dump() const noexcept -> void {
+            std::cout << ">> Monitor info: \n";
+            std::cout << "-->> Addr: " << addr.to_string() << ":" << port << "\n";            
+            std::cout << "-->> Meta:\n";
+            meta.dump();
         }
     }
 }

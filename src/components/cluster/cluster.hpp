@@ -1,4 +1,3 @@
-
 #ifndef __HILL__CLUSTER__CLUSTER__
 #define __HILL__CLUSTER__CLUSTER__
 #include "memory_manager/memory_manager.hpp"
@@ -113,12 +112,23 @@ namespace Hill {
             } cluster;
             RangeGroup group;
 
+            ClusterMeta() : version(0) {
+                cluster.node_num = 0;
+                for (size_t i = 0; i < Constants::uMAX_NODE; i++) {
+                    cluster.nodes[i].node_id = 0;
+                }
+            }
+
+            // this is not serialized
+            std::mutex lock;
+
             auto total_size() const noexcept -> size_t;
             auto serialize() const noexcept -> std::unique_ptr<byte_t[]>;
             // auto serialize() const noexcept -> byte_ptr_t;
             // update current ClusterMeta with this serialized buf
             auto deserialize(const byte_t *buf) -> void;
 
+            auto update(const ClusterMeta &newer) -> void;
             auto dump() const noexcept -> void;
         } __attribute__((packed));
 
@@ -138,24 +148,26 @@ namespace Hill {
             auto operator=(const Node &) -> Node & = default;
             auto operator=(Node &&) -> Node & = default;
 
-            static auto make_node(int node_id, const IPV4Addr &addr, size_t total_pm) -> std::unique_ptr<Node> {
+            static auto make_node(const std::string &config) -> std::unique_ptr<Node> {
                 auto ret = std::make_unique<Node>();
-                ret->node_id = node_id;
-                ret->addr = addr;
-                ret->total_pm = total_pm;
-                ret->available_pm = total_pm;
+                ret->prepare(config);
                 ret->cpu_usage = 0;
-
+                // this version seems useless
                 ret->cluster_status.version = 0;
+                for (size_t i = 0; i < Constants::uMAX_NODE; i++) {
+                    ret->cluster_status.cluster.nodes[i].node_id = 0;
+                }
+
                 return ret;
             }
 
-            /*
-             * Activate this node and start connecting monitor listed in configuration file
-             */
+            // read configuration file to initialize
             auto prepare(const std::string &configure_file) -> bool;
 
-            // calling object should outlive the background thread
+            /*
+             * Activate this node and start connecting monitor listed in configuration file
+             * calling object should outlive the background thread
+             */
             auto launch() -> void;
             auto stop() -> void;
 
@@ -194,21 +206,24 @@ namespace Hill {
             auto operator=(const Monitor &) -> Monitor & = default;
             auto operator=(Monitor &&) -> Monitor & = default;
 
-            static auto make_monitor(const IPV4Addr &addr, int port, size_t node_num) -> std::unique_ptr<Monitor> {
+            static auto make_monitor(const std::string &config) -> std::unique_ptr<Monitor> {
                 auto ret = std::make_unique<Monitor>();
-                ret->addr = addr;
-                ret->port = port;                
-                ret->meta.cluster.node_num = node_num;
-                ret->meta.version = 0;
-                ret->run = false;
-
+                ret->prepare(config);
+                
                 for (size_t i = 0; i < Constants::uMAX_NODE; i++) {
                     ret->meta.cluster.nodes[i].node_id = 0;
+                    ret->meta.cluster.nodes[i].version = 0;
                     ret->meta.cluster.nodes[i].is_active = false;
+
+                    for (size_t i = 0; i < ret->meta.group.num_infos; i++) {
+                        // Monitor holds the latest range group info on start
+                        ret->meta.group.infos[i].version = 1;
+                    }
                 }
                 return ret;
             }
 
+            auto prepare(const std::string &configure) -> bool;
             /*
              * Activiate this monitor.
              * Monitor will start listening for income connect request and start monitoring cluster status
@@ -220,7 +235,9 @@ namespace Hill {
             /*
              * Broadcast current cluster status including node liveness, node pm usage, etc. to all active nodes
              */
-            auto return_cluster_meta(int socket) noexcept -> bool;
+            auto return_cluster_meta(int socket) noexcept -> void;
+
+            auto dump() const noexcept -> void;
 
         private:
             ClusterMeta meta;

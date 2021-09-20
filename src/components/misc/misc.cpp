@@ -66,5 +66,22 @@ namespace Hill {
             }
             return ret;
         }
+ 
+        bool syncop(int sockfd) {
+            char msg = 'a';
+            if (write(sockfd, &msg, 1) != 1) {
+                return false;
+            }
+
+            if (read(sockfd, &msg, 1) != 1) {
+                return false;
+            }
+            return true;
+        }
+
+
+        auto pend() -> void {
+            while(true);
+        }
     }
 }

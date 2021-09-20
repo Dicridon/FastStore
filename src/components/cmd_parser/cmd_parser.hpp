@@ -178,7 +178,6 @@ namespace CmdParser {
             if (auto plain = plain_map.find(opt); plain != plain_map.end()) {
                 std::regex false_regex("(f|F)(alse)?|0");
                 if (std::regex_match(plain->second, false_regex)) {
-                    std::cout << ">> matched\n";
                     parsed = false;
                 }
             } else {

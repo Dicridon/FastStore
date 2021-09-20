@@ -1,5 +1,6 @@
 #include "cluster/cluster.hpp"
 #include "misc/misc.hpp"
+#include "cmd_parser/cmd_parser.hpp"
 
 #include <iostream>
 
@@ -85,14 +86,77 @@ auto test_network_serialization() -> void {
     client.join();
 }
 
+auto test_file_parsing() -> void {
+    auto n1 = Node::make_node("./node1.info");
+    n1->dump();
 
-auto main() -> int {
-    std::cout << "local serialization\n";
-    test_serialization();
-    std::cout << "\n>> network serialization\n";
-    test_network_serialization();
+    auto m1 = Monitor::make_monitor("./config.moni");
+    m1->dump();
+}
 
-    Node n1;
-    n1.prepare("./node1.info");
-    n1.dump();
+auto launch_node(bool is_monitor, const std::string &config) -> void {
+    std::unique_ptr<Monitor> monitor;
+    std::unique_ptr<Node> server;
+    if (is_monitor) {
+        monitor = Monitor::make_monitor(config);
+        std::cout << ">> Monitor Info\n";
+        monitor->dump();
+        monitor->launch();
+    } else {
+        server = Node::make_node(config);
+        std::cout << ">> Node Info\n";
+        server->dump();
+        server->launch();
+    }
+
+    while(true);
+}
+
+auto test_keepalive(int argc, char *argv[]) -> void {
+    CmdParser::Parser parser;
+    parser.add_option<int>("--num", "-n", 0);
+    parser.parse(argc, argv);
+
+    std::cout << "\n>> keepalive test\n";
+    auto ret = parser.get_as<int>("--num").value();
+    switch(ret) {
+    case 0:
+        {
+            std::thread monitor([&]() {
+                launch_node(true, "./config.moni");
+            });
+            
+            monitor.join();
+            break;
+        }
+    case 1:
+        {
+            std::thread server1([&]() {
+                launch_node(false, "./node1.info");
+            });
+            server1.join();
+            break;
+        }
+    case 2:
+        {
+            std::thread server2([&]() {
+                launch_node(false, "./node2.info");
+
+            });
+            server2.join();
+            break;
+        }
+    default:
+        break;
+    }
+    
+}
+
+using namespace CmdParser;
+auto main(int argc, char *argv[]) -> int {
+    // std::cout << "local serialization\n";
+    // test_serialization();
+    // std::cout << "\n>> network serialization\n";
+    // test_network_serialization();
+    test_keepalive(argc, argv);
 }
