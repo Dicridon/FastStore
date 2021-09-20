@@ -266,24 +266,23 @@ namespace Hill {
 
         auto Node::launch() -> void {
             run = true;
-            // std::thread background([this]() {
+            std::thread background([&]() {
                 auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
                 if (sock == -1) {
                     return;
                 }
 
+                std::cout << "---->> this in background thread " << this << "\n";
+
                 std::cout << ">> Monitor connected\n";
                 auto total = 0UL;
                 read(sock, &total, sizeof(total));
-                std::cout << ">> read size is: " << total << "\n";
                 auto buf = std::make_unique<byte_t[]>(total);
                 read(sock, buf.get(), total);
 
                 cluster_status.deserialize(buf.get());
-                std::cout << ">> First contact info\n";
                 cluster_status.dump();
 
-                // Misc::pend();
                 cluster_status.cluster.nodes[node_id].version = 1;
                 cluster_status.cluster.nodes[node_id].node_id = node_id;
                 cluster_status.cluster.nodes[node_id].total_pm = total_pm;
@@ -294,8 +293,8 @@ namespace Hill {
                     keepalive(sock);
                 }
                 shutdown(sock, 0);
-                // });
-                // background.detach();
+            });
+            background.detach();
         }
 
         auto Node::stop() -> void {
@@ -304,7 +303,8 @@ namespace Hill {
 
         // I need extra infomation to update PM usage and CPU usage
         auto Node::keepalive(int socket) noexcept -> bool {
-            auto size = cluster_status.total_size();
+            std::cout << "---->> this in keepalive " << this << "\n";
+            auto to_size = cluster_status.total_size();
             // Atomicity is not the first concern, because all these data fields are concurrently atomic
             cluster_status.cluster.nodes[node_id].available_pm = available_pm;
             cluster_status.cluster.nodes[node_id].cpu_usage = cpu_usage;
@@ -312,10 +312,12 @@ namespace Hill {
             ++cluster_status.cluster.nodes[node_id].version;
             ++cluster_status.version;
             // all machines are little-endian
-            write(socket, &size, sizeof(size));
-            write(socket, cluster_status.serialize().get(), size);
+            write(socket, &to_size, sizeof(to_size));
+            auto to_buf = cluster_status.serialize();
+            write(socket, to_buf.get(), to_size);
+            auto size = 0UL;
             read(socket, &size, sizeof(size));
-            auto buf = std::make_unique<byte_t>(size);
+            auto buf = std::make_unique<byte_t[]>(size);
             read(socket, buf.get(), size);
 
             ClusterMeta tmp;

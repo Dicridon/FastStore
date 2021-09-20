@@ -6,6 +6,7 @@
 #include <memory>
 #include <regex>
 #include <thread>
+#include <iostream>
 
 namespace Hill {
     namespace Cluster {
@@ -118,6 +119,7 @@ namespace Hill {
                     cluster.nodes[i].node_id = 0;
                 }
             }
+            ~ClusterMeta() = default;
 
             // this is not serialized
             std::mutex lock;
@@ -142,7 +144,9 @@ namespace Hill {
          */
         struct Node {
             Node() = default;
-            ~Node() = default;
+            ~Node() {
+                std::cout << ">> Node destructed\n";
+            };
             Node(const Node &) = default;
             Node(Node &&) = default;
             auto operator=(const Node &) -> Node & = default;
