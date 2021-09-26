@@ -7,6 +7,7 @@
 #include <regex>
 #include <thread>
 #include <iostream>
+#include <fstream>
 
 namespace Hill {
     namespace Cluster {
@@ -144,9 +145,7 @@ namespace Hill {
          */
         struct Node {
             Node() = default;
-            ~Node() {
-                std::cout << ">> Node destructed\n";
-            };
+            ~Node() = default;
             Node(const Node &) = default;
             Node(Node &&) = default;
             auto operator=(const Node &) -> Node & = default;
@@ -200,7 +199,6 @@ namespace Hill {
          * This class manage is an abstraction of cluster resources. It also manages heartbeat and keep resource
          * metadata update-to-date
          */
-
         class Monitor {
         public:
             Monitor() = default;

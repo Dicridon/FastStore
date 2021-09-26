@@ -2,7 +2,7 @@
 
 namespace Hill {
     namespace Misc {
-        int make_socket(bool is_server, int socket_port, const char *server) {
+        int make_socket(bool is_server, int socket_port) {
             struct sockaddr_in seraddr;
             auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
             if (sockfd == -1) {
@@ -54,7 +54,7 @@ namespace Hill {
         }
 
         int socket_connect(bool is_server, int socket_port, const char *server) {
-            auto sockfd = make_socket(is_server, socket_port, server);
+            auto sockfd = make_socket(is_server, socket_port);
             if (!is_server) {
                 return connect_socket(sockfd, socket_port, server);
             }

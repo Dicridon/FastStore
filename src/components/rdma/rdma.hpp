@@ -12,8 +12,6 @@
  *    7. rdma->post_send/recv/read/write
  *    8. rdma->poll_complection
  */
-
-
 #ifndef __HILL__RDMA__RDMA__
 #define __HILL__RDMA__RDMA__
 #include <memory>
@@ -71,6 +69,8 @@ namespace Hill {
                 RecvFailed,
             };
         }
+
+        auto decode_rdma_status(const Enums::RDMAStatus& status) -> std::string;
 
         using namespace Enums;
         /*

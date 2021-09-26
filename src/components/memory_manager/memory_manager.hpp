@@ -167,35 +167,15 @@ namespace Hill {
          */
         
         class Allocator {
-        private:
-            static const Page *AVAILABLE;
-            struct AllocatorHeader {
-                uint64_t magic;
-                size_t total_size;
-                Page *freelist;              // only for page reuse
-                Page *base;
-                Page *cursor;
-                Page *thread_free_lists[Constants::iTHREAD_LIST_NUM]; // avoid memory leaks
-
-                // This list is purely for the convenience of unregisteration
-                // Free pages in each thread's free list is moved here upon
-                // unregisteration. If a new thread is to register, the move
-                // it back
-                Page *thread_pending_pages[Constants::iTHREAD_LIST_NUM];
-
-                // This list is used to prevent page leak during a free
-                Page *to_be_freed[Constants::iTHREAD_LIST_NUM];
-                Page *thread_busy_pages[Constants::iTHREAD_LIST_NUM];
-            };
         public:
             Allocator() = delete;
-            ~Allocator() {};
+            ~Allocator() = default;
             Allocator(const Allocator &) = delete;
             Allocator(Allocator &&) = delete;
             auto operator=(const Allocator &) -> Allocator & = delete;
             auto operator=(Allocator &&) -> Allocator & = delete;
 
-            static auto make_allocator(byte_ptr_t &base, size_t size) -> Allocator * {
+            static auto make_allocator(const byte_ptr_t &base, size_t size) -> Allocator * {
                 auto allocator = reinterpret_cast<Allocator *>(base);
                 
                 switch(allocator->recover()){
@@ -234,7 +214,24 @@ namespace Hill {
 
             auto recover() -> Enums::AllocatorRecoveryStatus;
         private:
-            AllocatorHeader header;
+            struct AllocatorHeader {
+                uint64_t magic;
+                size_t total_size;
+                Page *freelist;              // only for page reuse
+                Page *base;
+                Page *cursor;
+                Page *thread_free_lists[Constants::iTHREAD_LIST_NUM]; // avoid memory leaks
+
+                // This list is purely for the convenience of unregisteration
+                // Free pages in each thread's free list is moved here upon
+                // unregisteration. If a new thread is to register, the move
+                // it back
+                Page *thread_pending_pages[Constants::iTHREAD_LIST_NUM];
+
+                // This list is used to prevent page leak during a free
+                Page *to_be_freed[Constants::iTHREAD_LIST_NUM];
+                Page *thread_busy_pages[Constants::iTHREAD_LIST_NUM];
+            } header;
             
             auto recover_global_free_list() -> void {
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {

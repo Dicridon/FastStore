@@ -30,4 +30,5 @@ int main() {
     char buf[128];
     memcpy(buf, ptr, data.size());
     allocator->free(_id.value(), ptr);
+    std::cout << "seems works\n";
 }

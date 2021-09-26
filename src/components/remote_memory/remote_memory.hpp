@@ -44,7 +44,7 @@ namespace Hill {
 
             inline static auto make_remote_pointer(uint64_t node, uint64_t address) -> RemotePointer {
                 auto value = address & Constants::uREMOTE_POINTER_MASK;
-                auto meta = (Constants::uREMOTE_POINTER_BITS << 6) | (node & (~0xc0UL));
+                auto meta = (Constants::uREMOTE_POINTER_BITS << 6) | (node & (0x3fUL));
                 auto tmp = (meta << 56) | value;
 
                 // dangerous operation, copy(move) assignment is necessary
@@ -79,7 +79,7 @@ namespace Hill {
 
             inline auto get_node() const noexcept -> int {
                 auto value = reinterpret_cast<uint64_t>(ptr);
-                return (value >> 56) & (~0xc0UL);
+                return (value >> 56) & (0x3fUL);
             }
 
             inline auto raw_ptr() const noexcept -> byte_ptr_t {
@@ -225,10 +225,21 @@ namespace Hill {
          */
         class RemoteMemoryAgent {
         public:
-            
+            RemoteMemoryAgent() = default;
+            RemoteMemoryAgent(const RemoteMemoryAgent &) = delete;
+            RemoteMemoryAgent(RemoteMemoryAgent &&) = delete;
+            auto operator=(const RemotePointer &) -> RemotePointer & = delete;
+            auto operator=(RemotePointer &&) -> RemotePointer & = delete;
+
+            static auto make_agent(const byte_ptr_t &pm) -> RemoteMemoryAgent * {
+                auto tmp = reinterpret_cast<RemoteMemoryAgent *>(pm);
+                memset(tmp, 0, sizeof(RemoteMemoryAgent));
+                return tmp;
+            }
         private:
             RemoteAllocator allocators[Constants::iTHREAD_LIST_NUM][Constants::uREMOTE_REGIONS];
         };
     }
 }
 #endif
+

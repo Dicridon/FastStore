@@ -109,7 +109,8 @@ auto launch_node(bool is_monitor, const std::string &config) -> void {
         server->launch();
     }
 
-    while(true);
+    // keep monitor and server valid
+    pend();
 }
 
 auto test_keepalive(int argc, char *argv[]) -> void {
@@ -141,7 +142,6 @@ auto test_keepalive(int argc, char *argv[]) -> void {
         {
             std::thread server2([&]() {
                 launch_node(false, "./node2.info");
-
             });
             server2.join();
             break;

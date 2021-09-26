@@ -34,62 +34,6 @@ void show_connection_info(const connection_certificate &c, bool is_local = true)
     std::cout << "\n";
 }
 
-bool syncop(int sockfd) {
-    char msg = 'a';
-    if (write(sockfd, &msg, 1) != 1) {
-        return false;
-    }
-
-    if (read(sockfd, &msg, 1) != 1) {
-        return false;
-    }
-    return true;
-}
-
-std::string decode_rdma_status(const RDMAStatus& status) {
-    switch(status){
-    case RDMAUtil::Enums::RDMAStatus::Ok:
-        return "Ok";
-    case RDMAUtil::Enums::RDMAStatus::NoRDMADeviceList:
-        return "NoRDMADeviceList";
-    case RDMAUtil::Enums::RDMAStatus::DeviceNotFound:
-        return "DeviceNotFound";
-    case RDMAUtil::Enums::RDMAStatus::NoGID:
-        return "NoGID";
-    case RDMAUtil::Enums::RDMAStatus::CannotOpenDevice:
-        return "CannotOpenDevice";
-    case RDMAUtil::Enums::RDMAStatus::CannotAllocPD:
-        return "CannotAllocPD";
-    case RDMAUtil::Enums::RDMAStatus::CannotCreateCQ:
-        return "CannotCreateCQ";
-    case RDMAUtil::Enums::RDMAStatus::CannotRegMR:
-        return "CannotRegMR";
-    case RDMAUtil::Enums::RDMAStatus::CannotCreateQP:
-        return "CannotCreateQP";
-    case RDMAUtil::Enums::RDMAStatus::CannotQueryPort:
-        return "CannotQueryPort";
-    case RDMAUtil::Enums::RDMAStatus::InvalidGIDIdx:
-        return "InvalidGIDIdx";
-    case RDMAUtil::Enums::RDMAStatus::InvalidIBPort:
-        return "InvalidIBPort";
-    case RDMAUtil::Enums::RDMAStatus::InvalidArguments:
-        return "InvalidArguments";
-    case RDMAUtil::Enums::RDMAStatus::CannotInitQP:
-        return "CannotInitQP";
-    case RDMAUtil::Enums::RDMAStatus::QPRTRFailed:
-        return "QPRTRFailed";
-    case RDMAUtil::Enums::RDMAStatus::QPRTSFailed:
-        return "QPRTSFailed";
-    case RDMAUtil::Enums::RDMAStatus::DeviceNotOpened:
-        return "DeviceNotOpened";
-    case RDMAUtil::Enums::RDMAStatus::ReadError:
-        return "ReadError";
-    case RDMAUtil::Enums::RDMAStatus::WriteError:
-        return "WriteError";
-    default:
-        return "Unknown status";
-    }
-}
 
 using namespace CmdParser;
 int main(int argc, char *argv[]) {

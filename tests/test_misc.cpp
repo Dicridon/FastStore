@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
 
     int sock = 0;
     if (is_server) {
-        sock = make_socket(is_server, 2333, nullptr);
+        sock = make_socket(is_server, 2333);
         auto socket = accept_blocking(sock);
         size_t value = 0;        
         while(true) {

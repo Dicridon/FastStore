@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <fcntl.h>
 
 namespace Hill {
     namespace Cluster {
@@ -324,7 +325,7 @@ namespace Hill {
             tmp.deserialize(buf.get());
             cluster_status.update(tmp);
             cluster_status.dump();
-            sleep(1);
+            sleep(3);
             return true;
         }
 
@@ -377,7 +378,10 @@ namespace Hill {
 
         auto Monitor::launch() -> bool {
             run = true;
-            auto sock = Misc::make_socket(true, port, addr.to_string().c_str());
+            auto sock = Misc::make_socket(true, port);
+            auto flags = fcntl(sock, F_GETFL);
+            fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+            
             if (sock == -1) {
                 return false;
             }
@@ -398,7 +402,8 @@ namespace Hill {
         }
 
         auto Monitor::check_income_connection(int sock) -> void {
-            auto socket = Misc::accept_nonblocking(sock);
+            // accept should be non-blocking, but read/write should be blocking
+            auto socket = Misc::accept_blocking(sock);
             if (socket == -1) {
                 return;
             }

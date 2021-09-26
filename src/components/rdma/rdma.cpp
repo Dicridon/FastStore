@@ -1,6 +1,51 @@
 #include "rdma.hpp"
 namespace Hill {
     namespace RDMAUtil {
+        auto decode_rdma_status(const Enums::RDMAStatus& status) -> std::string {
+            switch(status){
+            case Enums::RDMAStatus::Ok:
+                return "Ok";
+            case Enums::RDMAStatus::NoRDMADeviceList:
+                return "NoRDMADeviceList";
+            case Enums::RDMAStatus::DeviceNotFound:
+                return "DeviceNotFound";
+            case Enums::RDMAStatus::NoGID:
+                return "NoGID";
+            case Enums::RDMAStatus::CannotOpenDevice:
+                return "CannotOpenDevice";
+            case Enums::RDMAStatus::CannotAllocPD:
+                return "CannotAllocPD";
+            case Enums::RDMAStatus::CannotCreateCQ:
+                return "CannotCreateCQ";
+            case Enums::RDMAStatus::CannotRegMR:
+                return "CannotRegMR";
+            case Enums::RDMAStatus::CannotCreateQP:
+                return "CannotCreateQP";
+            case Enums::RDMAStatus::CannotQueryPort:
+                return "CannotQueryPort";
+            case Enums::RDMAStatus::InvalidGIDIdx:
+                return "InvalidGIDIdx";
+            case Enums::RDMAStatus::InvalidIBPort:
+                return "InvalidIBPort";
+            case Enums::RDMAStatus::InvalidArguments:
+                return "InvalidArguments";
+            case Enums::RDMAStatus::CannotInitQP:
+                return "CannotInitQP";
+            case Enums::RDMAStatus::QPRTRFailed:
+                return "QPRTRFailed";
+            case Enums::RDMAStatus::QPRTSFailed:
+                return "QPRTSFailed";
+            case Enums::RDMAStatus::DeviceNotOpened:
+                return "DeviceNotOpened";
+            case Enums::RDMAStatus::ReadError:
+                return "ReadError";
+            case Enums::RDMAStatus::WriteError:
+                return "WriteError";
+            default:
+                return "Unknown status";
+            }
+        }
+        
         auto RDMA::make_rdma(std::string &dev_name, int ib_port, int gid_idx) -> std::pair<RDMAPtr, RDMAStatus> {
             int dev_num = 0;
             struct ibv_device **devices = ibv_get_device_list(&dev_num);
