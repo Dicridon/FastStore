@@ -14,14 +14,19 @@
  */
 #ifndef __HILL__RDMA__RDMA__
 #define __HILL__RDMA__RDMA__
+#include "memory_manager/memory_manager.hpp"
+
 #include <memory>
 #include <optional>
 #include <functional>
+#include <iostream>
+
 #include <infiniband/verbs.h>
 #include <byteswap.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 static inline uint64_t htonll(uint64_t x) { return bswap_64(x); }
@@ -36,6 +41,7 @@ static inline uint64_t ntohll(uint64_t x) { return x; }
 
 namespace Hill {
     namespace RDMAUtil {
+        using namespace ::Hill::Memory::TypeAliases;
         struct connection_certificate {
             uint64_t addr;   // registered memory address
             uint32_t rkey;   // remote key
@@ -224,7 +230,9 @@ namespace Hill {
                 return IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY |
                     IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC;
             }
-        
+
+            auto default_connect(int socket, const byte_ptr_t &base, size_t size) -> int;
+            
             auto modify_qp(struct ibv_qp_attr &, int mask) noexcept -> std::pair<RDMAStatus, int>;
             auto exchange_certificate(int sockfd) noexcept -> RDMAStatus;
 

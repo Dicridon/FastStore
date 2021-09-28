@@ -99,8 +99,8 @@ namespace Hill {
         int gid_idx;
         byte_ptr_t base;
         bool run;
-        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections;
-        std::vector<RDMAUtil::RDMA::RDMAPtr> client_connections;
+        std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections;
+        std::vector<RDMA::RDMAPtr> client_connections;
         
         auto parse_ib(const std::string &config) noexcept -> bool;
     };
@@ -130,17 +130,26 @@ namespace Hill {
             ret->monitor_addr = Cluster::IPV4Addr::make_ipv4_addr(vmonitor[1]).value();
             ret->monitor_port = atoi(vmonitor[2].str().c_str());
             ret->run = false;
+            ret->parse_ib(config);
+            ret->buf = std::make_unique<byte_t[]>(16 * 1024);
             return ret;
         }
         auto connect_monitor() noexcept -> bool;
-        auto connect_server() noexcept -> void; 
+        auto connect_server(int node_id) noexcept -> bool; 
     private:
         bool run;
+        
         Cluster::IPV4Addr monitor_addr;
         int monitor_port;
         int monitor_socket;
         std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connectinos;
         Cluster::ClusterMeta meta;
+        std::string rdma_dev_name;
+        int ib_port;
+        int gid_idx;
+        std::unique_ptr<byte_t[]> buf;
+
+        auto parse_ib(const std::string &config) noexcept -> bool;        
     };
 }
 #endif

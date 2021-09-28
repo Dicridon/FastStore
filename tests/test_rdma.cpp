@@ -58,49 +58,12 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    auto buf = new char[1024];
-    memset(buf, 0, 1024);
-    struct ibv_qp_init_attr at;
-    memset(&at, 0, sizeof(struct ibv_qp_init_attr));
-    int mr_access = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
-    at.qp_type = IBV_QPT_RC;
-    at.sq_sig_all = 1;
-    at.cap.max_send_wr = 1;
-    at.cap.max_recv_wr = 1;
-    at.cap.max_send_sge = 1;
-    at.cap.max_recv_sge = 1;
-
-    if (auto status = rdma->open(buf, 1024, 1, mr_access, at); status != RDMAStatus::Ok) {
-        std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
-        return -1;
-    }
-
+    auto buf = new byte_t[1024];
     auto sockfd = socket_connect(is_server, socket_port, "127.0.0.1");
-    if (rdma->exchange_certificate(sockfd) != RDMAStatus::Ok) {
-        std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";        
-    }
-
-    show_connection_info(rdma->get_local());
-    show_connection_info(rdma->get_remote(), false);
-
-    auto init_attr = RDMA::get_default_qp_init_attr();
-    if (auto [status, err] = rdma->modify_qp(*init_attr, RDMA::get_default_qp_init_attr_mask()); status != RDMAStatus::Ok) {
-        std::cerr << "Modify QP to Init failed, error code: " << err << "\n";
+    if (rdma->default_connect(sockfd, buf, 1024) != 0) {
+        std::cerr << "Default RDMA connection failed\n";
         return -1;
     }
-
-    auto rtr_attr = RDMA::get_default_qp_rtr_attr(rdma->get_remote(), rdma->get_ib_port(), rdma->get_gid_idx());
-    if (auto [status, err] = rdma->modify_qp(*rtr_attr, RDMA::get_default_qp_rtr_attr_mask()); status != RDMAStatus::Ok) {
-        std::cerr << "Modify QP to Rtr failed, error code: " << err << "\n";
-        return -1;
-    }
-
-    auto rts_attr = RDMA::get_default_qp_rts_attr();
-    if (auto [status, err] = rdma->modify_qp(*rts_attr, RDMA::get_default_qp_rts_attr_mask()); status != RDMAStatus::Ok) {
-        std::cerr << "Modify QP to Rts failed, error code: " << err << "\n";
-        return -1;
-    }
-    
 
     syncop(sockfd);
     std::string rdma_msg;

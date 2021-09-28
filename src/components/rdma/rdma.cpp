@@ -162,6 +162,48 @@ namespace Hill {
             return attr;
         }
 
+        auto RDMA::default_connect(int socket, const byte_ptr_t &base, size_t size) -> int {
+            struct ibv_qp_init_attr at;
+            memset(&at, 0, sizeof(struct ibv_qp_init_attr));
+            int mr_access = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
+            at.qp_type = IBV_QPT_RC;
+            at.sq_sig_all = 1;
+            at.cap.max_send_wr = 128;
+            at.cap.max_recv_wr = 128;
+            at.cap.max_send_sge = 128;
+            at.cap.max_recv_sge = 128;
+
+            if (auto status = open(base, size, 128, mr_access, at); status != RDMAStatus::Ok) {
+                std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
+                return -1;
+            }
+
+            if (auto status = exchange_certificate(socket); status != RDMAStatus::Ok) {
+                std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";
+                return -1;
+            }
+
+            auto init_attr = RDMA::get_default_qp_init_attr();
+            if (auto [status, err] = modify_qp(*init_attr, RDMA::get_default_qp_init_attr_mask()); status != RDMAStatus::Ok) {
+                std::cerr << "Modify QP to Init failed, error code: " << err << "\n";
+                return err;
+            }
+
+            auto rtr_attr = RDMA::get_default_qp_rtr_attr(get_remote(), get_ib_port(), get_gid_idx());
+            if (auto [status, err] = modify_qp(*rtr_attr, RDMA::get_default_qp_rtr_attr_mask()); status != RDMAStatus::Ok) {
+                std::cerr << "Modify QP to Rtr failed, error code: " << err << "\n";
+                return err;
+            }
+
+            auto rts_attr = RDMA::get_default_qp_rts_attr();
+            if (auto [status, err] = modify_qp(*rts_attr, RDMA::get_default_qp_rts_attr_mask()); status != RDMAStatus::Ok) {
+                std::cerr << "Modify QP to Rts failed, error code: " << err << "\n";
+                return err;
+            }
+            return 0;
+        }
+        
+
         auto RDMA::modify_qp(struct ibv_qp_attr &attr, int mask) noexcept -> std::pair<RDMAStatus, int> {
             if (!is_opened()) {
                 return std::make_pair(RDMAStatus::DeviceNotOpened, -1);
