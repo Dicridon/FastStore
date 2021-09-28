@@ -105,14 +105,9 @@ namespace CmdParser {
                 return false;
             }
 
-            if constexpr (std::is_floating_point_v<T>) {
-                return plain_map.insert({full, std::to_string(default_value)}).second;
-            } else {
-                std::stringstream stream;
-                stream << default_value;
-                return plain_map.insert({full, stream.str()}).second;
-            }
-            return false;
+            std::stringstream stream;
+            stream << default_value;
+            return plain_map.insert({full, stream.str()}).second;
         }
 
         template<typename T>
@@ -144,7 +139,7 @@ namespace CmdParser {
         }
 
         template<typename Target>
-        auto parse_value(const std::string &in) -> std::optional<Target> {
+        auto parse_value(const std::string &in) const -> std::optional<Target> {
             Target holder;
             std::stringstream buf(in);
             buf >> holder;
@@ -164,7 +159,7 @@ namespace CmdParser {
 
         template<typename T,
                  typename = typename std::enable_if_t<std::is_same_v<T, bool>>>
-        auto get_as(const std::string &opt) -> std::optional<bool> {
+        auto get_as(const std::string &opt) const -> std::optional<bool> {
             auto maybe_parsed = parsed_map.find(opt);
 
             // find a parsed value
@@ -195,7 +190,7 @@ namespace CmdParser {
 
         template<typename Target,
                  typename = typename std::enable_if_t<!std::is_same_v<Target, bool>>>
-        auto get_as(const std::string &opt) -> std::optional<Target> {
+        auto get_as(const std::string &opt) const -> std::optional<Target> {
             auto maybe_parsed = parsed_map.find(opt);
 
             // find a parsed value
@@ -223,7 +218,7 @@ namespace CmdParser {
 
         template<typename Target>
         auto get_as(const std::string &opt,
-                    std::function<std::optional<Target>(const std::string &s)> convertor) -> std::optional<Target> {
+                    std::function<std::optional<Target>(const std::string &s)> convertor) const -> std::optional<Target> {
 
             auto plain = plain_map.find(opt);
             if (plain == plain_map.end()) {
@@ -254,7 +249,7 @@ namespace CmdParser {
         static const std::string regex_short_suffix;
         OptionMap plain_map;
         RegexMap regex_map;
-        ParsedOptionMap parsed_map;
+        mutable ParsedOptionMap parsed_map;
     };
 
 }

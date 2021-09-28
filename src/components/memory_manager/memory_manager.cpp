@@ -2,6 +2,11 @@
 
 namespace Hill {
     namespace Memory {
+        /*
+         * I put a global lock at namespace scope becauseh the memory manager can not own a transient lock
+         * when it resides on PM
+         */
+        std::mutex global_lock;
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
             auto unavailable = header.header_cursor + sizeof(RecordHeader) > header.record_cursor - size;
             if (unavailable)

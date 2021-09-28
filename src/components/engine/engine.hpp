@@ -66,7 +66,7 @@ namespace Hill {
             offset += sizeof(Memory::Allocator);
             ret->agent = Memory::RemoteMemoryAgent::make_agent(base + offset);
 
-            ret->sock = Misc::make_socket(true, 2333);
+            ret->sock = Misc::make_socket(true, ret->node->port);
             if (ret->sock == -1) {
                 return nullptr;
             }
@@ -74,13 +74,12 @@ namespace Hill {
             fcntl(ret->sock, F_SETFL, flags | O_NONBLOCK);
 
             ret->base = base;
+            ret->run = false;
             return ret;
         }
 
         /*
-         * Here I do not record established connections for simplicity. My code ensure every two peers connect only once
-         * by triggering check_rdma_request. A client may connect a server for multiple times, but in our experiment, 
-         * this is impossible.
+         * Established connections are recorded so that one node can find the RDMA connection with a specific node.
          */
         auto check_rdma_request() noexcept -> int;
         auto launch() noexcept -> void;
@@ -99,15 +98,48 @@ namespace Hill {
         int ib_port;
         int gid_idx;
         byte_ptr_t base;
-
-        auto parse_ib(const std::string &config) noexcept -> bool ;
+        bool run;
+        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections;
+        std::vector<RDMAUtil::RDMA::RDMAPtr> client_connections;
+        
+        auto parse_ib(const std::string &config) noexcept -> bool;
     };
 
     class Client {
     public:
-        auto connect_monitor() -> void;
-        auto connect_server() -> void; 
+        Client() = default;
+        ~Client() = default;
+        Client(const Client &) = delete;
+        Client(Client &&) = delete;
+        auto operator=(const Client &) = delete;
+        auto operator=(Client &&) = delete;
+        
+        static auto make_client(const std::string config) -> std::unique_ptr<Client> {
+            auto content_ = Misc::file_as_string(config);
+            if (!content_.has_value()) {
+                return nullptr;
+            }
+
+            std::regex rmonitor("monitor:\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+            std::smatch vmonitor;
+            if (!std::regex_search(content_.value(), vmonitor, rmonitor)) {
+                return nullptr;
+            }
+
+            auto ret = std::make_unique<Client>();
+            ret->monitor_addr = Cluster::IPV4Addr::make_ipv4_addr(vmonitor[1]).value();
+            ret->monitor_port = atoi(vmonitor[2].str().c_str());
+            ret->run = false;
+            return ret;
+        }
+        auto connect_monitor() noexcept -> bool;
+        auto connect_server() noexcept -> void; 
     private:
+        bool run;
+        Cluster::IPV4Addr monitor_addr;
+        int monitor_port;
+        int monitor_socket;
+        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connectinos;
         Cluster::ClusterMeta meta;
     };
 }

@@ -15,6 +15,7 @@ namespace Hill {
         namespace Constants {
             // including the monitor
             static constexpr size_t uMAX_NODE = 64;
+            static constexpr int iCLIENT_ID = 0xff;
         }
 
         // just for simplicity, I don't wnat those Linux stuff
@@ -59,6 +60,7 @@ namespace Hill {
             size_t available_pm;
             float cpu_usage;
             IPV4Addr addr;
+            int port;
             bool is_active;
         } __attribute__((packed));
 
@@ -171,7 +173,7 @@ namespace Hill {
              * Activate this node and start connecting monitor listed in configuration file
              * calling object should outlive the background thread
              */
-            auto launch() -> void;
+            auto launch() -> bool;
             auto stop() -> void;
 
             /*
@@ -187,6 +189,7 @@ namespace Hill {
             size_t available_pm;
             float cpu_usage;
             IPV4Addr addr;
+            int port;
             IPV4Addr monitor_addr;
             int monitor_port;
             ClusterMeta cluster_status;

@@ -79,9 +79,19 @@ namespace Hill {
             return true;
         }
 
-
         auto pend() -> void {
             while(true);
+        }
+
+        auto file_as_string(const std::string &file_name) -> std::optional<std::string> {
+            std::ifstream in(file_name);
+            if (!in.is_open()) {
+                return {};
+            }
+
+            std::stringstream buf;
+            buf << in.rdbuf();
+            return buf.str();
         }
     }
 }

@@ -198,6 +198,7 @@ namespace Hill {
                 std::cout << "-->> total pm: " << cluster.nodes[i].total_pm << "\n";
                 std::cout << "-->> availabel pm: " << cluster.nodes[i].available_pm << "\n";
                 std::cout << "-->> ip address: " << cluster.nodes[i].addr.to_string() << "\n";
+                std::cout << "-->> socket port: " << cluster.nodes[i].port << "\n";
             }
             std::cout << ">> range group: \n";
             for (size_t j = 0; j < group.num_infos; j++) {
@@ -214,19 +215,17 @@ namespace Hill {
         }
 
         auto Node::prepare(const std::string &configure_file) -> bool {
-            std::ifstream configuration(configure_file);
-            if (!configuration.is_open()) {
+            auto content_ = Misc::file_as_string(configure_file);
+            if (!content_.has_value()) {
                 return false;
             }
 
-            std::stringstream buf;
-            buf << configuration.rdbuf();
-            auto content = buf.str();
+            auto content = content_.value();
 
             std::regex rnode_id("node_id:\\s*(\\d+)");
             std::regex rtotal_pm("total_pm:\\s*(\\d+)");
             std::regex ravailable_pm("available_pm:\\s*(\\d+)");            
-            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})");
+            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
             std::regex rmonitor("monitor:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
 
             std::smatch vnode_id, vtotal_pm, vaddr, vavailable_pm, vmonitor;
@@ -260,18 +259,20 @@ namespace Hill {
             available_pm = atoll(vavailable_pm[1].str().c_str());
             // impossible be invalid
             addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
+            port = atoi(vaddr[2].str().c_str());
             monitor_addr = IPV4Addr::make_ipv4_addr(vmonitor[1].str()).value();
             monitor_port = atoi(vmonitor[2].str().c_str());
             return true;
         }
 
-        auto Node::launch() -> void {
+        auto Node::launch() -> bool {
             run = true;
-            std::thread background([&]() {
-                auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
-                if (sock == -1) {
-                    return;
-                }
+            auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
+            if (sock == -1) {
+                return false;
+            }
+            
+            std::thread background([&, sock]() {
 
                 std::cout << "---->> this in background thread " << this << "\n";
 
@@ -288,6 +289,7 @@ namespace Hill {
                 cluster_status.cluster.nodes[node_id].node_id = node_id;
                 cluster_status.cluster.nodes[node_id].total_pm = total_pm;
                 cluster_status.cluster.nodes[node_id].addr = addr;
+                cluster_status.cluster.nodes[node_id].port = port;
                 cluster_status.cluster.nodes[node_id].is_active = true;
                 
                 while(run) {
@@ -296,6 +298,7 @@ namespace Hill {
                 shutdown(sock, 0);
             });
             background.detach();
+            return true;
         }
 
         auto Node::stop() -> void {
@@ -340,14 +343,12 @@ namespace Hill {
         }
 
         auto Monitor::prepare(const std::string &configure_file) -> bool {
-            std::ifstream configuration(configure_file);
-            if (!configuration.is_open()) {
+            auto content_ = Misc::file_as_string(configure_file);
+            if (!content_.has_value()) {
                 return false;
             }
 
-            std::stringstream buf;
-            buf << configuration.rdbuf();
-            auto content = buf.str();
+            auto content = content_.value();
 
             std::regex rnode_num("node_num:\\s*(\\d+)");
             std::regex rranges("range: ((\\S+),\\s*(\\d+))");
@@ -419,7 +420,6 @@ namespace Hill {
                 while(run) {
                     ClusterMeta tmp;
                     auto size = 0UL;
-
                     read(socket, &size, sizeof(size));
                     auto buf = std::make_unique<byte_t[]>(size);
                     read(socket, buf.get(), size);

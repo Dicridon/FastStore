@@ -7,7 +7,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
-
+#include <fstream>
+#include <optional>
+#include <sstream>
 
 namespace Hill {
     namespace Misc {
@@ -30,6 +32,8 @@ namespace Hill {
 
         // Don't know why I'm writing this, perhaps because pend(); is shorter than while(true);
         auto pend() -> void;
+
+        auto file_as_string(const std::string &file_name) -> std::optional<std::string>;
     }
 }
 #endif
