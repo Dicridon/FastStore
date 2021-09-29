@@ -1,95 +1,95 @@
 #include "rdma.hpp"
 namespace Hill {
     namespace RDMAUtil {
-        auto decode_rdma_status(const Enums::RDMAStatus& status) -> std::string {
+        auto decode_rdma_status(const Enums::Status& status) -> std::string {
             switch(status){
-            case Enums::RDMAStatus::Ok:
+            case Enums::Status::Ok:
                 return "Ok";
-            case Enums::RDMAStatus::NoRDMADeviceList:
+            case Enums::Status::NoRDMADeviceList:
                 return "NoRDMADeviceList";
-            case Enums::RDMAStatus::DeviceNotFound:
+            case Enums::Status::DeviceNotFound:
                 return "DeviceNotFound";
-            case Enums::RDMAStatus::NoGID:
+            case Enums::Status::NoGID:
                 return "NoGID";
-            case Enums::RDMAStatus::CannotOpenDevice:
+            case Enums::Status::CannotOpenDevice:
                 return "CannotOpenDevice";
-            case Enums::RDMAStatus::CannotAllocPD:
+            case Enums::Status::CannotAllocPD:
                 return "CannotAllocPD";
-            case Enums::RDMAStatus::CannotCreateCQ:
+            case Enums::Status::CannotCreateCQ:
                 return "CannotCreateCQ";
-            case Enums::RDMAStatus::CannotRegMR:
+            case Enums::Status::CannotRegMR:
                 return "CannotRegMR";
-            case Enums::RDMAStatus::CannotCreateQP:
+            case Enums::Status::CannotCreateQP:
                 return "CannotCreateQP";
-            case Enums::RDMAStatus::CannotQueryPort:
+            case Enums::Status::CannotQueryPort:
                 return "CannotQueryPort";
-            case Enums::RDMAStatus::InvalidGIDIdx:
+            case Enums::Status::InvalidGIDIdx:
                 return "InvalidGIDIdx";
-            case Enums::RDMAStatus::InvalidIBPort:
+            case Enums::Status::InvalidIBPort:
                 return "InvalidIBPort";
-            case Enums::RDMAStatus::InvalidArguments:
+            case Enums::Status::InvalidArguments:
                 return "InvalidArguments";
-            case Enums::RDMAStatus::CannotInitQP:
+            case Enums::Status::CannotInitQP:
                 return "CannotInitQP";
-            case Enums::RDMAStatus::QPRTRFailed:
+            case Enums::Status::QPRTRFailed:
                 return "QPRTRFailed";
-            case Enums::RDMAStatus::QPRTSFailed:
+            case Enums::Status::QPRTSFailed:
                 return "QPRTSFailed";
-            case Enums::RDMAStatus::DeviceNotOpened:
+            case Enums::Status::DeviceNotOpened:
                 return "DeviceNotOpened";
-            case Enums::RDMAStatus::ReadError:
+            case Enums::Status::ReadError:
                 return "ReadError";
-            case Enums::RDMAStatus::WriteError:
+            case Enums::Status::WriteError:
                 return "WriteError";
             default:
                 return "Unknown status";
             }
         }
         
-        auto RDMA::make_rdma(std::string &dev_name, int ib_port, int gid_idx) -> std::pair<RDMAPtr, RDMAStatus> {
+        auto RDMA::make_rdma(std::string &dev_name, int ib_port, int gid_idx) -> std::pair<RDMAPtr, Status> {
             int dev_num = 0;
             struct ibv_device **devices = ibv_get_device_list(&dev_num);
             if (!devices) {
-                return std::make_pair(nullptr, RDMAStatus::NoRDMADeviceList);
+                return std::make_pair(nullptr, Status::NoRDMADeviceList);
             }
 
             for (int i = 0; i < dev_num; i++) {
                 if (dev_name.compare(ibv_get_device_name(devices[i])) == 0) {
                     if (auto ctx = ibv_open_device(devices[i]); ctx) {
-                        return std::make_pair(std::make_unique<RDMA>(ctx, ib_port, gid_idx), RDMAStatus::Ok);
+                        return std::make_pair(std::make_unique<RDMA>(ctx, ib_port, gid_idx), Status::Ok);
                     }
                 }
             }
-            return std::make_pair(nullptr, RDMAStatus::DeviceNotFound);
+            return std::make_pair(nullptr, Status::DeviceNotFound);
         }
 
-        auto RDMA::open(void *membuf, size_t memsize, size_t cqe, int mr_access, struct ibv_qp_init_attr &attr) -> RDMAStatus {
+        auto RDMA::open(void *membuf, size_t memsize, size_t cqe, int mr_access, struct ibv_qp_init_attr &attr) -> Status {
             if (!membuf || !cqe) {
-                return RDMAStatus::InvalidArguments;
+                return Status::InvalidArguments;
             }
 
             if (!(pd = ibv_alloc_pd(ctx))) {
-                return RDMAStatus::CannotAllocPD;
+                return Status::CannotAllocPD;
             }
 
             if (!(cq = ibv_create_cq(ctx, cqe, nullptr, nullptr, 0))) {
-                return RDMAStatus::CannotCreateCQ;
+                return Status::CannotCreateCQ;
             }
 
             if (!(mr = ibv_reg_mr(pd, membuf, memsize, mr_access))) {
-                return RDMAStatus::CannotRegMR;
+                return Status::CannotRegMR;
             }
 
             attr.send_cq = cq;
             attr.recv_cq = cq;
             if (!(qp = ibv_create_qp(pd, &attr))) {
-                return RDMAStatus::CannotCreateQP;
+                return Status::CannotCreateQP;
             }
 
             union ibv_gid my_gid;
             if (gid_idx >= 0) {
                 if (ibv_query_gid(ctx, ib_port, gid_idx, &my_gid)) {
-                    return RDMAStatus::NoGID;
+                    return Status::NoGID;
                 }
                 memcpy(local.gid, &my_gid, 16);
             }
@@ -99,12 +99,12 @@ namespace Hill {
 
             struct ibv_port_attr pattr;
             if (ibv_query_port(ctx, ib_port, &pattr)) {
-                return RDMAStatus::CannotQueryPort;
+                return Status::CannotQueryPort;
             }
             local.lid = pattr.lid;
 
             buf = membuf;
-            return RDMAStatus::Ok;
+            return Status::Ok;
         }
 
         auto RDMA::get_default_qp_init_attr(const int ib_port) -> std::unique_ptr<struct ibv_qp_attr> {
@@ -173,30 +173,30 @@ namespace Hill {
             at.cap.max_send_sge = 128;
             at.cap.max_recv_sge = 128;
 
-            if (auto status = open(base, size, 128, mr_access, at); status != RDMAStatus::Ok) {
+            if (auto status = open(base, size, 128, mr_access, at); status != Status::Ok) {
                 std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
                 return -1;
             }
 
-            if (auto status = exchange_certificate(socket); status != RDMAStatus::Ok) {
+            if (auto status = exchange_certificate(socket); status != Status::Ok) {
                 std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";
                 return -1;
             }
 
             auto init_attr = RDMA::get_default_qp_init_attr();
-            if (auto [status, err] = modify_qp(*init_attr, RDMA::get_default_qp_init_attr_mask()); status != RDMAStatus::Ok) {
+            if (auto [status, err] = modify_qp(*init_attr, RDMA::get_default_qp_init_attr_mask()); status != Status::Ok) {
                 std::cerr << "Modify QP to Init failed, error code: " << err << "\n";
                 return err;
             }
 
             auto rtr_attr = RDMA::get_default_qp_rtr_attr(get_remote(), get_ib_port(), get_gid_idx());
-            if (auto [status, err] = modify_qp(*rtr_attr, RDMA::get_default_qp_rtr_attr_mask()); status != RDMAStatus::Ok) {
+            if (auto [status, err] = modify_qp(*rtr_attr, RDMA::get_default_qp_rtr_attr_mask()); status != Status::Ok) {
                 std::cerr << "Modify QP to Rtr failed, error code: " << err << "\n";
                 return err;
             }
 
             auto rts_attr = RDMA::get_default_qp_rts_attr();
-            if (auto [status, err] = modify_qp(*rts_attr, RDMA::get_default_qp_rts_attr_mask()); status != RDMAStatus::Ok) {
+            if (auto [status, err] = modify_qp(*rts_attr, RDMA::get_default_qp_rts_attr_mask()); status != Status::Ok) {
                 std::cerr << "Modify QP to Rts failed, error code: " << err << "\n";
                 return err;
             }
@@ -204,21 +204,21 @@ namespace Hill {
         }
         
 
-        auto RDMA::modify_qp(struct ibv_qp_attr &attr, int mask) noexcept -> std::pair<RDMAStatus, int> {
+        auto RDMA::modify_qp(struct ibv_qp_attr &attr, int mask) noexcept -> StatusPair {
             if (!is_opened()) {
-                return std::make_pair(RDMAStatus::DeviceNotOpened, -1);
+                return std::make_pair(Status::DeviceNotOpened, -1);
             }
         
             if (auto ret =  ibv_modify_qp(qp, &attr, mask); ret == 0) {
-                return std::make_pair(RDMAStatus::Ok, ret);
+                return std::make_pair(Status::Ok, ret);
             } else {
-                return std::make_pair(RDMAStatus::CannotInitQP, ret);
+                return std::make_pair(Status::CannotInitQP, ret);
             }
         }
 
-        auto RDMA::exchange_certificate(int sockfd) noexcept -> RDMAStatus {
+        auto RDMA::exchange_certificate(int sockfd) noexcept -> Status {
             if (!is_opened())
-                return RDMAStatus::DeviceNotOpened;
+                return Status::DeviceNotOpened;
         
             const int normal = sizeof(connection_certificate);
             connection_certificate tmp;
@@ -228,11 +228,11 @@ namespace Hill {
             tmp.lid = htons(local.lid);
             memcpy(tmp.gid, local.gid, 16);
             if (write(sockfd, &tmp, normal) != normal) {
-                return RDMAStatus::WriteError;
+                return Status::WriteError;
             }
 
             if (read(sockfd, &tmp, normal) != normal) {
-                return RDMAStatus::ReadError;
+                return Status::ReadError;
             }
 
             remote.addr = ntohll(tmp.addr);
@@ -240,11 +240,10 @@ namespace Hill {
             remote.qp_num = ntohl(tmp.qp_num);
             remote.lid = ntohs(tmp.lid);
             memcpy(remote.gid, tmp.gid, 16);
-            return RDMAStatus::Ok;
+            return Status::Ok;
         }
 
-        auto RDMA::post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode,
-                                    size_t offset) -> std::pair<RDMAStatus, int> {
+        auto RDMA::post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> StatusPair {
             struct ibv_sge sg;
             struct ibv_send_wr sr;
             struct ibv_send_wr *bad_wr;
@@ -271,33 +270,40 @@ namespace Hill {
             }
  
             if (auto ret = ibv_post_send(qp, &sr, &bad_wr); ret != 0) {
-                return std::make_pair(RDMAStatus::PostFailed, ret);
+                return {Status::PostFailed, ret};
             }
-            return std::make_pair(RDMAStatus::Ok, 0);
+            return {Status::Ok, 0};
+        }
+        auto RDMA::post_send_helper(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> StatusPair {
+            auto offset = reinterpret_cast<uint64_t>(ptr) - remote.addr;
+            return post_send_helper(msg, msg_len, opcode, offset);
         }
         
-        auto RDMA::post_send(uint8_t *msg, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+        auto RDMA::post_send(uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
             return post_send_helper(msg, msg_len, IBV_WR_SEND, offset);
         }
+
+        auto RDMA::post_send(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair {
+            return post_send_helper(ptr, msg, msg_len, IBV_WR_SEND);
+        }
     
-        auto RDMA::post_read(size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+        auto RDMA::post_read(size_t msg_len, size_t offset) -> StatusPair {
             return post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ, offset);
         }
 
-        auto RDMA::post_read_to(uint8_t *local, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
-            auto tmp = buf;
-            buf = local;
-            auto ret = post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ, offset);
-            buf = tmp;
-            return ret;
+        auto RDMA::post_read(const byte_ptr_t &ptr, size_t msg_len) -> StatusPair {
+            return post_send_helper(ptr, nullptr, msg_len, IBV_WR_RDMA_READ);
         }
-        
-    
-        auto RDMA::post_write(uint8_t *msg, size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+
+        auto RDMA::post_write(uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
             return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE, offset);
         }
 
-        auto RDMA::post_recv(size_t msg_len, size_t offset) -> std::pair<RDMAStatus, int> {
+        auto RDMA::post_write(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair {
+            return post_send_helper(ptr, msg, msg_len, IBV_WR_RDMA_WRITE);
+        }
+        
+        auto RDMA::post_recv_to(size_t msg_len, size_t offset) -> StatusPair {
             struct ibv_sge sg;
             struct ibv_recv_wr wr;
             struct ibv_recv_wr *bad_wr;
@@ -314,17 +320,9 @@ namespace Hill {
             wr.num_sge    = 1;
  
             if (auto ret = ibv_post_recv(qp, &wr, &bad_wr); ret != 0) {
-                return std::make_pair(RDMAStatus::RecvFailed, ret);
+                return std::make_pair(Status::RecvFailed, ret);
             }
-            return std::make_pair(RDMAStatus::Ok, 0);
-        }
-
-        auto RDMA::post_recv_to(uint8_t *local, size_t msg_len) -> std::pair<RDMAStatus, int> {
-            auto tmp = buf;
-            buf = local;
-            auto ret = post_recv(msg_len);
-            buf = tmp;
-            return ret;
+            return std::make_pair(Status::Ok, 0);
         }
 
         auto RDMA::poll_completion() noexcept -> int {

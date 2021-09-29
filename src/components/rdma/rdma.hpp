@@ -51,7 +51,7 @@ namespace Hill {
         } __attribute__((packed));
 
         namespace Enums {
-            enum class RDMAStatus {
+            enum class Status {
                 Ok,
                 NoRDMADeviceList,        
                 DeviceNotFound,
@@ -75,10 +75,10 @@ namespace Hill {
                 RecvFailed,
             };
         }
+        using namespace Enums;        
+        using StatusPair = std::pair<Enums::Status, int>;
+        auto decode_rdma_status(const Enums::Status& status) -> std::string;
 
-        auto decode_rdma_status(const Enums::RDMAStatus& status) -> std::string;
-
-        using namespace Enums;
         /*
          * A wrapping class over ibv_ structs for RDMA communication
          * The registered memory is stored in 'buf' field, by default, all RDMA accesses operate on this buffer.
@@ -97,11 +97,12 @@ namespace Hill {
             std::string dev_name;
             void *buf;
         
-            auto post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> std::pair<RDMAStatus, int>;
+            auto post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> StatusPair;
+            auto post_send_helper(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> StatusPair;
         
         public:
             using RDMAPtr = std::unique_ptr<RDMA>;
-            static auto make_rdma(std::string &dev_name, int ib_port, int gid_idx) -> std::pair<RDMAPtr, RDMAStatus>;
+            static auto make_rdma(std::string &dev_name, int ib_port, int gid_idx) -> std::pair<RDMAPtr, Status>;
 
             // never explicitly instantiated
             RDMA() = delete;
@@ -182,7 +183,7 @@ namespace Hill {
               @attr: queue pair initialization attribute.
               No need to fill the `send_cq` and `recv_cq` fields, they are filled automatically
             */
-            auto open(void *membuf, size_t memsize, size_t cqe, int mr_access, struct ibv_qp_init_attr &attr) -> RDMAStatus;
+            auto open(void *membuf, size_t memsize, size_t cqe, int mr_access, struct ibv_qp_init_attr &attr) -> Status;
 
             inline auto ctx_valid() const noexcept -> bool {
                 return ctx;
@@ -233,15 +234,19 @@ namespace Hill {
 
             auto default_connect(int socket, const byte_ptr_t &base, size_t size) -> int;
             
-            auto modify_qp(struct ibv_qp_attr &, int mask) noexcept -> std::pair<RDMAStatus, int>;
-            auto exchange_certificate(int sockfd) noexcept -> RDMAStatus;
+            auto modify_qp(struct ibv_qp_attr &, int mask) noexcept -> StatusPair;
+            auto exchange_certificate(int sockfd) noexcept -> Status;
 
-            auto post_send(uint8_t *msg, size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
-            auto post_read(size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
-            auto post_read_to(uint8_t *local, size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;            
-            auto post_write(uint8_t *msg, size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
-            auto post_recv(size_t msg_len, size_t offset = 0) -> std::pair<RDMAStatus, int>;
-            auto post_recv_to(uint8_t *local, size_t msg_len) -> std::pair<RDMAStatus, int>;            
+            auto post_send(uint8_t *msg, size_t msg_len, size_t offset = 0) -> StatusPair;
+            auto post_send(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair;
+            
+            auto post_read(size_t msg_len, size_t offset = 0) -> StatusPair;
+            auto post_read(const byte_ptr_t &ptr, size_t msg_len) -> StatusPair;
+            
+            auto post_write(uint8_t *msg, size_t msg_len, size_t offset = 0) -> StatusPair;
+            auto post_write(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair;
+            
+            auto post_recv_to(size_t msg_len, size_t offset = 0) -> StatusPair;
             auto poll_completion() noexcept -> int;
             auto fill_buf(uint8_t *msg, size_t msg_len, size_t offset = 0) -> void;
         };

@@ -135,14 +135,17 @@ namespace Hill {
             return ret;
         }
         auto connect_monitor() noexcept -> bool;
-        auto connect_server(int node_id) noexcept -> bool; 
+        auto connect_server(int node_id) noexcept -> bool;
+        auto write_to(int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
+        auto read_from(int node_id, const byte_ptr_t &remote_ptr, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
+        auto get_buf() const noexcept -> const std::unique_ptr<byte_t[]> &;
     private:
         bool run;
         
         Cluster::IPV4Addr monitor_addr;
         int monitor_port;
         int monitor_socket;
-        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connectinos;
+        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections;
         Cluster::ClusterMeta meta;
         std::string rdma_dev_name;
         int ib_port;

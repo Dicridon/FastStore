@@ -164,6 +164,26 @@ namespace Hill {
         return 0;
     }
 
+    auto Client::write_to(int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair {
+        if (node_id <= 0 || size_t(node_id) >= Cluster::Constants::uMAX_NODE) {
+            return {RDMAUtil::Status::InvalidArguments, -1};
+        }
+
+        return server_connections[node_id]->post_write(remote_ptr, msg, msg_len);
+    }
+
+    auto Client::read_from(int node_id, const byte_ptr_t &remote_ptr, size_t msg_len) noexcept -> RDMAUtil::StatusPair {
+        if (node_id <= 0 || size_t(node_id) >= Cluster::Constants::uMAX_NODE) {
+            return {RDMAUtil::Status::InvalidArguments, -1};
+        }
+
+        return server_connections[node_id]->post_read(remote_ptr, msg_len);
+    }
+
+    auto Client::get_buf() const noexcept -> const std::unique_ptr<byte_t[]> & {
+        return buf;
+    }
+
     auto Client::parse_ib(const std::string &config) noexcept -> bool {
         auto content_ = Misc::file_as_string(config);
         if (!content_.has_value()) {
