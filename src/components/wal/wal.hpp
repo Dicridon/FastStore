@@ -43,6 +43,7 @@ namespace Hill {
                 Insert,
                 Update,                
                 Delete,
+                NodeSplit,
                 Unknown,
             };
         }
@@ -196,10 +197,8 @@ namespace Hill {
          * redo/undo operations
          *
          * Upon recovery, each address should be checked, i.e., the page owning the the address. 
-         * should be scanned to find the exact number of valid records. Since loggin entryies are 
+         * should be scanned to find the exact number of valid records. Since logging entryies are 
          * committed in batches, there at most Constants::iREGION_NUM * Constants::uBATCH_SIZE
-         * 
-         * 
          */
         class Logger {
         public:

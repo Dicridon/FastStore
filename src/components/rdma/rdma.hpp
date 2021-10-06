@@ -97,7 +97,7 @@ namespace Hill {
             std::string dev_name;
             void *buf;
         
-            auto post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> StatusPair;
+            auto post_send_helper(const uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> StatusPair;
             auto post_send_helper(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> StatusPair;
         
         public:
@@ -237,13 +237,13 @@ namespace Hill {
             auto modify_qp(struct ibv_qp_attr &, int mask) noexcept -> StatusPair;
             auto exchange_certificate(int sockfd) noexcept -> Status;
 
-            auto post_send(uint8_t *msg, size_t msg_len, size_t offset = 0) -> StatusPair;
+            auto post_send(const uint8_t *msg, size_t msg_len, size_t offset = 0) -> StatusPair;
             auto post_send(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair;
             
             auto post_read(size_t msg_len, size_t offset = 0) -> StatusPair;
             auto post_read(const byte_ptr_t &ptr, size_t msg_len) -> StatusPair;
             
-            auto post_write(uint8_t *msg, size_t msg_len, size_t offset = 0) -> StatusPair;
+            auto post_write(const uint8_t *msg, size_t msg_len, size_t offset = 0) -> StatusPair;
             auto post_write(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair;
             
             auto post_recv_to(size_t msg_len, size_t offset = 0) -> StatusPair;

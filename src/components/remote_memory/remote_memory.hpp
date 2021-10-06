@@ -4,6 +4,8 @@
 #include "memory_manager/memory_manager.hpp"
 #include "rdma/rdma.hpp"
 #include "misc/misc.hpp"
+#include "cluster/cluster.hpp"
+
 namespace Hill {
     namespace Memory {
         namespace Constants {
@@ -175,6 +177,7 @@ namespace Hill {
          * This class is not thread-safe, intending for thread-local use only
          */
         class RemoteAllocator {
+        public:
             RemoteAllocator() : base(nullptr) {
                 *reinterpret_cast<uint64_t *>(&meta) = 0UL;
             };
@@ -199,7 +202,7 @@ namespace Hill {
                 meta = snap;
             }
 
-            auto free(const byte_ptr_t &ptr) noexcept -> void {
+            auto free(byte_ptr_t &ptr) noexcept -> void {
                 UNUSED(ptr);
                 --meta.counter;
             }
@@ -231,13 +234,31 @@ namespace Hill {
             auto operator=(const RemotePointer &) -> RemotePointer & = delete;
             auto operator=(RemotePointer &&) -> RemotePointer & = delete;
 
-            static auto make_agent(const byte_ptr_t &pm) -> RemoteMemoryAgent * {
+            static auto make_agent(const byte_ptr_t &pm, std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> *p) -> RemoteMemoryAgent * {
                 auto tmp = reinterpret_cast<RemoteMemoryAgent *>(pm);
                 memset(tmp, 0, sizeof(RemoteMemoryAgent));
+                tmp->peer_connections = p;
                 return tmp;
+            }
+
+            auto apply_more(int tid) -> bool;
+
+            inline auto allocate(int tid, size_t size, byte_ptr_t &ptr) -> void {
+                allocators[tid][cursors[tid]].allocate(size, ptr);
+            }
+
+            auto free(int tid, byte_ptr_t &ptr) {
+                allocators[tid][cursors[tid]].free(ptr);
+            }
+
+            auto get_peer_connection(int node_id) -> RDMA::RDMAPtr & {
+                return (*peer_connections)[node_id];
             }
         private:
             RemoteAllocator allocators[Constants::iTHREAD_LIST_NUM][Constants::uREMOTE_REGIONS];
+            int cursors[Constants::iTHREAD_LIST_NUM];
+            // a reference to the engine's peer connections
+            std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> *peer_connections;
         };
     }
 }

@@ -7,12 +7,14 @@
             "opt": "-O0",
             "debug": "-g",
             "std": "-std=c++17",
-            "W": "-Wall"
+            "W": "-Wall",
+            "eRPC": "-Ithird-party/eRPC-master/src"
         },
         "link": {
             "rdma": "-libverbs",
             "pmem": "-lpmem",
-            "thread": "-lpthread"
+            "thread": "-lpthread",
+            "eRPC": "-Lthird-party/eRPC-master/build -lerpc"
         }
     }
 }

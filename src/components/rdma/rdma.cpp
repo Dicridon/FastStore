@@ -243,7 +243,7 @@ namespace Hill {
             return Status::Ok;
         }
 
-        auto RDMA::post_send_helper(uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> StatusPair {
+        auto RDMA::post_send_helper(const uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> StatusPair {
             struct ibv_sge sg;
             struct ibv_send_wr sr;
             struct ibv_send_wr *bad_wr;
@@ -279,7 +279,7 @@ namespace Hill {
             return post_send_helper(msg, msg_len, opcode, offset);
         }
         
-        auto RDMA::post_send(uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
+        auto RDMA::post_send(const uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
             return post_send_helper(msg, msg_len, IBV_WR_SEND, offset);
         }
 
@@ -295,7 +295,7 @@ namespace Hill {
             return post_send_helper(ptr, nullptr, msg_len, IBV_WR_RDMA_READ);
         }
 
-        auto RDMA::post_write(uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
+        auto RDMA::post_write(const uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
             return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE, offset);
         }
 

@@ -12,22 +12,26 @@ namespace Hill {
             using hill_value_t = HillString;
         }
 
+        struct HillStringHeader {
+            uint16_t valid : 1;
+            uint16_t length : 15;
+        };
+        
         /*
          * This is a simple compact string implementation
          * The length field should be copied to the index to avoid unnecessary PM accesses
          * 
          */
         struct HillString {
-            uint16_t valid : 1;
-            uint16_t length : 15;
+            HillStringHeader header;
             // not [0] so no warning. 
             byte_t content[1];
 
             static auto make_string(const byte_ptr_t &chunk, const_byte_ptr_t bytes, size_t size) -> HillString & {
                 auto ret = reinterpret_cast<HillString *>(chunk);
-                ret->length = size;
+                ret->header.length = size;
                 memcpy(&ret->content, bytes, size);
-                ret->valid = 1;
+                ret->header.valid = 1;
                 return *ret;
             }
 
@@ -35,16 +39,75 @@ namespace Hill {
                 return make_string(chunk, reinterpret_cast<const_byte_ptr_t>(bytes), size);
             }
 
+            auto operator==(const HillString &rhs) -> bool {
+                for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
+                    if (content[i] != rhs.content[i]) {
+                        return false;                        
+                    }
+                }
+                return true;
+            }
+
+            auto operator!=(const HillString &rhs) -> bool {
+                return !(*this == rhs);
+            }
+
+            auto operator<(const HillString &rhs) -> bool {
+                for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
+                    if (content[i] > rhs.content[i]) {
+                        return false;
+                    }
+
+                    if (content[i] < rhs.content[i]) {
+                        return true;
+                    }
+                }
+                // two strings match
+                return false;
+            }
+
+            auto operator>(const HillString &rhs) -> bool {
+                for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
+                    if (content[i] > rhs.content[i]) {
+                        return true;
+                    }
+
+                    if (content[i] < rhs.content[i]) {
+                        return false;
+                    }
+                }
+                // two strings match
+                return false;
+            }
+
+            auto operator<=(const HillString &rhs) -> bool {
+                for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
+                    if (content[i] > rhs.content[i]) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            auto operator>=(const HillString &rhs) -> bool {
+                for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
+                    if (content[i] < rhs.content[i]) {
+                        return false;
+                    }
+                }
+                return true;
+            }            
+
             inline auto is_valid() const noexcept -> bool {
-                return valid;
+                return header.valid;
             }
 
             inline auto validate() noexcept -> void {
-                valid = 1;
+                header.valid = 1;
             }
 
             inline auto invalidate() noexcept -> void {
-                valid = 0;
+                header.valid = 0;
             }
 
             inline auto raw_bytes() const noexcept -> const_byte_ptr_t {
@@ -56,14 +119,15 @@ namespace Hill {
             }
 
             inline auto size() const noexcept -> size_t {
-                return length;
+                return header.length;
             }
 
             inline auto inplace_update(const_byte_ptr_t bytes, size_t size) noexcept -> bool {
-                if (size > length)
+                if (size > header.length)
                     return false;
 
                 memcpy(&content, bytes, size);
+                header.length = size;
                 return true;
             }
             

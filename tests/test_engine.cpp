@@ -15,13 +15,14 @@ auto run_monitor(const std::string &file) -> bool {
 }
 
 auto run_server(const std::string &file) -> bool {
-    auto base = new byte_t[1024 * 1024 * 1024UL];
-    auto engine = Engine::make_engine(base, file);
+    auto base = std::make_unique<byte_t[]>(1024 * 1024 * 1024UL);
+    auto engine = Engine::make_engine(base.get(), file);
     if (engine == nullptr) {
         return false;
     }
     engine->dump();
     engine->launch();
+
     Misc::pend();
     return true;
 }
@@ -32,8 +33,13 @@ auto run_client(const std::string &file) -> bool {
         return false;
     }
     client->connect_monitor();
-    Misc::pend();
-    return true;    
+
+    uint64_t counter = 0UL;
+    while(true) {
+
+    }
+
+    return true;
 }
 
 int main(int argc, char *argv[]) {
@@ -54,7 +60,7 @@ int main(int argc, char *argv[]) {
         std::cout << "Please specify a config file\n";
         return -1;
     }
-    
+
     auto t = type.value();
     if (t == "monitor") {
         if (!run_monitor(file.value())) {

@@ -16,7 +16,9 @@ namespace Hill {
             auto tmp_ptr = reinterpret_cast<byte_ptr_t>(this);
             ptr = tmp_ptr + snapshot.record_cursor - size;
 
+            // order here matters;
             ++snapshot.records;
+            Util::mfence();
             ++snapshot.valid;
             snapshot.record_cursor -= size;
             auto record_header = get_headers();
@@ -29,7 +31,7 @@ namespace Hill {
         }
 
         // Delete rarely occurs, we put some heavy work in it
-        auto Page::free(const byte_ptr_t &ptr) noexcept -> void {
+        auto Page::free(byte_ptr_t &ptr) noexcept -> void {
             auto page_address = Page::get_page(ptr);
             auto page_as_byte_ptr = reinterpret_cast<byte_ptr_t>(page_address);
             auto headers = get_headers();
@@ -176,7 +178,7 @@ namespace Hill {
             recover_pending_list();
             recover_global_heap();
             recover_free_lists();
-            recover_pending_list();
+            // recover_pending_list();
             recover_to_be_freed();
             
             return Enums::AllocatorRecoveryStatus::Ok;

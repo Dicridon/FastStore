@@ -125,7 +125,7 @@ namespace Hill {
             }
 
             auto allocate(size_t size, byte_ptr_t &ptr) noexcept -> void;
-            auto free(const byte_ptr_t &ptr) noexcept -> void;
+            auto free(byte_ptr_t &ptr) noexcept -> void;
 
             inline auto get_headers() noexcept -> RecordHeader * {
                 auto tmp = reinterpret_cast<byte_ptr_t>(this);
@@ -217,7 +217,7 @@ namespace Hill {
             struct AllocatorHeader {
                 uint64_t magic;
                 size_t total_size;
-                Page *freelist;              // only for page reuse
+ Page *freelist;              // only for page reuse
                 Page *base;
                 Page *cursor;
                 Page *thread_free_lists[Constants::iTHREAD_LIST_NUM]; // avoid memory leaks
