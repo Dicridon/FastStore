@@ -82,8 +82,44 @@ namespace Hill {
             }
         };
 
-        struct LeafNode;
         struct InnerNode;
+        struct LeafNode {
+            hill_key_t *highkey;            
+            hill_key_t *keys[Constants::iDGREE];
+            Memory::PolymorphicPointer values[Constants::iDGREE];
+            LeafNode *right_link;
+            // for convenient access
+            VersionLock version_lock;
+
+            LeafNode() = delete;
+            // All nodes are on PM, not in heap or stack
+            ~LeafNode() = delete;
+            LeafNode(const LeafNode &) = delete;
+            LeafNode(LeafNode &&) = delete;
+            auto operator=(const LeafNode &) = delete;
+            auto operator=(LeafNode &&) = delete;
+
+            static auto make_leaf(const byte_ptr_t &ptr) -> struct LeafNode * {
+                auto tmp = reinterpret_cast<LeafNode *>(ptr);
+                for (int i = 0; i < Constants::iDGREE; i++) {
+                    tmp->version_lock.reset();
+                    tmp->keys[i] = nullptr;
+                    tmp->values[i] = nullptr;
+                    tmp->right_link = nullptr;
+                    tmp->highkey = nullptr;
+                }
+                return tmp;
+            }
+
+            inline auto is_full() const noexcept -> bool {
+                return keys[Constants::iDGREE - 1] != nullptr;
+            }
+
+            auto insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
+                        const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus;
+        };
+
+        
         struct PolymorphicNodePointer {
             Enums::NodeType type;
             void *value;
@@ -131,43 +167,13 @@ namespace Hill {
             inline auto get_as() const noexcept -> typename std::enable_if<std::is_same_v<T, InnerNode *>, InnerNode *>::type {
                 return reinterpret_cast<T>(value);
             }
+
+            inline auto get_highkey() const noexcept -> hill_key_t * {
+                // InnerNode and LeafNode's memory layouts are similar
+                return get_as<LeafNode *>()->highkey;
+            }
         };
         
-        struct LeafNode {
-            hill_key_t *keys[Constants::iDGREE];
-            Memory::PolymorphicPointer values[Constants::iDGREE];
-            LeafNode *right_link;
-            // for convenient access
-            hill_key_t *highkey;
-            VersionLock version_lock;
-
-            LeafNode() = delete;
-            // All nodes are on PM, not in heap or stack
-            ~LeafNode() = delete;
-            LeafNode(const LeafNode &) = delete;
-            LeafNode(LeafNode &&) = delete;
-            auto operator=(const LeafNode &) = delete;
-            auto operator=(LeafNode &&) = delete;
-
-            static auto make_leaf(const byte_ptr_t &ptr) -> struct LeafNode * {
-                auto tmp = reinterpret_cast<LeafNode *>(ptr);
-                for (int i = 0; i < Constants::iDGREE; i++) {
-                    tmp->version_lock.reset();
-                    tmp->keys[i] = nullptr;
-                    tmp->values[i] = nullptr;
-                    tmp->right_link = nullptr;
-                    tmp->highkey = nullptr;
-                }
-                return tmp;
-            }
-
-            inline auto is_full() const noexcept -> bool {
-                return keys[Constants::iDGREE - 1] != nullptr;
-            }
-
-            auto insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
-                        const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus;
-        };
 
         /*
          * The layout of a node is as follows
@@ -179,10 +185,10 @@ namespace Hill {
          * We do not use smart pointers either because we need atomic update to pointers
          */
         struct InnerNode {
+            hill_key_t *highkey;            
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             PolymorphicNodePointer children[Constants::iDGREE];
             InnerNode *right_link;
-            hill_key_t *highkey;
             VersionLock version_lock;
 
             InnerNode() = default;
@@ -210,7 +216,7 @@ namespace Hill {
                 return keys[Constants::iNUM_HIGHKEY - 1] != nullptr;
             }
 
-            // this child should be on the left of split_key
+            // this child should be on the right of split_key
             auto insert(hill_key_t *split_key, PolymorphicNodePointer child) -> Enums::OpStatus;
         };
 
@@ -293,6 +299,9 @@ namespace Hill {
             auto split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode *;
             // split_inner is seperated from split leaf because they have different memory policies
             auto split_inner(int tid, InnerNode *l, hill_key_t *splitkey, PolymorphicNodePointer child) -> InnerNode *;
+            // push up split keys to ancestors
+            auto push_up(int tid, LeafNode *node, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
+            
         };
     }
 }
