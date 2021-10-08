@@ -6,7 +6,7 @@ namespace Hill {
          * I put a global lock at namespace scope becauseh the memory manager can not own a transient lock
          * when it resides on PM
          */
-        std::mutex global_lock;
+        std::mutex allocator_global_lock;
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
             auto unavailable = header.header_cursor + sizeof(RecordHeader) > header.record_cursor - size;
             if (unavailable)
@@ -62,7 +62,7 @@ namespace Hill {
             }
             
             {
-                std::unique_lock l(global_lock);
+                std::unique_lock l(allocator_global_lock);
                 // busy page has no enough space and no thread-local free pages are available
                 if (header.thread_free_lists[id] == nullptr) {
                     // the 1 is for current page
@@ -118,6 +118,7 @@ namespace Hill {
         }
 
         auto Allocator::register_thread() noexcept -> std::optional<int> {
+            std::scoped_lock<std::mutex> _(allocator_global_lock);
             for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                 if (header.thread_free_lists[i] == Constants::pTHREAD_LIST_AVAILABLE ||
                     header.thread_busy_pages[i] == nullptr) {

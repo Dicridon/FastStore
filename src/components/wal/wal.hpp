@@ -10,6 +10,7 @@
 namespace Hill {
     using namespace Memory::TypeAliases;    
     namespace WAL {
+        extern std::mutex wal_global_lock;
         namespace Constants {
             static constexpr int iREGION_NUM = Hill::Memory::Constants::iTHREAD_LIST_NUM;
             static constexpr size_t uBATCH_SIZE = 64UL;
@@ -46,6 +47,12 @@ namespace Hill {
                 NodeSplit,
                 Unknown,
             };
+        }
+
+        class Logger;
+        namespace TypeAliases {
+            using UniqueLogger = std::unique_ptr<Logger>;
+            using SharedLogger = std::shared_ptr<Logger>;
         }
 
         struct LogEntry {
@@ -236,10 +243,20 @@ namespace Hill {
             
             auto register_thread() noexcept -> std::optional<int>;
             auto unregister_thread(int id) noexcept -> void;
-            auto make_log(int id, Enums::Ops op) noexcept -> byte_ptr_t &;
-            auto commit(int id) noexcept -> void;
-            auto checkpoint(int id) noexcept -> void;
-            
+            inline auto make_log(int id, Enums::Ops op) noexcept -> byte_ptr_t & {
+                return regions->regions[id].make_log(op);
+            }
+        
+            inline auto commit(int id) noexcept -> void {
+                if (++counters[id] == Constants::uBATCH_SIZE) {
+                    regions->regions[id].checkpoint();
+                }
+            }
+
+            inline auto checkpoint(int id) noexcept -> void {
+                regions->regions[id].checkpoint();
+            }
+           
             Logger() = default;
             ~Logger() = default;
             Logger(const Logger &) = delete;

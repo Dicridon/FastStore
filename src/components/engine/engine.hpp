@@ -64,7 +64,7 @@ namespace Hill {
             offset += sizeof(WAL::LogRegions);
             ret->allocator = Memory::Allocator::make_allocator(base + offset, ret->node->available_pm);
             offset += sizeof(Memory::Allocator);
-            ret->agent = Memory::RemoteMemoryAgent::make_agent(base + offset);
+            ret->agent = Memory::RemoteMemoryAgent::make_agent(base + offset, &ret->peer_connections);
 
             ret->sock = Misc::make_socket(true, ret->node->port);
             if (ret->sock == -1) {

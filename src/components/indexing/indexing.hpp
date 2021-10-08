@@ -14,8 +14,9 @@ namespace Hill {
     namespace Indexing {
         using namespace Memory::TypeAliases;
         using namespace KVPair::TypeAliases;
+        using namespace WAL::TypeAliases;
         namespace Constants {
-            static constexpr int iDGREE = 64;
+            static constexpr int iDGREE = 3;
             static constexpr int iNUM_HIGHKEY = iDGREE - 1;
         }
 
@@ -132,15 +133,18 @@ namespace Hill {
             auto operator=(const PolymorphicNodePointer &) -> PolymorphicNodePointer & = default;
             auto operator=(PolymorphicNodePointer &&) -> PolymorphicNodePointer & = default;
             auto operator=(std::nullptr_t nu) -> PolymorphicNodePointer & {
+                type = Enums::NodeType::Unknown;
                 value = nu;
                 return *this;
             }
             auto operator=(LeafNode *v) -> PolymorphicNodePointer & {
+                type = Enums::NodeType::Leaf;
                 value = reinterpret_cast<void *>(v);
                 return *this;
             }
             
             auto operator=(InnerNode *v) -> PolymorphicNodePointer & {
+                type = Enums::NodeType::Inner;
                 value = reinterpret_cast<void *>(v);
                 return *this;
             }
@@ -223,7 +227,7 @@ namespace Hill {
         
         class OLFIT {
         public:
-            OLFIT(Memory::Allocator *alloc_, std::unique_ptr<WAL::Logger> &&logger_)
+            OLFIT(Memory::Allocator *alloc_, UniqueLogger &&logger_)
                 : root(nullptr), alloc(alloc_), logger(std::move(logger_)), agent(nullptr) {
                 // NodeSplit is also for new root node creation
                 auto ptr = logger->make_log(0, WAL::Enums::Ops::NodeSplit);
@@ -234,7 +238,7 @@ namespace Hill {
                  * is fine because on recovery, the allocator scans memory regions to restore
                  * partially allocated memory blocks
                  */
-                LeafNode::make_leaf(ptr);
+                root = LeafNode::make_leaf(ptr);
                 logger->commit(0);
             }
             // external interfaces use const char * as input
@@ -247,7 +251,7 @@ namespace Hill {
         private:
             PolymorphicNodePointer root;
             Memory::Allocator *alloc;
-            std::unique_ptr<WAL::Logger> logger;
+            UniqueLogger logger;
             Memory::RemoteMemoryAgent *agent;
             auto traverse_node(const char *k, size_t k_sz) const noexcept -> std::pair<LeafNode *, std::vector<InnerNode *>> {
                 if (root.is_leaf()) {

@@ -12,7 +12,7 @@ namespace Hill {
     // Specialized memory manager for KV
     // For durability, use this with a WAL
     namespace Memory {
-        extern std::mutex global_lock;
+        extern std::mutex allocator_global_lock;
         
         struct Page;
         namespace Constants {

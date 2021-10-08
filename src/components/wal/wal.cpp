@@ -1,6 +1,7 @@
 #include "wal.hpp"
 namespace Hill {
     namespace WAL {
+        std::mutex wal_global_lock;        
         auto LogRegion::recover(LogEntryAction action) noexcept -> page_vector_ptr {
             std::unordered_set<Memory::Page *> page_set;
             auto freed_pages = std::make_unique<std::vector<Memory::Page *>>();
@@ -92,6 +93,7 @@ namespace Hill {
         }
 
         auto Logger::register_thread() noexcept -> std::optional<int> {
+            std::scoped_lock<std::mutex> _(wal_global_lock);
             for (int i = 0; i < Constants::iREGION_NUM; i++) {
                 if (in_use[i] == false) {
                     in_use[i] = true;
@@ -107,18 +109,5 @@ namespace Hill {
             counters[id] = 0;
         }
 
-        auto Logger::make_log(int id, Enums::Ops op) noexcept -> byte_ptr_t & {
-            return regions->regions[id].make_log(op);
-        }
-        
-        auto Logger::commit(int id) noexcept -> void {
-            if (++counters[id] == Constants::uBATCH_SIZE) {
-                regions->regions[id].checkpoint();
-            }
-        }
-
-        auto Logger::checkpoint(int id) noexcept -> void {
-            regions->regions[id].checkpoint();
-        }
     }
 }
