@@ -76,7 +76,7 @@ namespace Hill {
                 auto copy = ptr;
                 auto cursor = reinterpret_cast<byte_ptr_t>(&copy);
                 cursor[7] = cursor[6];
-                return copy;
+                return reinterpret_cast<T>(copy);
             }
 
             inline auto get_node() const noexcept -> int {
@@ -126,6 +126,22 @@ namespace Hill {
                 return *this;
             }
 
+            inline auto operator==(const PolymorphicPointer &rhs) -> bool {
+                return ptr.local == rhs.ptr.local;
+            }
+
+            inline auto operator!=(const PolymorphicPointer &rhs) -> bool {
+                return ptr.local != rhs.ptr.local;
+            }
+
+            inline auto operator==(std::nullptr_t nu) -> bool {
+                return ptr.local == nu;
+            }
+
+            inline auto operator!=(std::nullptr_t nu) -> bool {
+                return ptr.local != nu;
+            }
+
             template<typename T, typename = std::enable_if_t<std::is_pointer_v<T>>>
             static auto make_ploymorphic_pointer(const T &t) -> PolymorphicPointer {
                 PolymorphicPointer ret;
@@ -162,6 +178,16 @@ namespace Hill {
             inline auto local_ptr() const noexcept -> byte_ptr_t {
                 return ptr.local;
             }
+
+            template<typename T, typename = typename std::enable_if_t<std::is_pointer_v<T>>>
+            auto get_as() const noexcept -> T {
+                if (is_local()) {
+                    return reinterpret_cast<T>(ptr.local);
+                } else {
+                    return ptr.remote.get_as<T>();
+                }
+            }
+            
             
         private:
             union {

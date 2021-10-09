@@ -16,8 +16,8 @@ namespace Hill {
         using namespace KVPair::TypeAliases;
         using namespace WAL::TypeAliases;
         namespace Constants {
-            static constexpr int iDGREE = 3;
-            static constexpr int iNUM_HIGHKEY = iDGREE - 1;
+            static constexpr int iDEGREE = 3;
+            static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
         }
 
         namespace Enums {
@@ -86,8 +86,8 @@ namespace Hill {
         struct InnerNode;
         struct LeafNode {
             hill_key_t *highkey;            
-            hill_key_t *keys[Constants::iDGREE];
-            Memory::PolymorphicPointer values[Constants::iDGREE];
+            hill_key_t *keys[Constants::iNUM_HIGHKEY];
+            Memory::PolymorphicPointer values[Constants::iNUM_HIGHKEY];
             LeafNode *right_link;
             // for convenient access
             VersionLock version_lock;
@@ -102,7 +102,7 @@ namespace Hill {
 
             static auto make_leaf(const byte_ptr_t &ptr) -> struct LeafNode * {
                 auto tmp = reinterpret_cast<LeafNode *>(ptr);
-                for (int i = 0; i < Constants::iDGREE; i++) {
+                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                     tmp->version_lock.reset();
                     tmp->keys[i] = nullptr;
                     tmp->values[i] = nullptr;
@@ -113,7 +113,7 @@ namespace Hill {
             }
 
             inline auto is_full() const noexcept -> bool {
-                return keys[Constants::iDGREE - 1] != nullptr;
+                return keys[Constants::iNUM_HIGHKEY - 1] != nullptr;
             }
 
             auto insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
@@ -191,7 +191,7 @@ namespace Hill {
         struct InnerNode {
             hill_key_t *highkey;            
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
-            PolymorphicNodePointer children[Constants::iDGREE];
+            PolymorphicNodePointer children[Constants::iDEGREE];
             InnerNode *right_link;
             VersionLock version_lock;
 
@@ -212,7 +212,7 @@ namespace Hill {
                     tmp->right_link = nullptr;
                     tmp->highkey = nullptr;
                 }
-                tmp->children[Constants::iDGREE - 1] = nullptr;
+                tmp->children[Constants::iDEGREE - 1] = nullptr;
                 return tmp;
             }
 
@@ -274,27 +274,91 @@ namespace Hill {
                 return {current.get_as<LeafNode *>(), std::move(ancestors)};
             }
 
-            // follow the original paper of OLFIT
-            auto find_next(InnerNode *current, const char *k, size_t k_sz, std::vector<InnerNode *>& ans) const noexcept
-                -> PolymorphicNodePointer {
-                auto chars = current->highkey->raw_chars();
-                auto size = current->highkey->size();
-                auto result = strncmp(chars, k, std::min(k_sz, size));
-                switch(result) {
-                case 0:
+            auto traverse_node_no_tracing(const char *k, size_t k_sz) const noexcept -> LeafNode * {
+                if (root.is_leaf()) {
+                    return root.get_as<LeafNode *>();
+                }
+                
+                PolymorphicNodePointer current = root;
+                PolymorphicNodePointer next = nullptr;
+                InnerNode *inner;
+                auto version = 0UL;
+                while (!current.is_leaf()) {
+                    inner = current.get_as<InnerNode *>();
+                    version = inner->version_lock.version();
+                    next = find_next_no_tracing(inner, k, k_sz);
+                    if (inner->version_lock.version() == version) {
+                        current = next;
+                    }
+                }
+                return current.get_as<LeafNode *>();
+            }
+            
+
+            // follow the original paper of OLFIT, OT 
+            auto find_next(InnerNode *current, const char *k, size_t k_sz, std::vector<InnerNode *>& ans) const noexcept -> PolymorphicNodePointer {
+                auto result = current->highkey->compare(k, k_sz);
+                if (result == 0) {
                     ans.push_back(current);
-                    return current->children[Constants::iDGREE - 1];
-                case 1:
-                    for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                        if (strncmp(chars, k, std::min(k_sz, size)) <= 0) {
+                    return current->children[Constants::iDEGREE - 1];
+                } else if (result > 0) {
+                    int i;
+                    for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                        if (current->keys[i] == nullptr || current->keys[i]->compare(k, k_sz) > 0) {
                             ans.push_back(current);
                             return current->children[i];
                         }
                     }
-                case -1:
-                    return current->right_link;
-                default:
-                    return nullptr;
+                    ans.push_back(current);
+                    return current->children[i];
+                }
+                else {
+                    if (current->right_link) {
+                        return current->right_link;                        
+                    } else {
+                        int i;
+                        for (i = Constants::iDEGREE - 1; i >= 0; i--) {
+                            if (!current->children[i].is_null()) {
+                                break;
+                            }
+                        }
+                        ans.push_back(current);
+                        return current->children[i];                        
+                    }
+                }
+            }
+
+            // copied code above here, just to escape redundent branches
+            auto find_next_no_tracing(InnerNode *current, const char *k, size_t k_sz) const noexcept -> PolymorphicNodePointer {
+                auto result = current->highkey->compare(k, k_sz);
+                if (result == 0) {
+                    int i;
+                    for (i = Constants::iDEGREE - 1; i >= 0; i--) {
+                        if (!current->children[i].is_null()) {
+                            break;
+                        }
+                    }
+                    return current->children[i];                        
+                } else if (result > 0) {
+                    int i;
+                    for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                        if (current->keys[i] == nullptr || current->keys[i]->compare(k, k_sz) > 0) {
+                            return current->children[i];
+                        }
+                    }
+                    return current->children[i];
+                } else {
+                    if (current->right_link) {
+                        return current->right_link;                        
+                    } else {
+                        int i;
+                        for (i = Constants::iDEGREE - 1; i >= 0; i--) {
+                            if (!current->children[i].is_null()) {
+                                break;
+                            }
+                        }
+                        return current->children[i];                        
+                    }
                 }
             }
 
@@ -304,7 +368,7 @@ namespace Hill {
             // split_inner is seperated from split leaf because they have different memory policies
             auto split_inner(int tid, InnerNode *l, hill_key_t *splitkey, PolymorphicNodePointer child) -> InnerNode *;
             // push up split keys to ancestors
-            auto push_up(int tid, LeafNode *node, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
+            auto push_up(int tid, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
             
         };
     }

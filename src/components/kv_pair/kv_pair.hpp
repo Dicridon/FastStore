@@ -1,6 +1,7 @@
 #ifndef __HILL__KV_PAIR__KV_PAIR__
 #define __HILL__KV_PAIR__KV_PAIR__
 #include "memory_manager/memory_manager.hpp"
+#include <cstring>
 
 namespace Hill {
     namespace KVPair {
@@ -37,6 +38,16 @@ namespace Hill {
 
             static auto make_string(const byte_ptr_t &chunk, const char *bytes, size_t size) -> HillString & {
                 return make_string(chunk, reinterpret_cast<const_byte_ptr_t>(bytes), size);
+            }
+
+            auto compare(const char *rhs, size_t r_sz) -> int {
+                auto chars = raw_chars();
+                auto bound = std::min(size(), r_sz);
+                if (auto ret = strncmp(chars, rhs, bound); ret == 0) {
+                    return size() - r_sz;
+                } else {
+                    return ret;
+                }
             }
 
             auto operator==(const HillString &rhs) -> bool {

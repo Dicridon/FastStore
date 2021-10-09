@@ -2,27 +2,22 @@
 
 namespace Hill {
     namespace Indexing {
-        auto LeafNode::insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
-                              const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus {
+        auto LeafNode::insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent, const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus {
             if (is_full()) {
                 return Enums::OpStatus::NeedSplit;
             }
                 
-            const char *chars = nullptr;
-            size_t sz = 0;
             int i = 0;
-            for (i = 0; i < Constants::iDGREE; i++) {
+            for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                 if (keys[i] == nullptr) {
                     break;
                 }
-                chars = keys[i]->raw_chars();
-                sz = keys[i]->size();
-                if (strncmp(chars, k, std::min(sz, k_sz)) <= 0) {
+                if (keys[i]->compare(k, k_sz) > 0) {
                     break;
                 }
             }
 
-            for (int j = Constants::iDGREE - 1; j > i; j--) {
+            for (int j = Constants::iNUM_HIGHKEY - 1; j > i; j--) {
                 keys[j] = keys[j - 1];
                 values[j] = values[j - 1];
             }
@@ -51,7 +46,7 @@ namespace Hill {
             log->commit(tid);
 
             // new key is the last one
-            if (i == Constants::iDGREE - 1 || keys[i + 1] == nullptr) {
+            if (i == Constants::iNUM_HIGHKEY - 1 || keys[i + 1] == nullptr) {
                 highkey = keys[i];
             }
             return Enums::OpStatus::Ok;
@@ -76,7 +71,7 @@ namespace Hill {
             keys[i] = split_key;
             children[i + 1] = child;
 
-            for (int j = Constants::iDGREE; j < 0; j--) {
+            for (int j = Constants::iDEGREE; j < 0; j--) {
                 if (!children[j].is_null()) {
                     if (children[j].is_leaf()) {
                         highkey = children[j].get_as<LeafNode *>()->highkey;
@@ -91,9 +86,7 @@ namespace Hill {
         
         auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus {
             auto [node, ans] = traverse_node(k, k_sz);
-            if (ans.empty()) {
-                node->version_lock.lock();
-            }
+            node->version_lock.lock();
 
             if (!node->is_full()) {
                 auto ret = node->insert(tid, logger.get(), alloc, agent, k, k_sz, v, v_sz);
@@ -105,7 +98,7 @@ namespace Hill {
             // root is a leaf
             if (ans.empty()) {
                 auto new_root = InnerNode::make_inner();
-                new_root->keys[0] = node->highkey;
+                new_root->keys[0] = new_leaf->keys[0];
                 new_root->children[0] = node;
                 new_root->children[1] = new_leaf;
                 new_root->highkey = new_leaf->highkey;
@@ -115,9 +108,9 @@ namespace Hill {
                 return Enums::OpStatus::Ok;
             }
             
+            auto ret = push_up(tid, new_leaf, ans);
             node->version_lock.unlock();
-
-            return push_up(tid, node, new_leaf, ans);
+            return ret;
         }
 
         auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode * {
@@ -128,34 +121,32 @@ namespace Hill {
             Memory::Util::mfence();
 
             int i = 0;
-            const char *chars = nullptr;
-            size_t size = 0;
-            for (; i < Constants::iDGREE; i++) {
-                chars = l->keys[i]->raw_chars();
-                size = l->keys[i]->size();
-                if (strncmp(chars, k, std::min(k_sz, size)) <= 0) {
+            for (; i < Constants::iNUM_HIGHKEY; i++) {
+                if (l->keys[i]->compare(k, k_sz) > 0) {
                     break;
                 }
             }
 
-            auto split = Constants::iDGREE / 2;
-            for (int k = split; k < Constants::iDGREE; k++) {
+            auto split = Constants::iNUM_HIGHKEY / 2;
+            for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
                 n->keys[k - split] = l->keys[k];
                 n->values[k - split] = l->values[k];
             }
             l->right_link = n;
-            n->highkey = n->keys[Constants::iDGREE - 1 - split];
+            n->highkey = n->keys[Constants::iNUM_HIGHKEY - 1 - split];
             
-            if (i < Constants::iDGREE / 2) {
-                for (int k = split; k < Constants::iDGREE; k++) {
-                    l->keys[k] = nullptr;
-                    l->values[k] = nullptr;                    
-                }
+            for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
+                l->keys[k] = nullptr;
+                l->values[k] = nullptr;                    
+            }
+            
+            if (i < Constants::iNUM_HIGHKEY / 2) {
                 l->insert(tid, logger.get(), alloc, agent, k, k_sz, v, v_sz);
                 // should make sure highkey is changed
                 l->highkey = l->keys[split];
             } else {
                 n->insert(tid, logger.get(), alloc, agent, k, k_sz, v, v_sz);
+                l->highkey = l->keys[split - 1];
             }
             
             // Here node split is done in terms of recovery, because inner nodes are reconstructed from
@@ -168,7 +159,7 @@ namespace Hill {
             auto right = InnerNode::make_inner();
             right->right_link = l->right_link;
 
-            auto split_pos = Constants::iDGREE / 2;
+            auto split_pos = Constants::iDEGREE / 2;
             int i;
             for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                 if (*splitkey < *l->keys[i]) {
@@ -222,49 +213,47 @@ namespace Hill {
             return right;
         }
 
-        auto OLFIT::push_up(int tid, LeafNode *node, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus {
+        auto OLFIT::push_up(int tid, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus {
             InnerNode *inner;
             PolymorphicNodePointer new_node = new_leaf;
-            hill_key_t *splitkey = node->highkey;
-            size_t version = 0UL;
+            hill_key_t *splitkey = new_leaf->keys[0];
+            inner = ans.back();            
             while(!ans.empty()) {
-                inner = ans.back();
-                version = inner->version_lock.version();
-                if (*inner->highkey > *splitkey) {
-                    if (version == inner->version_lock.version() && !inner->version_lock.is_locked()) {
-                        inner->version_lock.lock();
-                        //double check
-                        if (*inner->highkey <= *splitkey) {
-                            inner->version_lock.unlock();
-                            continue;
-                        }
-                        
-                        if (!inner->is_full()) {
-                            inner->insert(splitkey, new_node);
-                            inner->version_lock.unlock();
-                            return Enums::OpStatus::Ok;
-                        } else {
-                            new_node = split_inner(tid, inner, splitkey, new_node);
-                            splitkey = inner->highkey;
-                            
-                            // root
-                            if (ans.front() == ans.back()) {
-                                auto new_root = InnerNode::make_inner();
-                                new_root->keys[0] = inner->highkey;
-                                new_root->children[0] = inner;
-                                new_root->children[1] = new_node;
-                                new_root->highkey = new_node.get_as<InnerNode *>()->highkey;
-                                root = new_root;
-                                inner->version_lock.unlock();
-                                return Enums::OpStatus::Ok;
-                            }
-                        }
+                inner->version_lock.lock();
+                
+                //double check if a split is done
+                if (*inner->highkey <= *splitkey) {
+                    if (inner->right_link) {
+                        inner = inner->right_link;                    
                         inner->version_lock.unlock();
-                        ans.pop_back();
-                    }
-                } else {
-                    inner = inner->right_link;
+                        continue;
+                    }                         
                 }
+                        
+                if (!inner->is_full()) {
+                    inner->insert(splitkey, new_node);
+                    inner->version_lock.unlock();
+                    return Enums::OpStatus::Ok;
+                } else {
+                    new_node = split_inner(tid, inner, splitkey, new_node);
+                    splitkey = inner->highkey;
+                            
+                    // root
+                    if (ans.front() == ans.back()) {
+                        auto new_root = InnerNode::make_inner();
+                        new_root->keys[0] = inner->highkey;
+                        new_root->children[0] = inner;
+                        new_root->children[1] = new_node;
+                        new_root->highkey = new_node.get_as<InnerNode *>()->highkey;
+                        root = new_root;
+                        inner->version_lock.unlock();
+                        return Enums::OpStatus::Ok;
+                    }
+                }
+                inner->version_lock.unlock();
+                ans.pop_back();
+                inner = ans.back();
+                
             }
             return Enums::OpStatus::Ok;
         }
@@ -272,17 +261,13 @@ namespace Hill {
 
         auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> Memory::PolymorphicPointer {
         RETRY:
-            auto [leaf, _] = traverse_node(k, k_sz);
-            const char *chars = nullptr;
-            size_t size = 0;
+            auto leaf = traverse_node_no_tracing(k, k_sz);
             auto version = leaf->version_lock.version();
-            for (int i = 0; i < Constants::iDGREE; i++) {
+            for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (leaf->keys[i] == nullptr) {
                     return nullptr;
                 }
-                chars = leaf->keys[i]->raw_chars();
-                size = leaf->keys[i]->size();
-                if (strncmp(chars, k, std::min(k_sz, size)) == 0) {
+                if (leaf->keys[i]->compare(k, k_sz) == 0) {
                     if (leaf->version_lock.version() == version && !leaf->version_lock.is_locked())
                         return leaf->values[i];
                     else
