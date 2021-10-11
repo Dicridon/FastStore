@@ -5,6 +5,7 @@
 #include "wal/wal.hpp"
 #include "kv_pair/kv_pair.hpp"
 #include "misc/misc.hpp"
+#include "coloring/coloring.hpp"
 
 #include <vector>
 #include <atomic>
@@ -16,7 +17,7 @@ namespace Hill {
         using namespace KVPair::TypeAliases;
         using namespace WAL::TypeAliases;
         namespace Constants {
-            static constexpr int iDEGREE = 3;
+            static constexpr int iDEGREE = 4;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
         }
 
@@ -118,6 +119,7 @@ namespace Hill {
 
             auto insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
                         const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus;
+            auto dump() const noexcept -> void;
         };
 
         
@@ -221,7 +223,8 @@ namespace Hill {
             }
 
             // this child should be on the right of split_key
-            auto insert(hill_key_t *split_key, PolymorphicNodePointer child) -> Enums::OpStatus;
+            auto insert(const hill_key_t *split_key, PolymorphicNodePointer child) -> Enums::OpStatus;
+            auto dump() const noexcept -> void;
         };
 
         
@@ -247,6 +250,7 @@ namespace Hill {
             inline auto enable_agent(Memory::RemoteMemoryAgent *agent_) -> void {
                 agent = agent_;
             }
+            auto dump() const noexcept -> void;
             
         private:
             PolymorphicNodePointer root;
@@ -366,10 +370,10 @@ namespace Hill {
             // split an old node and return a new node with keys migrated
             auto split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode *;
             // split_inner is seperated from split leaf because they have different memory policies
-            auto split_inner(int tid, InnerNode *l, hill_key_t *splitkey, PolymorphicNodePointer child) -> InnerNode *;
+            auto split_inner(int tid, InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *>;
             // push up split keys to ancestors
             auto push_up(int tid, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
-            
+
         };
     }
 }

@@ -21,7 +21,6 @@ namespace Hill {
         /*
          * This is a simple compact string implementation
          * The length field should be copied to the index to avoid unnecessary PM accesses
-         * 
          */
         struct HillString {
             HillStringHeader header;
@@ -40,17 +39,21 @@ namespace Hill {
                 return make_string(chunk, reinterpret_cast<const_byte_ptr_t>(bytes), size);
             }
 
-            auto compare(const char *rhs, size_t r_sz) -> int {
+            auto compare(const char *rhs, size_t r_sz) const noexcept -> int {
                 auto chars = raw_chars();
                 auto bound = std::min(size(), r_sz);
                 if (auto ret = strncmp(chars, rhs, bound); ret == 0) {
                     return size() - r_sz;
                 } else {
-                    return ret;
+                    if (size() == r_sz)
+                        return ret;
+                    else {
+                        return size() - r_sz;
+                    }
                 }
             }
 
-            auto operator==(const HillString &rhs) -> bool {
+            auto operator==(const HillString &rhs) const noexcept -> bool {
                 if (header.length != rhs.header.length) {
                     return false;
                 }
@@ -63,11 +66,12 @@ namespace Hill {
                 return true;
             }
 
-            auto operator!=(const HillString &rhs) -> bool {
+            auto operator!=(const HillString &rhs) const noexcept -> bool {
                 return !(*this == rhs);
             }
 
-            auto operator<(const HillString &rhs) -> bool {
+            auto operator<(const HillString &rhs) const noexcept -> bool {
+
                 for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
                     if (content[i] > rhs.content[i]) {
                         return false;
@@ -81,7 +85,7 @@ namespace Hill {
                 return header.length < rhs.header.length;
             }
 
-            auto operator>(const HillString &rhs) -> bool {
+            auto operator>(const HillString &rhs) const noexcept -> bool {
                 for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
                     if (content[i] > rhs.content[i]) {
                         return true;
@@ -95,22 +99,22 @@ namespace Hill {
                 return header.length > rhs.header.length;
             }
 
-            auto operator<=(const HillString &rhs) -> bool {
+            auto operator<=(const HillString &rhs) const noexcept -> bool {
                 for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
                     if (content[i] > rhs.content[i]) {
                         return false;
                     }
                 }
-                return true;
+                return header.length <= rhs.header.length;
             }
 
-            auto operator>=(const HillString &rhs) -> bool {
+            auto operator>=(const HillString &rhs) const noexcept -> bool {
                 for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
                     if (content[i] < rhs.content[i]) {
                         return false;
                     }
                 }
-                return true;
+                return header.length >= rhs.header.length;
             }            
 
             inline auto is_valid() const noexcept -> bool {
@@ -131,6 +135,10 @@ namespace Hill {
 
             inline auto raw_chars() const noexcept -> const char * {
                 return reinterpret_cast<const char *>(&content[0]);
+            }
+
+            inline auto to_string() const noexcept -> std::string {
+                return std::string(raw_chars(), size());
             }
 
             inline auto size() const noexcept -> size_t {
