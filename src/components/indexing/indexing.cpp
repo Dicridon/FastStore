@@ -220,17 +220,16 @@ namespace Hill {
                 }
             }
 
-            hill_key_t *ret_split_key = nullptr;
+            hill_key_t *ret_split_key = const_cast<hill_key_t *>(splitkey);
             if (i == split_pos) {
-                // TO DEBUG
                 l->highkey = l->children[split_pos].get_highkey();
                 right->children[0] = child;
                 int k;
                 for (k = i; k < Constants::iNUM_HIGHKEY; k++) {
                     right->keys[k - i] = l->keys[k];
                     l->keys[k] = nullptr;
-                    right->children[k - i + 1] = l->children[k];
-                    l->children[k] = nullptr;
+                    right->children[k - i + 1] = l->children[k + 1];
+                    l->children[k + 1] = nullptr;
                 }
                 right->highkey = right->children[k - i].get_highkey();
             } else {

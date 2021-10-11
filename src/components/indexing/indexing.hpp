@@ -17,7 +17,7 @@ namespace Hill {
         using namespace KVPair::TypeAliases;
         using namespace WAL::TypeAliases;
         namespace Constants {
-            static constexpr int iDEGREE = 4;
+            static constexpr int iDEGREE = 3;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
         }
 
