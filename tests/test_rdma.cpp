@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
             sleep(1); // just ensure server posts send AFTER client's recv
             rdma->post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length());
         } else {
-            rdma->post_recv(rdma_msg.length());
+            rdma->post_recv_to(rdma_msg.length());
         }
 
         if (rdma->poll_completion() < 0) {
