@@ -161,6 +161,8 @@ namespace Hill {
         if (rdma->default_connect(socket, buf.get(), 16 * 1024) != 0) {
             return false;
         }
+
+        server_connections[node_id] = std::move(rdma);
         return 0;
     }
 

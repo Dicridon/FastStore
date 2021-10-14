@@ -6,15 +6,19 @@
         "compile": {
             "opt": "-O0",
             "debug": "-g",
+            "warning": "-Wunused-parameter -Wunused-variable -Wunused-private-field -Wunused-const-variable",
             "std": "-std=c++17",
-            "W": "-Wall",
-            "eRPC": "-Ithird-party/eRPC-master/src"
+            "eRPC": "-Ithird-party/eRPC/src",
+            "eRPC-third": "-Ithird-party/eRPC/third_party/asio/include",
+            "infiniband": "-DERPC_INFINIBAND=true",
+            "roce": "-DROCE=true"
         },
         "link": {
             "rdma": "-libverbs",
             "pmem": "-lpmem",
             "thread": "-lpthread",
-            "eRPC": "-Lthird-party/eRPC-master/build -lerpc"
+            "eRPC": "-Lthird-party/eRPC/build -lerpc",
+            "numa": "-lnuma"
         }
     }
 }

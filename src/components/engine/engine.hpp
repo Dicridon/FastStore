@@ -48,11 +48,10 @@ namespace Hill {
         auto operator=(const Engine &) = delete;
         auto operator=(Engine &&) = delete;
 
-        /* pm_cap is the size of PM intended for storing data not the whole size of PM because
+        /* pm_cap is the size of PM intended for storing data instead of the whole size of PM because
          * some PM is used by WAL and remote memory agent.
          */
-        
-        static auto make_engine(const byte_ptr_t &base, const std::string & config) -> std::unique_ptr<Engine> {
+        static auto make_engine(const byte_ptr_t &base, const std::string &config) -> std::unique_ptr<Engine> {
             auto ret = std::make_unique<Engine>();
             auto offset = 0UL;
             ret->node = Cluster::Node::make_node(config);
@@ -85,6 +84,13 @@ namespace Hill {
         auto launch() noexcept -> void;
         auto stop() noexcept -> void;
 
+        inline auto get_logger() noexcept -> WAL::Logger * {
+            return logger.get();
+        }
+        inline auto get_allocator() noexcept -> Memory::Allocator * {
+            return allocator;
+        }
+        
         auto dump() const noexcept -> void;
         
     private:

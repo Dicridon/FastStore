@@ -89,6 +89,7 @@ namespace Hill {
             hill_key_t *highkey;            
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             Memory::PolymorphicPointer values[Constants::iNUM_HIGHKEY];
+            size_t value_sizes[Constants::iNUM_HIGHKEY];            
             LeafNode *right_link;
             // for convenient access
             VersionLock version_lock;
@@ -107,6 +108,7 @@ namespace Hill {
                     tmp->version_lock.reset();
                     tmp->keys[i] = nullptr;
                     tmp->values[i] = nullptr;
+                    tmp->value_sizes[i] = 0;
                     tmp->right_link = nullptr;
                     tmp->highkey = nullptr;
                 }
@@ -230,8 +232,9 @@ namespace Hill {
         
         class OLFIT {
         public:
-            OLFIT(Memory::Allocator *alloc_, UniqueLogger &&logger_)
-                : root(nullptr), alloc(alloc_), logger(std::move(logger_)), agent(nullptr) {
+            // for convenience of testing
+            OLFIT(Memory::Allocator *alloc_, WAL::Logger *logger_)
+                : root(nullptr), alloc(alloc_), logger(logger_), agent(nullptr) {
                 // NodeSplit is also for new root node creation
                 auto ptr = logger->make_log(0, WAL::Enums::Ops::NodeSplit);
                 // crashing here is ok, because no memory allocation is done;
@@ -244,9 +247,15 @@ namespace Hill {
                 root = LeafNode::make_leaf(ptr);
                 logger->commit(0);
             }
+            ~OLFIT() = default;
+
+            static auto make_olfit(Memory::Allocator *alloc, WAL::Logger *logger) -> std::unique_ptr<OLFIT> {
+                return std::make_unique<OLFIT>(alloc, logger);
+            }
+            
             // external interfaces use const char * as input
             auto insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus;
-            auto search(const char *k, size_t k_sz) const noexcept -> Memory::PolymorphicPointer;
+            auto search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t>;
             inline auto enable_agent(Memory::RemoteMemoryAgent *agent_) -> void {
                 agent = agent_;
             }
@@ -255,7 +264,7 @@ namespace Hill {
         private:
             PolymorphicNodePointer root;
             Memory::Allocator *alloc;
-            UniqueLogger logger;
+            WAL::Logger *logger;
             Memory::RemoteMemoryAgent *agent;
             auto traverse_node(const char *k, size_t k_sz) const noexcept -> std::pair<LeafNode *, std::vector<InnerNode *>> {
                 if (root.is_leaf()) {
@@ -370,7 +379,7 @@ namespace Hill {
             // split an old node and return a new node with keys migrated
             auto split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode *;
             // split_inner is seperated from split leaf because they have different memory policies
-            auto split_inner(int tid, InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *>;
+            auto split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *>;
             // push up split keys to ancestors
             auto push_up(int tid, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
 

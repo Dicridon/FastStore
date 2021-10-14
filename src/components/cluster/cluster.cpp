@@ -273,7 +273,6 @@ namespace Hill {
             }
             
             std::thread background([&, sock]() {
-
                 std::cout << "---->> this in background thread " << this << "\n";
 
                 std::cout << ">> Monitor connected\n";

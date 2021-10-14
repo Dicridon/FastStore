@@ -20,6 +20,7 @@ namespace Hill {
             for (int j = Constants::iNUM_HIGHKEY - 1; j > i; j--) {
                 keys[j] = keys[j - 1];
                 values[j] = values[j - 1];
+                value_sizes[j] = value_sizes[j - 1];                
             }
 
             auto ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
@@ -35,9 +36,11 @@ namespace Hill {
                 alloc->allocate(tid, total, ptr);
                 KVPair::HillString::make_string(ptr, v, v_sz);
                 values[i] = Memory::PolymorphicPointer::make_ploymorphic_pointer(ptr);
+                value_sizes[i] = total;
             } else {
                 agent->allocate(tid, total, ptr);
                 values[i] = Memory::PolymorphicPointer::make_ploymorphic_pointer(ptr);
+                value_sizes[i] = total;
                 auto &connection = agent->get_peer_connection(values[i].remote_ptr().get_node());
                 auto buf = std::make_unique<byte_t[]>(total);
                 auto &t = KVPair::HillString::make_string(buf.get(), v, v_sz);
@@ -139,7 +142,7 @@ namespace Hill {
             node->version_lock.lock();
 
             if (!node->is_full()) {
-                auto ret = node->insert(tid, logger.get(), alloc, agent, k, k_sz, v, v_sz);
+                auto ret = node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 node->version_lock.unlock();
                 return ret;
             }
@@ -184,6 +187,7 @@ namespace Hill {
             for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
                 n->keys[k - split] = l->keys[k];
                 n->values[k - split] = l->values[k];
+                n->value_sizes[k - split] = l->value_sizes[k];                
             }
             l->right_link = n;
             n->highkey = n->keys[Constants::iNUM_HIGHKEY - 1 - split];
@@ -191,14 +195,15 @@ namespace Hill {
             for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
                 l->keys[k] = nullptr;
                 l->values[k] = nullptr;
+                l->value_sizes[k] = 0;                
             }
 
             if (i < Constants::iNUM_HIGHKEY / 2) {
-                l->insert(tid, logger.get(), alloc, agent, k, k_sz, v, v_sz);
+                l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 // should make sure highkey is changed
                 l->highkey = l->keys[split];
             } else {
-                n->insert(tid, logger.get(), alloc, agent, k, k_sz, v, v_sz);
+                n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 l->highkey = l->keys[split - 1];
             }
 
@@ -208,7 +213,7 @@ namespace Hill {
             return n;
         }
 
-        auto OLFIT::split_inner(int tid, InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *> {
+        auto OLFIT::split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *> {
             auto right = InnerNode::make_inner();
             right->right_link = l->right_link;
 
@@ -289,7 +294,7 @@ namespace Hill {
                     inner->version_lock.unlock();
                     return Enums::OpStatus::Ok;
                 } else {
-                    auto split_context = split_inner(tid, inner, splitkey, new_node);
+                    auto split_context = split_inner(inner, splitkey, new_node);
                     new_node = split_context.first;
                     splitkey = split_context.second;
 
@@ -313,22 +318,23 @@ namespace Hill {
             return Enums::OpStatus::Ok;
         }
 
-        auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> Memory::PolymorphicPointer {
+        auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t>
+        {
         RETRY:
             auto leaf = traverse_node_no_tracing(k, k_sz);
             auto version = leaf->version_lock.version();
             for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (leaf->keys[i] == nullptr) {
-                    return nullptr;
+                    return {nullptr, 0};
                 }
                 if (leaf->keys[i]->compare(k, k_sz) == 0) {
                     if (leaf->version_lock.version() == version && !leaf->version_lock.is_locked())
-                        return leaf->values[i];
+                        return {leaf->values[i], leaf->value_sizes[i]};
                     else
                         goto RETRY;
                 }
             }
-            return nullptr;
+            return {nullptr, 0};
         }
 
         auto OLFIT::dump() const noexcept -> void {

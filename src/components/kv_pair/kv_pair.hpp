@@ -145,6 +145,11 @@ namespace Hill {
                 return header.length;
             }
 
+            // size of the whole HillString object including header and all content
+            inline auto object_size() const noexcept -> size_t {
+                return header.length + sizeof(header);
+            }
+
             inline auto inplace_update(const_byte_ptr_t bytes, size_t size) noexcept -> bool {
                 if (size > header.length)
                     return false;
