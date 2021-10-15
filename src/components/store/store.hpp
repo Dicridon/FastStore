@@ -7,8 +7,7 @@
 #include "engine/engine.hpp"
 #include "rpc_wrapper/rpc_wrapper.hpp"
 #include "kv_pair/kv_pair.hpp"
-// #include "rpc_wrapper/rpc_wrapper.hpp"
-
+#include "workload/workload.hpp"
 /*
  * The complete implementation of Hill is here.
  *
@@ -39,11 +38,27 @@ namespace Hill {
 
             struct ClientContext {
                 int thread_id;
-                Engine *client;
-                erpc::Rpc<erpc::CTransport> *rpc;
-                erpc::MsgBuffer req_buf;
-                erpc::MsgBuffer resp_buf;
+                std::string server_uri[Cluster::Constants::uMAX_NODE];
+                Client *client;
+                erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
+                erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
+                erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
+
+                ClientContext() {
+                    thread_id = 0;
+                    for (auto &u : server_uri) {
+                        u = "";
+                    }
+
+                    for (auto &r : rpcs) {
+                        r = nullptr;
+                    }
+                }
             };
+
+            namespace Constants {
+                static constexpr size_t uMAX_MSG_SIZE = 512;
+            }
             
             namespace Enums {
                 // no enum class
@@ -57,6 +72,7 @@ namespace Hill {
                     // for peer server
                     CallForMemory,
 
+                    
                     // guardian
                     Unknown,
                 };
@@ -70,7 +86,7 @@ namespace Hill {
         }
 
         /*
-         * StoreServer handles all 
+         * StoreServer handles all erpc calls
          * an income message is in one of following formats
          * 1. Insert:
          *    |       first byte      | following bytes
@@ -160,21 +176,22 @@ namespace Hill {
                 ret->client = Client::make_client(config);
                 ret->nexus = new erpc::Nexus(uri, 0, 0);
 
-                for (auto &id : ret->thread_ids) {
-                    id = false;
-                }
+                ret->is_launched = false;
                 return ret;
             }
 
             inline auto launch() -> bool {
-                return client->connect_monitor();
+                if (client->connect_monitor()) {
+                    is_launched = true;
+                }
+                return is_launched;
             }
             
-            auto register_thread() noexcept -> std::optional<std::thread>;
+            auto register_thread(const Workload::StringWorkload &load) noexcept -> std::optional<std::thread>;
         private:
             std::unique_ptr<Client> client;
             erpc::Nexus *nexus;
-            std::array<bool, Memory::Constants::iTHREAD_LIST_NUM> thread_ids;
+            bool is_launched;
             
             static auto client_continuation(void *context, void *tag) -> void;
         };

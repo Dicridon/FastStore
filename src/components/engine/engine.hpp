@@ -7,6 +7,9 @@
 #include "rdma/rdma.hpp"
 #include "misc/misc.hpp"
 
+#include <shared_mutex>
+#include <atomic>
+
 #include <fcntl.h>
 namespace Hill {
     /*
@@ -24,7 +27,7 @@ namespace Hill {
      * |   Local Memory Allocator   |
      * |                            |
      * |  ------------------------  |
-     * |    Remote Memory Agent     |
+     * |    Remote Memory Agents    |
      * |----------------------------|
      * |                            |
      * |        Data Region         |
@@ -63,50 +66,60 @@ namespace Hill {
             offset += sizeof(WAL::LogRegions);
             ret->allocator = Memory::Allocator::make_allocator(base + offset, ret->node->available_pm);
             offset += sizeof(Memory::Allocator);
-            ret->agent = Memory::RemoteMemoryAgent::make_agent(base + offset, &ret->peer_connections);
+            for (int i = 0; i < Memory::Constants::iTHREAD_LIST_NUM; i++)
+                ret->agents[i] = Memory::RemoteMemoryAgent::make_agent(base + offset, &ret->peer_connections[i]);
 
-            ret->sock = Misc::make_socket(true, ret->node->port);
-            if (ret->sock == -1) {
-                return nullptr;
-            }
-            auto flags = fcntl(ret->sock, F_GETFL);
-            fcntl(ret->sock, F_SETFL, flags | O_NONBLOCK);
 
             ret->base = base;
             ret->run = false;
             return ret;
         }
 
+
         /*
-         * Established connections are recorded so that one node can find the RDMA connection with a specific node.
+         * Launch this engine and establish connectin with the monitor
          */
-        auto check_rdma_request() noexcept -> int;
+
+        
         auto launch() noexcept -> void;
         auto stop() noexcept -> void;
 
-        inline auto get_logger() noexcept -> WAL::Logger * {
+        auto register_thread() -> std::optional<int>;
+        /*
+         * Established connections are recorded so that one node can find the RDMA connection with a specific node.
+         */
+        auto check_rdma_request(int tid) noexcept -> int;
+
+        auto get_logger() noexcept -> WAL::Logger * {
             return logger.get();
         }
-        inline auto get_allocator() noexcept -> Memory::Allocator * {
+
+        auto get_allocator() noexcept -> Memory::Allocator * {
             return allocator;
         }
         
         auto dump() const noexcept -> void;
-        
+
+    public:
+        std::unique_ptr<Cluster::Node> node;        
     private:
         // logger has some runtime data, thus is a smart pointer
         std::unique_ptr<WAL::Logger> logger;
         Memory::Allocator *allocator;
-        Memory::RemoteMemoryAgent *agent;
-        std::unique_ptr<Cluster::Node> node;
-        int sock;
+
+
         std::string rdma_dev_name;
         int ib_port;
         int gid_idx;
         byte_ptr_t base;
         bool run;
-        std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections;
-        std::vector<RDMA::RDMAPtr> client_connections;
+
+        int sock[Memory::Constants::iTHREAD_LIST_NUM];        
+        std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
+        std::vector<RDMA::RDMAPtr> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
+        Memory::RemoteMemoryAgent *agents[Memory::Constants::iTHREAD_LIST_NUM];
+        
+
         
         auto parse_ib(const std::string &config) noexcept -> bool;
     };
@@ -141,21 +154,45 @@ namespace Hill {
             return ret;
         }
         auto connect_monitor() noexcept -> bool;
-        auto connect_server(int node_id) noexcept -> bool;
-        auto write_to(int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
-        auto read_from(int node_id, const byte_ptr_t &remote_ptr, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
-        auto get_buf() const noexcept -> const std::unique_ptr<byte_t[]> &;
+
+        auto register_thread() -> std::optional<int>;
+        auto connect_server(int tid, int node_id) noexcept -> bool;
+        inline auto is_connected(int tid, int node_id) const noexcept -> bool {
+            return server_connections[tid][node_id] != nullptr;
+        }
+        auto write_to(int tid, int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
+        auto read_from(int tid, int node_id, const byte_ptr_t &remote_ptr, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
+        inline auto rdma_buf_as_char(int tid, int node_id) -> const char * {
+            return server_connections[tid][node_id]->get_char_buf();
+        }
+
+        inline auto rdma_buf_as_void(int tid, int node_id) -> const void * {
+            return server_connections[tid][node_id]->get_buf();
+        }
+        
+
+
+        inline auto get_buf() const noexcept -> const std::unique_ptr<byte_t[]> & {
+            return buf;
+        }
+        
+        inline auto get_cluster_meta() const noexcept -> const Cluster::ClusterMeta & {
+            return meta;
+        }
+
     private:
         bool run;
         
         Cluster::IPV4Addr monitor_addr;
         int monitor_port;
         int monitor_socket;
-        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections;
+
         Cluster::ClusterMeta meta;
         std::string rdma_dev_name;
         int ib_port;
         int gid_idx;
+
+        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];        
         std::unique_ptr<byte_t[]> buf;
 
         auto parse_ib(const std::string &config) noexcept -> bool;        

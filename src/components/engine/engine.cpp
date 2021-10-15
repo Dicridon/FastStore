@@ -1,7 +1,7 @@
 #include "engine.hpp"
 namespace Hill {
-    auto Engine::check_rdma_request() noexcept -> int {
-        auto socket = Misc::accept_blocking(sock);
+    auto Engine::check_rdma_request(int tid) noexcept -> int {
+        auto socket = Misc::accept_nonblocking(sock[tid]);
 
         if (socket == -1) {
             return -1;
@@ -15,7 +15,7 @@ namespace Hill {
                 return -1;
             }
 
-            if (peer_connections[remote_id] != nullptr) {
+            if (peer_connections[tid][remote_id] != nullptr) {
                 return 0;
             }
         }
@@ -33,9 +33,9 @@ namespace Hill {
 
         if (remote_id == Cluster::Constants::iCLIENT_ID) {
             // just keep this connection alive
-            client_connections.push_back(std::move(rdma));
+            client_connections[tid].push_back(std::move(rdma));
         } else {
-            peer_connections[remote_id] = std::move(rdma);            
+            peer_connections[tid][remote_id] = std::move(rdma);            
         }
 
         // no longer needed
@@ -46,25 +46,54 @@ namespace Hill {
     auto Engine::launch() noexcept -> void {
         node->launch();
         run = true;
-        std::thread checker([&] {
-            while(run) {
-                check_rdma_request();
-                sleep(1);
-            }
-        });
-        checker.detach();
     }
 
     auto Engine::stop() noexcept -> void {
         run = false;
         node->stop();
-        for (auto &p : peer_connections) {
-            p.reset(nullptr);
+        for (auto &_p : peer_connections) {
+            for (auto &p : _p)
+                p.reset(nullptr);
         }
 
-        for (auto &c : client_connections) {
-            c.reset(nullptr);
+        for (auto &_c : client_connections) {
+            for (auto &c : _c)
+                c.reset(nullptr);
         }
+    }
+
+    auto Engine::register_thread() -> std::optional<int> {
+        auto l_tid = logger->register_thread();
+        if (!l_tid.has_value()) {
+            return {};
+        }
+
+        auto a_tid = allocator->register_thread();
+        if (!a_tid.has_value()) {
+            return {};
+        }
+
+        if (l_tid.value() != a_tid.value()) {
+            return {};
+        }
+
+        auto tid = a_tid.value();
+        sock[tid] = Misc::make_socket(true, node->port);
+        if (sock[tid] == -1) {
+            return {};
+        }
+        auto flags = fcntl(sock[tid], F_GETFL);
+        fcntl(sock[tid], F_SETFL, flags | O_NONBLOCK);
+        
+        std::thread checker([&, tid] {
+            while(this->run) {
+                check_rdma_request(tid);
+                sleep(1);
+            }
+        });
+        checker.detach();
+
+        return tid;
     }
 
     auto Engine::dump() const noexcept -> void {
@@ -141,7 +170,15 @@ namespace Hill {
         return true;
     }
 
-    auto Client::connect_server(int node_id) noexcept -> bool {
+    auto Client::register_thread() -> std::optional<int> {
+        static std::atomic_int tid = 0;
+        if (tid < Memory::Constants::iTHREAD_LIST_NUM) {
+            return tid.fetch_add(1);
+        }
+        return {};
+    }
+    
+    auto Client::connect_server(int tid, int node_id) noexcept -> bool {
         if (node_id <= 0 || size_t(node_id) > Cluster::Constants::uMAX_NODE) {
             return false;
         }
@@ -162,28 +199,24 @@ namespace Hill {
             return false;
         }
 
-        server_connections[node_id] = std::move(rdma);
+        server_connections[tid][node_id] = std::move(rdma);
         return 0;
     }
 
-    auto Client::write_to(int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair {
+    auto Client::write_to(int tid, int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair {
         if (node_id <= 0 || size_t(node_id) >= Cluster::Constants::uMAX_NODE) {
             return {RDMAUtil::Status::InvalidArguments, -1};
         }
 
-        return server_connections[node_id]->post_write(remote_ptr, msg, msg_len);
+        return server_connections[tid][node_id]->post_write(remote_ptr, msg, msg_len);
     }
 
-    auto Client::read_from(int node_id, const byte_ptr_t &remote_ptr, size_t msg_len) noexcept -> RDMAUtil::StatusPair {
+    auto Client::read_from(int tid, int node_id, const byte_ptr_t &remote_ptr, size_t msg_len) noexcept -> RDMAUtil::StatusPair {
         if (node_id <= 0 || size_t(node_id) >= Cluster::Constants::uMAX_NODE) {
             return {RDMAUtil::Status::InvalidArguments, -1};
         }
 
-        return server_connections[node_id]->post_read(remote_ptr, msg_len);
-    }
-
-    auto Client::get_buf() const noexcept -> const std::unique_ptr<byte_t[]> & {
-        return buf;
+        return server_connections[tid][node_id]->post_read(remote_ptr, msg_len);
     }
 
     auto Client::parse_ib(const std::string &config) noexcept -> bool {

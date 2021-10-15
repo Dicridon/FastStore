@@ -5,22 +5,12 @@ namespace Hill {
             if (!is_launched) {
                 return {};
             }
-            auto _a_tid = server->get_allocator()->register_thread();
-            if (!_a_tid.has_value()) {
+
+            auto tid = server->register_thread();
+            if (!tid.has_value()) {
                 return {};
             }
-
-            auto _l_tid = server->get_logger()->register_thread();
-            if (!_l_tid.has_value()) {
-                return {};
-            }
-
-            auto a_tid = _a_tid.value();
-            auto l_tid = _l_tid.value();
-            if (a_tid != l_tid) {
-                return {};
-            }
-
+            
             return std::thread([&] (int tid) {
                 detail::ServerContext s_ctx;
                 s_ctx.thread_id = tid;
@@ -29,7 +19,7 @@ namespace Hill {
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
                 s_ctx.rpc->run_event_loop(10000000);
-            }, a_tid);
+            }, tid.value());
         }
 
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
@@ -55,7 +45,7 @@ namespace Hill {
 
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
-        
+
         auto StoreServer::update_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             // TODO
         }
@@ -84,8 +74,8 @@ namespace Hill {
             // TODO
         }
 
-        auto StoreServer::parse_request_message(const erpc::ReqHandle *req_handle, const void *context) ->
-            std::tuple<detail::Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>
+        auto StoreServer::parse_request_message(const erpc::ReqHandle *req_handle, const void *context)
+            -> std::tuple<detail::Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>
         {
             auto server_ctx = reinterpret_cast<detail::ServerContext *>(const_cast<void *>(context));
             auto requests = req_handle->get_req_msgbuf();
@@ -118,17 +108,61 @@ namespace Hill {
             return {type, key, key_or_value};
         }
 
-        auto StoreClient::register_thread() noexcept -> std::optional<std::thread> {
-            int tid;
-            for (tid = 0; tid < Memory::Constants::iTHREAD_LIST_NUM; tid++) {
-                if (thread_ids[tid] == false) {
-                    break;
-                }
+        auto StoreClient::register_thread(const Workload::StringWorkload &load) noexcept
+            -> std::optional<std::thread>
+        {
+            if (!is_launched) {
+                return {};
+            }
+            
+            auto tid = client->register_thread();
+            if (!tid.has_value()) {
+                return {};
             }
 
+
             return std::thread([&](int tid) {
-                // TODO
-            }, tid);
+
+                detail::ClientContext c_ctx;
+                c_ctx.thread_id = tid;
+                c_ctx.client = this->client.get();
+
+                int node_id;
+                for (auto &i : load) {
+                    const auto &meta = this->client->get_cluster_meta();
+                    node_id = meta.filter_node(i.key);
+                    if (node_id == 0) {
+                        continue;
+                    }
+
+                    if (!client->is_connected(tid, node_id)) {
+                        if (!client->connect_server(tid, node_id)) {
+                            std::cerr << "Client can not connect to server " << node_id << "\n";
+                            continue;
+                        }
+                    }
+
+                    if (c_ctx.rpcs[tid] == nullptr) {
+                        c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus,
+                                                                              reinterpret_cast<void *>(&c_ctx),
+                                                                              tid,
+                                                                              RPCWrapper::ghost_sm_handler);
+                        auto &node = meta.cluster.nodes[node_id];
+                        auto server_uri = node.addr.to_string() + std::to_string(node.port);
+                        auto rpc = c_ctx.rpcs[node_id];
+                        auto session = rpc->create_session(server_uri, tid);
+                        if (!rpc->is_connected(session)) {
+                            std::cerr << "Client can not create session for " << node_id << "\n";
+                            return;
+                        }
+                        c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
+                        c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
+                    }
+
+                    // TODO: generate request and register a callback hereS
+                }
+              
+            }, tid.value());
         }
     }
 }

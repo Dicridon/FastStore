@@ -8,6 +8,7 @@
 #include <thread>
 #include <iostream>
 #include <fstream>
+#include <shared_mutex>
 
 namespace Hill {
     namespace Cluster {
@@ -125,16 +126,42 @@ namespace Hill {
             ~ClusterMeta() = default;
 
             // this is not serialized
-            std::mutex lock;
+            mutable std::shared_mutex lock;
 
             auto total_size() const noexcept -> size_t;
             auto serialize() const noexcept -> std::unique_ptr<byte_t[]>;
             // auto serialize() const noexcept -> byte_ptr_t;
             // update current ClusterMeta with this serialized buf
             auto deserialize(const byte_t *buf) -> void;
-
             auto update(const ClusterMeta &newer) -> void;
             auto dump() const noexcept -> void;
+
+            inline auto atomic_read_begin() const noexcept -> const ClusterMeta & {
+                lock.lock_shared();
+                return *this;
+            }
+            
+            inline auto atomic_read_end() const noexcept -> void {
+                lock.unlock_shared();
+            }
+
+            // TO BE REFINED
+            auto filter_node_no_lock(const std::string &key) const noexcept -> int {
+                for (size_t i = 0; i < group.num_infos; i++) {
+                    if (group.infos[i].start > key) {
+                        atomic_read_end();
+                        return i;
+                    }
+                }
+                return 0;
+            }
+            
+            auto filter_node(const std::string &key) const noexcept -> int {
+                atomic_read_begin();
+                filter_node_no_lock(key);
+                atomic_read_end();
+                return 0;
+            }
         } __attribute__((packed));
 
 
