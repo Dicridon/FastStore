@@ -1,17 +1,20 @@
 #ifndef __HILL__WORKLOAD__WORKLOAD__
 #define __HILL__WORKLOAD__WORKLOAD__
+
+
 #include <string>
 #include <vector>
 #include <iostream>
 namespace Hill {
     namespace Workload {
         namespace Enums {
-            enum class WorkloadType {
+            // just for store.hpp::Enums::RPCOperations
+            enum WorkloadType : uint8_t {
                 Insert,
+                Search,                
                 Update,
-                Delete,
-                Search,
-                Range,
+                Range,                
+
                 Unknownk,
             };
         }

@@ -43,6 +43,11 @@ namespace Hill {
                 erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
                 erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
                 erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
+                int session;
+
+                std::atomic_long successful_inserts;
+                std::atomic_long successful_searches;
+                
 
                 ClientContext() {
                     thread_id = 0;
@@ -64,10 +69,10 @@ namespace Hill {
                 // no enum class
                 enum RPCOperations : uint8_t {
                     // for client
-                    Insert,
-                    Search,
-                    Update,
-                    Range,
+                    Insert = Workload::Enums::WorkloadType::Insert,
+                    Search = Workload::Enums::WorkloadType::Search,
+                    Update = Workload::Enums::WorkloadType::Update,
+                    Range = Workload::Enums::WorkloadType::Range,
 
                     // for peer server
                     CallForMemory,
@@ -107,6 +112,28 @@ namespace Hill {
          * 5. CallForMemory
          *    |           first byte         | 
          *    | RPCOperations::CallForMemory | 
+         *
+         * responses are in one of following formats
+         * 1. Insert:
+         *    |       first byte      |  following bytes
+         *    | RPCOperations::Insert |    RPCStatus   |
+         *
+         * 2. Search:
+         *    |       first byte      |  following bytes
+         *    | RPCOperations::Search |    RPCStatus   | size_t size |  PolymorphicPointer
+         *
+         * 3. Update:
+         *    |       first byte      |  following bytes
+         *    | RPCOperations::Update |    RPCStatus   |
+         *
+         * 4. Scan
+         *    |      first byte     | 
+         *    | RPCOperations::Scan | 
+         *
+         * 5. CallForMemory
+         *    |           first byte         | 
+         *    | RPCOperations::CallForMemory | 
+         *
          */
         class StoreServer {
         public:
@@ -193,7 +220,10 @@ namespace Hill {
             erpc::Nexus *nexus;
             bool is_launched;
             
-            static auto client_continuation(void *context, void *tag) -> void;
+
+            auto check_rpc_connection(int tid, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> std::optional<int>;
+            auto prepare_request(int tid, int node_id, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> bool;
+            static auto response_continuation(void *context, void *tag) -> void;            
         };
     }
 }

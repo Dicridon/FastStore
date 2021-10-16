@@ -29,17 +29,20 @@ namespace Hill {
                                              value->raw_chars(), value->size());
             
             auto& resp = req_handle->pre_resp_msgbuf_;
-            ctx->rpc->resize_msg_buffer(&resp, sizeof(detail::Enums::RPCStatus));
+            auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(detail::Enums::RPCStatus);
+            ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
 
+            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf_) = detail::Enums::RPCOperations::Insert;
+            auto offset = sizeof(detail::Enums::RPCOperations);
             switch(status){
             case Indexing::Enums::OpStatus::Ok:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_) = detail::Enums::RPCStatus::Ok;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Ok;
                 break;
             case Indexing::Enums::OpStatus::NoMemory:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_) = detail::Enums::RPCStatus::NoMemory;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::NoMemory;
                 break;
             default:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_) = detail::Enums::RPCStatus::Failed;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Failed;
                 break;
             }
 
@@ -56,12 +59,20 @@ namespace Hill {
             auto [v, v_sz] = ctx->index->search(key->raw_chars(), key->size());
             
             auto& resp = req_handle->pre_resp_msgbuf_;
-            ctx->rpc->resize_msg_buffer(&resp, sizeof(Memory::PolymorphicPointer) + sizeof(size_t));
+            auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer) + sizeof(size_t);
+
+            ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf_) = detail::Enums::RPCOperations::Search;
+            
+            auto offset = sizeof(detail::Enums::RPCOperations);            
             if (v == nullptr) {
-                *reinterpret_cast<size_t *>(resp.buf_) = 0;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Failed;
             } else {
-                *reinterpret_cast<size_t *>(resp.buf_) = v_sz;
-                *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf_ + 8) = v;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Ok;
+                offset += sizeof(detail::Enums::RPCStatus);
+                *reinterpret_cast<size_t *>(resp.buf_ + offset) = v_sz;
+                offset += sizeof(size_t);
+                *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf_ + offset) = v;
             }
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
@@ -127,42 +138,128 @@ namespace Hill {
                 c_ctx.thread_id = tid;
                 c_ctx.client = this->client.get();
 
+                std::optional<int> _node_id;
                 int node_id;
                 for (auto &i : load) {
-                    const auto &meta = this->client->get_cluster_meta();
-                    node_id = meta.filter_node(i.key);
-                    if (node_id == 0) {
+                    _node_id = check_rpc_connection(tid, i, c_ctx);
+                    if (!_node_id.has_value()) {
                         continue;
                     }
 
-                    if (!client->is_connected(tid, node_id)) {
-                        if (!client->connect_server(tid, node_id)) {
-                            std::cerr << "Client can not connect to server " << node_id << "\n";
-                            continue;
-                        }
-                    }
+                    node_id = _node_id.value();
+                    prepare_request(tid, node_id, i, c_ctx);
+                    c_ctx.rpcs[node_id]->enqueue_request(c_ctx.session, i.type,
+                                                         &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
+                                                         response_continuation, &node_id);
 
-                    if (c_ctx.rpcs[tid] == nullptr) {
-                        c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus,
-                                                                              reinterpret_cast<void *>(&c_ctx),
-                                                                              tid,
-                                                                              RPCWrapper::ghost_sm_handler);
-                        auto &node = meta.cluster.nodes[node_id];
-                        auto server_uri = node.addr.to_string() + std::to_string(node.port);
-                        auto rpc = c_ctx.rpcs[node_id];
-                        auto session = rpc->create_session(server_uri, tid);
-                        if (!rpc->is_connected(session)) {
-                            std::cerr << "Client can not create session for " << node_id << "\n";
-                            return;
-                        }
-                        c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
-                        c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
+                    while (node_id != 0) {
+                        c_ctx.rpcs[node_id]->run_event_loop_once();
                     }
-
-                    // TODO: generate request and register a callback hereS
                 }
               
             }, tid.value());
+        }
+
+        auto StoreClient::check_rpc_connection(int tid, const Workload::WorkloadItem &item,
+                                               detail::ClientContext &c_ctx) -> std::optional<int>
+        {
+            const auto &meta = this->client->get_cluster_meta();
+            auto node_id = meta.filter_node(item.key);
+            if (node_id == 0) {
+                return {};
+            }
+
+            if (!client->is_connected(tid, node_id)) {
+                if (!client->connect_server(tid, node_id)) {
+                    std::cerr << "Client can not connect to server " << node_id << "\n";
+                    return {};
+                }
+            }
+
+            if (c_ctx.rpcs[tid] != nullptr) {
+                return node_id;
+            }
+            
+            c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
+                                                                  tid, RPCWrapper::ghost_sm_handler);
+            auto &node = meta.cluster.nodes[node_id];
+            auto server_uri = node.addr.to_string() + std::to_string(node.port);
+            auto rpc = c_ctx.rpcs[node_id];
+            c_ctx.session = rpc->create_session(server_uri, tid);
+            if (!rpc->is_connected(c_ctx.session)) {
+                std::cerr << "Client can not create session for " << node_id << "\n";
+                return {};
+            }
+            c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
+            c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
+
+            return node_id;
+        }
+
+        auto StoreClient::prepare_request(int tid, int node_id, const Workload::WorkloadItem &item,
+                                          detail::ClientContext &c_ctx) -> bool
+        {
+            auto type = item.type;
+            uint8_t *buf = buf = c_ctx.req_bufs[tid].buf_;
+            size_t offset = 0;
+            switch(type) {
+            case Hill::Workload::Enums::WorkloadType::Update:
+                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Update;
+                [[fallthrough]];
+            case Hill::Workload::Enums::WorkloadType::Range:
+                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Range;
+                [[fallthrough]];                
+            case Hill::Workload::Enums::WorkloadType::Insert:
+                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Insert;
+                buf += sizeof(detail::Enums::RPCOperations);
+                KVPair::HillString::make_string(buf, item.key.c_str(), item.key.size());
+                buf += reinterpret_cast<hill_key_t *>(buf)->object_size();
+                KVPair::HillString::make_string(buf, item.key_or_value.c_str(), item.key_or_value.size());
+                break;
+            case Hill::Workload::Enums::WorkloadType::Search:
+                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Search;
+                buf += sizeof(detail::Enums::RPCOperations);
+                KVPair::HillString::make_string(buf, item.key.c_str(), item.key.size());
+                break;
+            default:
+                return false;
+            }
+            return true;
+        }
+
+        auto StoreClient::response_continuation(void *context, void *tag) -> void {
+            auto node_id = *reinterpret_cast<int *>(tag);
+            auto ctx = reinterpret_cast<detail::ClientContext *>(context);
+            auto buf = ctx->resp_bufs[node_id].buf_;
+
+            auto op = *reinterpret_cast<detail::Enums::RPCOperations *>(buf);
+            buf += sizeof(detail::Enums::RPCOperations);
+            auto status = *reinterpret_cast<detail::Enums::RPCStatus *>(buf);
+            
+            switch(op) {
+            case detail::Enums::RPCOperations::Insert: {
+                if (status == detail::Enums::RPCStatus::Ok) {
+                    ++ctx->successful_inserts;
+                }
+            }
+
+            case detail::Enums::RPCOperations::Search: {
+                if (status == detail::Enums::RPCStatus::Ok) {
+                    ++ctx->successful_inserts;
+                }
+            }
+                
+            case detail::Enums::RPCOperations::Update: {
+                
+            }
+                
+            case detail::Enums::RPCOperations::Range: {
+                
+            }
+                
+            default:
+                return;
+            }
         }
     }
 }
