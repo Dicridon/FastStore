@@ -23,7 +23,7 @@ namespace Hill {
             std::string key;
             std::string key_or_value;
 
-S            WorkloadItem() = default;
+            WorkloadItem() = default;
             WorkloadItem(const WorkloadItem &r) = default;
             WorkloadItem(WorkloadItem &&) = default;
             auto operator=(const WorkloadItem &) -> WorkloadItem & = default;
