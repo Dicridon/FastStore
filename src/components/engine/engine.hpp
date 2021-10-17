@@ -79,34 +79,36 @@ namespace Hill {
         /*
          * Launch this engine and establish connectin with the monitor
          */
-
-        
         auto launch() noexcept -> void;
         auto stop() noexcept -> void;
 
         auto register_thread() -> std::optional<int>;
+        auto unregister_thread(int tid) -> void;
         /*
          * Established connections are recorded so that one node can find the RDMA connection with a specific node.
          */
         auto check_rdma_request(int tid) noexcept -> int;
 
-        auto get_logger() noexcept -> WAL::Logger * {
+        inline auto get_logger() noexcept -> WAL::Logger * {
             return logger.get();
         }
 
-        auto get_allocator() noexcept -> Memory::Allocator * {
+        inline auto get_allocator() noexcept -> Memory::Allocator * {
             return allocator;
+        }
+
+        inline auto get_uri() const noexcept -> std::string {
+            return node->addr.to_string() + std::to_string(node->port);
         }
         
         auto dump() const noexcept -> void;
 
-    public:
-        std::unique_ptr<Cluster::Node> node;        
     private:
+        std::unique_ptr<Cluster::Node> node;        
+        
         // logger has some runtime data, thus is a smart pointer
         std::unique_ptr<WAL::Logger> logger;
         Memory::Allocator *allocator;
-
 
         std::string rdma_dev_name;
         int ib_port;
@@ -118,8 +120,6 @@ namespace Hill {
         std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
         std::vector<RDMA::RDMAPtr> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
         Memory::RemoteMemoryAgent *agents[Memory::Constants::iTHREAD_LIST_NUM];
-        
-
         
         auto parse_ib(const std::string &config) noexcept -> bool;
     };
@@ -134,20 +134,31 @@ namespace Hill {
         auto operator=(Client &&) = delete;
         
         static auto make_client(const std::string config) -> std::unique_ptr<Client> {
-            auto content_ = Misc::file_as_string(config);
-            if (!content_.has_value()) {
+            auto _content = Misc::file_as_string(config);
+            if (!_content.has_value()) {
                 return nullptr;
             }
 
+            auto content = _content.value();
+
             std::regex rmonitor("monitor:\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::smatch vmonitor;
-            if (!std::regex_search(content_.value(), vmonitor, rmonitor)) {
+            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+            std::smatch vmonitor, vaddr;
+            if (!std::regex_search(content, vmonitor, rmonitor)) {
+                std::cerr << ">> Error: invalid or unspecified monitor address\n";                
+                return nullptr;
+            }
+
+            if (!std::regex_search(content, raddr)) {
+                std::cerr << ">> Error: invalid or unspecified IP address\n";
                 return nullptr;
             }
 
             auto ret = std::make_unique<Client>();
             ret->monitor_addr = Cluster::IPV4Addr::make_ipv4_addr(vmonitor[1]).value();
             ret->monitor_port = atoi(vmonitor[2].str().c_str());
+            ret->addr = Cluster::IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
+            ret->port = atoi(vaddr[2].str().c_str());
             ret->run = false;
             ret->parse_ib(config);
             ret->buf = std::make_unique<byte_t[]>(16 * 1024);
@@ -156,6 +167,7 @@ namespace Hill {
         auto connect_monitor() noexcept -> bool;
 
         auto register_thread() -> std::optional<int>;
+        auto unregister_thread(int tid) -> void;
         auto connect_server(int tid, int node_id) noexcept -> bool;
         inline auto is_connected(int tid, int node_id) const noexcept -> bool {
             return server_connections[tid][node_id] != nullptr;
@@ -170,14 +182,16 @@ namespace Hill {
             return server_connections[tid][node_id]->get_buf();
         }
         
-
-
         inline auto get_buf() const noexcept -> const std::unique_ptr<byte_t[]> & {
             return buf;
         }
         
         inline auto get_cluster_meta() const noexcept -> const Cluster::ClusterMeta & {
             return meta;
+        }
+
+        inline auto get_uri() const noexcept -> std::string {
+            return addr.to_string() + std::to_string(port);
         }
 
     private:
@@ -191,6 +205,9 @@ namespace Hill {
         std::string rdma_dev_name;
         int ib_port;
         int gid_idx;
+
+        Cluster::IPV4Addr addr;
+        int port;
 
         std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];        
         std::unique_ptr<byte_t[]> buf;

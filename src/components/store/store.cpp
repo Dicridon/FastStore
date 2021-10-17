@@ -19,6 +19,7 @@ namespace Hill {
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
                 s_ctx.rpc->run_event_loop(10000000);
+                this->server->unregister_thread(tid);
             }, tid.value());
         }
 
@@ -131,9 +132,7 @@ namespace Hill {
                 return {};
             }
 
-
             return std::thread([&](int tid) {
-
                 detail::ClientContext c_ctx;
                 c_ctx.thread_id = tid;
                 c_ctx.client = this->client.get();
@@ -156,7 +155,7 @@ namespace Hill {
                         c_ctx.rpcs[node_id]->run_event_loop_once();
                     }
                 }
-              
+                this->client->unregister_thread(tid);
             }, tid.value());
         }
 

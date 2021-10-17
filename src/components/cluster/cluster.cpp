@@ -215,12 +215,12 @@ namespace Hill {
         }
 
         auto Node::prepare(const std::string &configure_file) -> bool {
-            auto content_ = Misc::file_as_string(configure_file);
-            if (!content_.has_value()) {
+            auto _content = Misc::file_as_string(configure_file);
+            if (!_content.has_value()) {
                 return false;
             }
 
-            auto content = content_.value();
+            auto content = _content.value();
 
             std::regex rnode_id("node_id:\\s*(\\d+)");
             std::regex rtotal_pm("total_pm:\\s*(\\d+)");

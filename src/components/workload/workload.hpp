@@ -1,7 +1,6 @@
 #ifndef __HILL__WORKLOAD__WORKLOAD__
 #define __HILL__WORKLOAD__WORKLOAD__
 
-
 #include <string>
 #include <vector>
 #include <iostream>
@@ -24,7 +23,7 @@ namespace Hill {
             std::string key;
             std::string key_or_value;
 
-            WorkloadItem();
+S            WorkloadItem() = default;
             WorkloadItem(const WorkloadItem &r) = default;
             WorkloadItem(WorkloadItem &&) = default;
             auto operator=(const WorkloadItem &) -> WorkloadItem & = default;
@@ -55,6 +54,8 @@ namespace Hill {
         };
 
         using StringWorkload = std::vector<WorkloadItem>;
+
+        auto generate_simple_string_workload(size_t batch_size, const Enums::WorkloadType &t, bool reverse = false) -> StringWorkload;        
     }
 }
 #endif

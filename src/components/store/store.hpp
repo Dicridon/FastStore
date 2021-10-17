@@ -47,7 +47,6 @@ namespace Hill {
 
                 std::atomic_long successful_inserts;
                 std::atomic_long successful_searches;
-                
 
                 ClientContext() {
                     thread_id = 0;
@@ -76,7 +75,6 @@ namespace Hill {
 
                     // for peer server
                     CallForMemory,
-
                     
                     // guardian
                     Unknown,
@@ -144,13 +142,14 @@ namespace Hill {
             auto operator=(const StoreServer &) -> StoreServer & = delete;
             auto operator=(StoreServer &&) -> StoreServer & = delete;
 
-            static auto make_server(const byte_ptr_t &base, const std::string &config, size_t cache_cap,
-                                   const std::string &uri) -> std::unique_ptr<StoreServer> {
+            static auto make_server(const byte_ptr_t &base, const std::string &config, size_t cache_cap)
+                -> std::unique_ptr<StoreServer>
+            {
                 auto ret = std::make_unique<StoreServer>();
                 ret->server = Engine::make_engine(base, config);
                 ret->index = Indexing::OLFIT::make_olfit(ret->server->get_allocator(), ret->server->get_logger());
                 ret->cache = &ReadCache::Cache::make_cache(new byte_t[cache_cap]);
-                ret->nexus = new erpc::Nexus(uri, 0, 0);
+                ret->nexus = new erpc::Nexus(ret->server->get_uri(), 0, 0);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Insert, insert_handler);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Search, search_handler);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Update, update_handler);
@@ -198,10 +197,10 @@ namespace Hill {
             auto operator=(const StoreClient &) -> StoreClient & = delete;
             auto operator=(StoreClient &&) -> StoreClient & = delete;
 
-            static auto make_client(const std::string &uri, const std::string &config) -> std::unique_ptr<StoreClient> {
+            static auto make_client(const std::string &config) -> std::unique_ptr<StoreClient> {
                 auto ret = std::make_unique<StoreClient>();
                 ret->client = Client::make_client(config);
-                ret->nexus = new erpc::Nexus(uri, 0, 0);
+                ret->nexus = new erpc::Nexus(ret->client->get_uri(), 0, 0);
 
                 ret->is_launched = false;
                 return ret;
@@ -219,7 +218,6 @@ namespace Hill {
             std::unique_ptr<Client> client;
             erpc::Nexus *nexus;
             bool is_launched;
-            
 
             auto check_rpc_connection(int tid, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> std::optional<int>;
             auto prepare_request(int tid, int node_id, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> bool;

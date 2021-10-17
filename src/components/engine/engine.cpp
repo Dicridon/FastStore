@@ -96,6 +96,11 @@ namespace Hill {
         return tid;
     }
 
+    auto Engine::unregister_thread(int tid) -> void {
+        logger->unregister_thread(tid);
+        allocator->unregister_thread(tid);
+    }
+
     auto Engine::dump() const noexcept -> void {
         node->dump();
         std::cout << "---->> RDMA device: " << rdma_dev_name << "\n";
@@ -176,6 +181,10 @@ namespace Hill {
             return tid.fetch_add(1);
         }
         return {};
+    }
+
+    auto Client::unregister_thread([[maybe_unused]] int tid) -> void {
+
     }
     
     auto Client::connect_server(int tid, int node_id) noexcept -> bool {
