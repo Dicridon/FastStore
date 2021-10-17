@@ -4,6 +4,7 @@
 #include "memory_manager/memory_manager.hpp"
 #include "kv_pair/kv_pair.hpp"
 #include "remote_memory/remote_memory.hpp"
+#include "config/config.hpp"
 
 #include <unordered_map>
 
@@ -12,7 +13,11 @@ namespace Hill {
         using namespace ::Hill::Memory;
 
         namespace Constants {
+#ifdef __DEBUG__
+            constexpr size_t uCACHE_SIZE = 100UL;
+#else
             constexpr size_t uCACHE_SIZE = 100000UL;
+#endif
         }
         
         struct CacheItem {

@@ -2,6 +2,7 @@
 #define __HILL__WAL__WAL__
 
 #include "memory_manager/memory_manager.hpp"
+#include "config/config.hpp"
 
 #include <memory>
 #include <functional>
@@ -13,8 +14,13 @@ namespace Hill {
         extern std::mutex wal_global_lock;
         namespace Constants {
             static constexpr int iREGION_NUM = Memory::Constants::iTHREAD_LIST_NUM;
+#ifdef __HILL_DEBUG__            
             static constexpr size_t uBATCH_SIZE = 64UL;
             static constexpr size_t uREGION_SIZE = 1024UL;
+#else
+            static constexpr size_t uBATCH_SIZE = 8UL;
+            static constexpr size_t uREGION_SIZE = 64UL;            
+#endif
             static constexpr uint64_t uLOG_REGIONS_MAGIC = 0x1357246813572468UL;
         }
 
