@@ -1,6 +1,8 @@
 #ifndef __HILL__CLUSTER__CLUSTER__
 #define __HILL__CLUSTER__CLUSTER__
 #include "memory_manager/memory_manager.hpp"
+#include "misc/misc.hpp"
+#include "config/config.hpp"
 
 #include <sstream>
 #include <memory>

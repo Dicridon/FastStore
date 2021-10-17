@@ -1,5 +1,5 @@
 #include "cluster.hpp"
-#include "misc/misc.hpp"
+
 
 #include <iostream>
 #include <fstream>
@@ -268,22 +268,27 @@ namespace Hill {
         auto Node::launch() -> bool {
             run = true;
             auto sock = Misc::socket_connect(false, monitor_port, monitor_addr.to_string().c_str());
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+            std::cout << ">> Node at " << addr.to_string() << ":" << port << " connecting to monitor at "
+                      << monitor_addr.to_string() << ":" << monitor_port << "\n";
+#endif
             if (sock == -1) {
                 return false;
             }
             
             std::thread background([&, sock]() {
-                std::cout << "---->> this in background thread " << this << "\n";
-
+#ifdef __HILL_DEBUG__
                 std::cout << ">> Monitor connected\n";
+#endif
                 auto total = 0UL;
                 read(sock, &total, sizeof(total));
                 auto buf = std::make_unique<byte_t[]>(total);
                 read(sock, buf.get(), total);
 
                 cluster_status.deserialize(buf.get());
+#ifdef __HILL_DEBUG__
                 cluster_status.dump();
-
+#endif
                 cluster_status.cluster.nodes[node_id].version = 1;
                 cluster_status.cluster.nodes[node_id].node_id = node_id;
                 cluster_status.cluster.nodes[node_id].total_pm = total_pm;
@@ -306,7 +311,9 @@ namespace Hill {
 
         // I need extra infomation to update PM usage and CPU usage
         auto Node::keepalive(int socket) noexcept -> bool {
+#ifdef __HILL_DEBUG__
             std::cout << "---->> this in keepalive " << this << "\n";
+#endif
             auto to_size = cluster_status.total_size();
             // Atomicity is not the first concern, because all these data fields are concurrently atomic
             cluster_status.cluster.nodes[node_id].available_pm = available_pm;
@@ -326,7 +333,9 @@ namespace Hill {
             ClusterMeta tmp;
             tmp.deserialize(buf.get());
             cluster_status.update(tmp);
+#ifdef __HILL_DEBUG__
             cluster_status.dump();
+#endif            
             sleep(3);
             return true;
         }
@@ -385,7 +394,9 @@ namespace Hill {
             if (sock == -1) {
                 return false;
             }
-
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+            std::cout << ">> Monitor running at " << addr.to_string() << ":" << port << "\n";
+#endif
             std::thread work([&, sock]() {
                 while(run) {
                     check_income_connection(sock);
@@ -405,9 +416,14 @@ namespace Hill {
             // accept should be non-blocking, but read/write should be blocking
             auto socket = Misc::accept_blocking(sock);
             if (socket == -1) {
+#ifdef __HILL_DEBUG__
+                std::cout << ">> No new connection is detected\n";
+#endif                
                 return;
             }
+#ifdef __HILL_DEBUG__
             std::cout << ">> New node is connected\n";
+#endif            
             std::thread heartbeat([&, socket]() {
                 // on first connection
                 auto to_size = meta.total_size();
@@ -425,7 +441,9 @@ namespace Hill {
                     tmp.deserialize(buf.get());
 
                     meta.update(tmp);
+#ifdef __HILL_DEBUG__
                     meta.dump();
+#endif                    
                     return_cluster_meta(socket);
                     sleep(1);
                 }

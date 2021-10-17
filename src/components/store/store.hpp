@@ -8,6 +8,7 @@
 #include "rpc_wrapper/rpc_wrapper.hpp"
 #include "kv_pair/kv_pair.hpp"
 #include "workload/workload.hpp"
+#include "config/config.hpp"
 /*
  * The complete implementation of Hill is here.
  *
@@ -161,6 +162,9 @@ namespace Hill {
             }
 
             inline auto launch() -> void {
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+                std::cout << ">> Launching server node at " << server->get_uri() << "\n";
+#endif
                 server->launch();
                 is_launched = true;
             }
@@ -207,6 +211,9 @@ namespace Hill {
             }
 
             inline auto launch() -> bool {
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+                std::cout << ">> Launching server node at " << client->get_uri() << "\n";
+#endif
                 if (client->connect_monitor()) {
                     is_launched = true;
                 }
