@@ -69,7 +69,7 @@ namespace Hill {
             for (int i = 0; i < Memory::Constants::iTHREAD_LIST_NUM; i++)
                 ret->agents[i] = Memory::RemoteMemoryAgent::make_agent(base + offset, &ret->peer_connections[i]);
 
-
+            ret->sock = 0;
             ret->base = base;
             ret->run = false;
             return ret;
@@ -79,7 +79,7 @@ namespace Hill {
         /*
          * Launch this engine and establish connectin with the monitor
          */
-        auto launch() noexcept -> void;
+        auto launch() noexcept -> bool;
         auto stop() noexcept -> void;
 
         auto register_thread() -> std::optional<int>;
@@ -116,7 +116,7 @@ namespace Hill {
         byte_ptr_t base;
         bool run;
 
-        int sock[Memory::Constants::iTHREAD_LIST_NUM];        
+        int sock;
         std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
         std::vector<RDMA::RDMAPtr> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
         Memory::RemoteMemoryAgent *agents[Memory::Constants::iTHREAD_LIST_NUM];

@@ -161,12 +161,11 @@ namespace Hill {
                 return ret;
             }
 
-            inline auto launch() -> void {
+            inline auto launch() -> bool {
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
                 std::cout << ">> Launching server node at " << server->get_uri() << "\n";
 #endif
-                server->launch();
-                is_launched = true;
+                return is_launched = server->launch();
             }
             /*
              * If a thread is successfully registered, a background thread would be launched handling

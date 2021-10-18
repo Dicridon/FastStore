@@ -1,7 +1,7 @@
 #include "engine.hpp"
 namespace Hill {
     auto Engine::check_rdma_request(int tid) noexcept -> int {
-        auto socket = Misc::accept_nonblocking(sock[tid]);
+        auto socket = Misc::accept_nonblocking(sock);
 
         if (socket == -1) {
             return -1;
@@ -43,9 +43,15 @@ namespace Hill {
         return 0;
     }
 
-    auto Engine::launch() noexcept -> void {
-        node->launch();
-        run = true;
+    auto Engine::launch() noexcept -> bool {
+        sock = Misc::make_socket(true, node->port);
+        if (sock == -1) {
+            return false;
+        }
+        auto flags = fcntl(sock, F_GETFL);
+        fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+        return run = node->launch();
     }
 
     auto Engine::stop() noexcept -> void {
@@ -78,12 +84,6 @@ namespace Hill {
         }
 
         auto tid = a_tid.value();
-        sock[tid] = Misc::make_socket(true, node->port);
-        if (sock[tid] == -1) {
-            return {};
-        }
-        auto flags = fcntl(sock[tid], F_GETFL);
-        fcntl(sock[tid], F_SETFL, flags | O_NONBLOCK);
         
         std::thread checker([&, tid] {
             while(this->run) {
