@@ -227,7 +227,7 @@ namespace Hill {
             bool is_launched;
 
             auto check_rpc_connection(int tid, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> std::optional<int>;
-            auto prepare_request(int tid, int node_id, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> bool;
+            auto prepare_request(int node_id, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> bool;
             static auto response_continuation(void *context, void *tag) -> void;            
         };
     }

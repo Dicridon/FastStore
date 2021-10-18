@@ -146,7 +146,7 @@ namespace Hill {
                     }
 
                     node_id = _node_id.value();
-                    prepare_request(tid, node_id, i, c_ctx);
+                    prepare_request(node_id, i, c_ctx);
                     c_ctx.rpcs[node_id]->enqueue_request(c_ctx.session, i.type,
                                                          &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
                                                          response_continuation, &node_id);
@@ -195,12 +195,11 @@ namespace Hill {
             return node_id;
         }
 
-        auto StoreClient::prepare_request(int tid, int node_id, const Workload::WorkloadItem &item,
+        auto StoreClient::prepare_request(int node_id, const Workload::WorkloadItem &item,
                                           detail::ClientContext &c_ctx) -> bool
         {
             auto type = item.type;
-            uint8_t *buf = buf = c_ctx.req_bufs[tid].buf_;
-            size_t offset = 0;
+            uint8_t *buf = buf = c_ctx.req_bufs[node_id].buf_;
             switch(type) {
             case Hill::Workload::Enums::WorkloadType::Update:
                 *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Update;
