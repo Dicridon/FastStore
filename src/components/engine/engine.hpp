@@ -97,8 +97,12 @@ namespace Hill {
             return allocator;
         }
 
-        inline auto get_uri() const noexcept -> std::string {
+        inline auto get_rpc_uri() const noexcept -> std::string {
             return node->rpc_uri;
+        }
+
+        inline auto get_addr_uri() const noexcept -> std::string {
+            return node->addr.to_string() + ":" + std::to_string(node->port);
         }
         
         auto dump() const noexcept -> void;
@@ -197,8 +201,12 @@ namespace Hill {
             return meta;
         }
 
-        inline auto get_uri() const noexcept -> std::string {
+        inline auto get_rpc_uri() const noexcept -> std::string {
             return rpc_uri;
+        }
+
+        inline auto get_addr_uri() const noexcept -> std::string {
+            return addr.to_string() + ":" + std::to_string(port);
         }
 
     private:

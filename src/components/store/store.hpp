@@ -150,7 +150,7 @@ namespace Hill {
                 ret->server = Engine::make_engine(base, config);
                 ret->index = Indexing::OLFIT::make_olfit(ret->server->get_allocator(), ret->server->get_logger());
                 ret->cache = &ReadCache::Cache::make_cache(new byte_t[cache_cap]);
-                ret->nexus = new erpc::Nexus(ret->server->get_uri(), 0, 0);
+                ret->nexus = new erpc::Nexus(ret->server->get_rpc_uri(), 0, 0);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Insert, insert_handler);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Search, search_handler);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Update, update_handler);
@@ -163,7 +163,7 @@ namespace Hill {
 
             inline auto launch() -> bool {
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                std::cout << ">> Launching server node at " << server->get_uri() << "\n";
+                std::cout << ">> Launching server node at " << server->get_addr_uri() << "\n";
 #endif
                 return is_launched = server->launch();
             }
@@ -203,7 +203,7 @@ namespace Hill {
             static auto make_client(const std::string &config) -> std::unique_ptr<StoreClient> {
                 auto ret = std::make_unique<StoreClient>();
                 ret->client = Client::make_client(config);
-                ret->nexus = new erpc::Nexus(ret->client->get_uri(), 0, 0);
+                ret->nexus = new erpc::Nexus(ret->client->get_rpc_uri(), 0, 0);
 
                 ret->is_launched = false;
                 return ret;
@@ -211,7 +211,7 @@ namespace Hill {
 
             inline auto launch() -> bool {
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                std::cout << ">> Launching server node at " << client->get_uri() << "\n";
+                std::cout << ">> Launching server node at " << client->get_addr_uri() << "\n";
 #endif
                 if (client->connect_monitor()) {
                     is_launched = true;
