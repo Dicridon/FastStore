@@ -219,6 +219,7 @@ namespace Hill {
             float cpu_usage;
             IPV4Addr addr;
             int port;
+            std::string rpc_uri;
             IPV4Addr monitor_addr;
             int monitor_port;
             ClusterMeta cluster_status;

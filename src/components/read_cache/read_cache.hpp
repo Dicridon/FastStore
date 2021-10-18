@@ -13,7 +13,7 @@ namespace Hill {
         using namespace ::Hill::Memory;
 
         namespace Constants {
-#ifdef __DEBUG__
+#ifdef __HILL_DEBUG__
             constexpr size_t uCACHE_SIZE = 100UL;
 #else
             constexpr size_t uCACHE_SIZE = 100000UL;

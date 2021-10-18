@@ -226,9 +226,10 @@ namespace Hill {
             std::regex rtotal_pm("total_pm:\\s*(\\d+)");
             std::regex ravailable_pm("available_pm:\\s*(\\d+)");            
             std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+            std::regex rrpc_uri("rpc_uri:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+)");
             std::regex rmonitor("monitor:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
 
-            std::smatch vnode_id, vtotal_pm, vaddr, vavailable_pm, vmonitor;
+            std::smatch vnode_id, vtotal_pm, vaddr, vrpc_uri, vavailable_pm, vmonitor;
             if (!std::regex_search(content, vnode_id, rnode_id)) {
                 std::cerr << ">> Error: invalid or unspecified node id\n";
                 return false;
@@ -248,7 +249,12 @@ namespace Hill {
                 std::cerr << ">> Error: invalid or unspecified IP address\n";
                 return false;
             }
-
+            
+            if (!std::regex_search(content, vrpc_uri, rrpc_uri)) {
+                std::cerr << ">> Error: invalid or unspecified IP RPC uri\n";
+                return false;
+            }
+            
             if (!std::regex_search(content, vmonitor, rmonitor)) {
                 std::cerr << ">> Error: invalid or unspecified monitor\n";
                 return false;
@@ -260,6 +266,7 @@ namespace Hill {
             // impossible be invalid
             addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
             port = atoi(vaddr[2].str().c_str());
+            rpc_uri = vrpc_uri[1].str();
             monitor_addr = IPV4Addr::make_ipv4_addr(vmonitor[1].str()).value();
             monitor_port = atoi(vmonitor[2].str().c_str());
             return true;

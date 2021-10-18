@@ -98,7 +98,7 @@ namespace Hill {
         }
 
         inline auto get_uri() const noexcept -> std::string {
-            return node->addr.to_string() + std::to_string(node->port);
+            return node->rpc_uri;
         }
         
         auto dump() const noexcept -> void;
@@ -143,7 +143,8 @@ namespace Hill {
 
             std::regex rmonitor("monitor:\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
             std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::smatch vmonitor, vaddr;
+            std::regex rrpc_uri("rpc_uri:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+)");            
+            std::smatch vmonitor, vaddr, vrpc_uri;
             if (!std::regex_search(content, vmonitor, rmonitor)) {
                 std::cerr << ">> Error: invalid or unspecified monitor address\n";                
                 return nullptr;
@@ -154,11 +155,17 @@ namespace Hill {
                 return nullptr;
             }
 
+            if (!std::regex_search(content, vmonitor, rmonitor)) {
+                std::cerr << ">> Error: invalid or unspecified monitor\n";
+                return nullptr;
+            }            
+
             auto ret = std::make_unique<Client>();
             ret->monitor_addr = Cluster::IPV4Addr::make_ipv4_addr(vmonitor[1]).value();
             ret->monitor_port = atoi(vmonitor[2].str().c_str());
             ret->addr = Cluster::IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
             ret->port = atoi(vaddr[2].str().c_str());
+            ret->rpc_uri = vrpc_uri[1].str();
             ret->run = false;
             ret->parse_ib(config);
             ret->buf = std::make_unique<byte_t[]>(16 * 1024);
@@ -191,7 +198,7 @@ namespace Hill {
         }
 
         inline auto get_uri() const noexcept -> std::string {
-            return addr.to_string() + std::to_string(port);
+            return rpc_uri;
         }
 
     private:
@@ -208,6 +215,7 @@ namespace Hill {
 
         Cluster::IPV4Addr addr;
         int port;
+        std::string rpc_uri;
 
         std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];        
         std::unique_ptr<byte_t[]> buf;
