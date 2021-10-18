@@ -233,12 +233,12 @@ namespace Hill {
         class OLFIT {
         public:
             // for convenience of testing
-            OLFIT(Memory::Allocator *alloc_, WAL::Logger *logger_)
+            OLFIT(int tid, Memory::Allocator *alloc_, WAL::Logger *logger_)
                 : root(nullptr), alloc(alloc_), logger(logger_), agent(nullptr) {
                 // NodeSplit is also for new root node creation
-                auto ptr = logger->make_log(0, WAL::Enums::Ops::NodeSplit);
+                auto ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
                 // crashing here is ok, because no memory allocation is done;
-                alloc->allocate(0, sizeof(LeafNode), ptr);
+                alloc->allocate(tid, sizeof(LeafNode), ptr);
                 /* 
                  * crash here is ok, allocation is done. Crash in the allocation function
                  * is fine because on recovery, the allocator scans memory regions to restore
@@ -250,7 +250,25 @@ namespace Hill {
             ~OLFIT() = default;
 
             static auto make_olfit(Memory::Allocator *alloc, WAL::Logger *logger) -> std::unique_ptr<OLFIT> {
-                return std::make_unique<OLFIT>(alloc, logger);
+                auto a_tid = alloc->register_thread();
+                if (!a_tid.has_value()) {
+                    return nullptr;
+                }
+
+                auto l_tid = logger->register_thread();
+                if (!l_tid.has_value()) {
+                    return nullptr;
+                }
+
+                if (a_tid.value() != l_tid.value()) {
+                    alloc->unregister_thread(a_tid.value());
+                    logger->unregister_thread(l_tid.value());
+                    return nullptr;
+                }
+                auto ret = std::make_unique<OLFIT>(a_tid.value(), alloc, logger);
+                alloc->unregister_thread(a_tid.value());
+                logger->unregister_thread(l_tid.value());
+                return ret;
             }
             
             // external interfaces use const char * as input

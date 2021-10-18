@@ -80,6 +80,8 @@ namespace Hill {
         }
 
         if (l_tid.value() != a_tid.value()) {
+            allocator->unregister_thread(a_tid.value());
+            logger->unregister_thread(l_tid.value());
             return {};
         }
 
