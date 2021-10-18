@@ -154,13 +154,13 @@ namespace Hill {
                 return nullptr;
             }
 
-            if (!std::regex_search(content, raddr)) {
+            if (!std::regex_search(content, vaddr, raddr)) {
                 std::cerr << ">> Error: invalid or unspecified IP address\n";
                 return nullptr;
             }
 
-            if (!std::regex_search(content, vmonitor, rmonitor)) {
-                std::cerr << ">> Error: invalid or unspecified monitor\n";
+            if (!std::regex_search(content, vrpc_uri, rrpc_uri)) {
+                std::cerr << ">> Error: invalid or unspecified uri\n";
                 return nullptr;
             }            
 

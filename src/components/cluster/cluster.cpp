@@ -161,6 +161,11 @@ namespace Hill {
         auto ClusterMeta::update(const ClusterMeta &newer) -> void {
             {
                 std::scoped_lock l(lock);
+                if (version >= newer.version) {
+                    return;
+                } else {
+                    version = newer.version;
+                }
                 for (size_t i = 0; i < Constants::uMAX_NODE; i++) {
                     if (cluster.nodes[i].version < newer.cluster.nodes[i].version) {
                         cluster.nodes[i] = newer.cluster.nodes[i];
@@ -280,6 +285,9 @@ namespace Hill {
                       << monitor_addr.to_string() << ":" << monitor_port << "\n";
 #endif
             if (sock == -1) {
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+                std::cout << ">> Failed to connect to monitor\n";
+#endif
                 return false;
             }
             
