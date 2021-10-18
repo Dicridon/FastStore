@@ -3,9 +3,14 @@
 #include <optional>
 #include <cstring>
 #include <mutex>
+#include "config/config.hpp"
 
-#define PMEM
-#ifdef PMEM
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+#include <iostream>
+#include <cassert>
+#endif
+
+#ifdef __HILL_PMEM__
 #include <libpmem.h>
 #endif
 namespace Hill {

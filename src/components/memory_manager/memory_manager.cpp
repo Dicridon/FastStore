@@ -118,6 +118,10 @@ namespace Hill {
         }
 
         auto Allocator::register_thread() noexcept -> std::optional<int> {
+#ifdef __HILL_DEBUG__
+            std::cout << ">> Registering in alloctor\n";
+            assert(false);
+#endif
             std::scoped_lock<std::mutex> _(allocator_global_lock);
             for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                 if (header.thread_free_lists[i] == Constants::pTHREAD_LIST_AVAILABLE ||
