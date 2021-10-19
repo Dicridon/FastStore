@@ -1,4 +1,0 @@
-addr: 127.0.0.1:2333
-node_num: 2 
-range: abcdef, 1
-range: ghijkl, 2
