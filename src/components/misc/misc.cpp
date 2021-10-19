@@ -17,7 +17,7 @@ namespace Hill {
             memset(&seraddr, 0, sizeof(struct sockaddr));
             seraddr.sin_family = AF_INET;
             seraddr.sin_port = htons(socket_port);
-            seraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+            seraddr.sin_addr.s_addr = INADDR_ANY;
             
             if (bind(sockfd, (struct sockaddr *)&seraddr, sizeof(struct sockaddr)) == -1) {
                 std::cout << ">> Error: " << "can not bind socket\n";
@@ -38,6 +38,7 @@ namespace Hill {
             seraddr.sin_family = AF_INET;
             seraddr.sin_port = htons(socket_port);
             inet_pton(AF_INET, server, &seraddr.sin_addr);
+            
         
             if (connect(sockfd, (struct sockaddr *)&seraddr, sizeof(seraddr)) == -1) {
                 return -1;
