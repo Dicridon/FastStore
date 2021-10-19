@@ -29,21 +29,21 @@ namespace Hill {
             auto status = ctx->index->insert(ctx->thread_id, key->raw_chars(), key->size(),
                                              value->raw_chars(), value->size());
             
-            auto& resp = req_handle->pre_resp_msgbuf_;
+            auto& resp = req_handle->pre_resp_msgbuf;
             auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(detail::Enums::RPCStatus);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
 
-            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf_) = detail::Enums::RPCOperations::Insert;
+            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf) = detail::Enums::RPCOperations::Insert;
             auto offset = sizeof(detail::Enums::RPCOperations);
             switch(status){
             case Indexing::Enums::OpStatus::Ok:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Ok;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Ok;
                 break;
             case Indexing::Enums::OpStatus::NoMemory:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::NoMemory;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::NoMemory;
                 break;
             default:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Failed;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Failed;
                 break;
             }
 
@@ -59,21 +59,21 @@ namespace Hill {
             auto [type, key, value] = parse_request_message(req_handle, context);
             auto [v, v_sz] = ctx->index->search(key->raw_chars(), key->size());
             
-            auto& resp = req_handle->pre_resp_msgbuf_;
+            auto& resp = req_handle->pre_resp_msgbuf;
             auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer) + sizeof(size_t);
 
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
-            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf_) = detail::Enums::RPCOperations::Search;
+            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf) = detail::Enums::RPCOperations::Search;
             
             auto offset = sizeof(detail::Enums::RPCOperations);            
             if (v == nullptr) {
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Failed;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Failed;
             } else {
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf_ + offset) = detail::Enums::RPCStatus::Ok;
+                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Ok;
                 offset += sizeof(detail::Enums::RPCStatus);
-                *reinterpret_cast<size_t *>(resp.buf_ + offset) = v_sz;
+                *reinterpret_cast<size_t *>(resp.buf + offset) = v_sz;
                 offset += sizeof(size_t);
-                *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf_ + offset) = v;
+                *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = v;
             }
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
@@ -92,7 +92,7 @@ namespace Hill {
             auto server_ctx = reinterpret_cast<detail::ServerContext *>(const_cast<void *>(context));
             auto requests = req_handle->get_req_msgbuf();
             
-            auto buf = requests->buf_;
+            auto buf = requests->buf;
             auto type = *reinterpret_cast<detail::Enums::RPCOperations *>(buf);
             KVPair::HillString *key = nullptr, *key_or_value = nullptr;
             buf += sizeof(detail::Enums::RPCOperations);
@@ -199,7 +199,7 @@ namespace Hill {
                                           detail::ClientContext &c_ctx) -> bool
         {
             auto type = item.type;
-            uint8_t *buf = buf = c_ctx.req_bufs[node_id].buf_;
+            uint8_t *buf = buf = c_ctx.req_bufs[node_id].buf;
             switch(type) {
             case Hill::Workload::Enums::WorkloadType::Update:
                 *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Update;
@@ -228,7 +228,7 @@ namespace Hill {
         auto StoreClient::response_continuation(void *context, void *tag) -> void {
             auto node_id = *reinterpret_cast<int *>(tag);
             auto ctx = reinterpret_cast<detail::ClientContext *>(context);
-            auto buf = ctx->resp_bufs[node_id].buf_;
+            auto buf = ctx->resp_bufs[node_id].buf;
 
             auto op = *reinterpret_cast<detail::Enums::RPCOperations *>(buf);
             buf += sizeof(detail::Enums::RPCOperations);
