@@ -104,8 +104,8 @@ namespace Hill {
                 return std::make_unique<RangeGroup>();
             }
 
-            auto add_main(const std::string &s, int node_id) noexcept -> void;
-            auto append_node(const std::string &s, int node_id, bool is_mem) noexcept -> void;
+            auto add_main(const std::string &s, int node_id) -> void;
+            auto append_node(const std::string &s, int node_id, bool is_mem) -> void;
             auto append_cpu(const std::string &s, int node_id) noexcept -> void;
             auto append_mem(const std::string &s, int node_id) noexcept -> void;
         } __attribute__((packed));

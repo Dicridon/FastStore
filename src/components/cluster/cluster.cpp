@@ -7,10 +7,10 @@
 
 namespace Hill {
     namespace Cluster {
-        auto RangeGroup::add_main(const std::string &s, int node_id) noexcept -> void {
+        auto RangeGroup::add_main(const std::string &s, int node_id) -> void {
             if (node_id == 0) {
                 std::cerr << ">> Error: node 0 is not supposed to be in range group\n";
-                return;
+                throw std::invalid_argument("node_id == 0 in add_main is not valid");
             }
 
             for (size_t i = 0; i < num_infos; i++) {
@@ -33,10 +33,10 @@ namespace Hill {
             ++num_infos;
         }
 
-        auto RangeGroup::append_node(const std::string &s, int node_id, bool is_mem) noexcept -> void {
+        auto RangeGroup::append_node(const std::string &s, int node_id, bool is_mem) -> void {
             if (node_id == 0) {
                 std::cerr << ">> Error: node 0 is not supposed to be in range group\n";
-                return;
+                throw std::invalid_argument("node_id == 0 in add_main is not valid");
             }
 
             if (num_infos == 0) {
@@ -292,7 +292,7 @@ namespace Hill {
             }
             
             std::thread background([&, sock]() {
-#ifdef __HILL_DEBUG__
+#if defined (__HILL__DEBUG) || defined (__HILL_INFO__)
                 std::cout << ">> Monitor connected\n";
 #endif
                 auto total = 0UL;
@@ -427,6 +427,19 @@ namespace Hill {
             run = false;
         }
 
+        auto check_read_write(ssize_t ret) -> void {
+            if (ret == -1) {
+                std::cout << "Invalid read, checking errno: ";
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    std::cout << "nonblocking read, try again\n";
+                }
+            } else if (ret == 0) {
+                std::cout << "Seems no data\n";
+            } else {
+                std::cout << "Reading " << ret << "bytes\n";
+            }
+        }
+        
         auto Monitor::check_income_connection(int sock) -> void {
             // accept should be non-blocking, but read/write should be blocking
             auto socket = Misc::accept_blocking(sock);
@@ -438,21 +451,30 @@ namespace Hill {
             }
 #ifdef __HILL_DEBUG__
             std::cout << ">> New node is connected\n";
-#endif            
+            auto flags = fcntl(socket, F_GETFL);
+            std::cout << ">> New socket is in non-blocking mode: " << (flags & O_NONBLOCK) << "\n";
+            fcntl(sock, F_SETFL, flags & (~O_NONBLOCK));            
+#endif
+
             std::thread heartbeat([&, socket]() {
                 // on first connection
+                ssize_t ret = 0;
                 auto to_size = meta.total_size();
-                write(socket, &to_size, sizeof(to_size));
+                ret = write(socket, &to_size, sizeof(to_size));
+                check_read_write(ret);
                 auto to_buf = meta.serialize();
-                write(socket, to_buf.get(), to_size);
-
+                ret = write(socket, to_buf.get(), to_size);
+                check_read_write(ret);
+                
                 // keepalive
                 while(run) {
                     ClusterMeta tmp;
                     auto size = 0UL;
-                    read(socket, &size, sizeof(size));
+                    ret = read(socket, &size, sizeof(size));
+                    check_read_write(ret);
                     auto buf = std::make_unique<byte_t[]>(size);
-                    read(socket, buf.get(), size);
+                    ret = read(socket, buf.get(), size);
+                    check_read_write(ret);
                     tmp.deserialize(buf.get());
 
                     meta.update(tmp);
