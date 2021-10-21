@@ -34,6 +34,8 @@ namespace Hill {
         auto pend() -> void;
 
         auto file_as_string(const std::string &file_name) -> std::optional<std::string>;
+
+        auto check_socket_read_write(ssize_t ret) -> void;
     }
 }
 #endif

@@ -94,5 +94,21 @@ namespace Hill {
             buf << in.rdbuf();
             return buf.str();
         }
+
+        auto check_socket_read_write(ssize_t ret) -> void {
+            if (ret == -1) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    std::cout << "nonblocking read, try again\n";
+                } else {
+                    std::stringstream stream;
+                    stream << ">> Invalid read/write, errno: " << errno << "\n";
+                    throw std::runtime_error(stream.str());
+                }
+            } else if (ret == 0) {
+                throw std::runtime_error(">> Seems no data");
+            } else {
+                std::cout << "Reading " << ret << " bytes\n";
+            }
+        }
     }
 }

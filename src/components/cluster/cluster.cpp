@@ -426,19 +426,6 @@ namespace Hill {
         auto Monitor::stop() -> void {
             run = false;
         }
-
-        auto check_read_write(ssize_t ret) -> void {
-            if (ret == -1) {
-                std::cout << "Invalid read, checking errno: ";
-                if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    std::cout << "nonblocking read, try again\n";
-                }
-            } else if (ret == 0) {
-                std::cout << "Seems no data\n";
-            } else {
-                std::cout << "Reading " << ret << "bytes\n";
-            }
-        }
         
         auto Monitor::check_income_connection(int sock) -> void {
             // accept should be non-blocking, but read/write should be blocking
@@ -453,30 +440,46 @@ namespace Hill {
             std::cout << ">> New node is connected\n";
             auto flags = fcntl(socket, F_GETFL);
             std::cout << ">> New socket is in non-blocking mode: " << (flags & O_NONBLOCK) << "\n";
-            fcntl(sock, F_SETFL, flags & (~O_NONBLOCK));            
 #endif
 
             std::thread heartbeat([&, socket]() {
                 // on first connection
-                ssize_t ret = 0;
                 auto to_size = meta.total_size();
-                ret = write(socket, &to_size, sizeof(to_size));
-                check_read_write(ret);
+#ifdef __HILL_DEBUG__
+                std::cout << ">> Sending size of " << to_size << " to server node\n";
+                Misc::check_socket_read_write(write(socket, &to_size, sizeof(to_size)));
+#else
+                write(socket, &to_size, sizeof(to_size));
+#endif
+
                 auto to_buf = meta.serialize();
-                ret = write(socket, to_buf.get(), to_size);
-                check_read_write(ret);
+#ifdef __HILL_DEBUG__
+                Misc::check_socket_read_write(write(socket, to_buf.get(), to_size));
+                std::cout << ">> Sending following meta to server node:\n";
+                meta.dump();
+#else
+                write(socket, to_buf.get(), to_size);
+#endif
                 
                 // keepalive
                 while(run) {
                     ClusterMeta tmp;
                     auto size = 0UL;
-                    ret = read(socket, &size, sizeof(size));
-                    check_read_write(ret);
+#ifdef __HILL_DEBUG__
+                    Misc::check_socket_read_write(read(socket, &size, sizeof(size)));
+                    std::cout << ">> Receiving size of " << size << " from server node\n";
+#else                    
+                    read(socket, &size, sizeof(size));
+#endif
                     auto buf = std::make_unique<byte_t[]>(size);
-                    ret = read(socket, buf.get(), size);
-                    check_read_write(ret);
+#ifdef __HILL_DEBUG__
+                    Misc::check_socket_read_write(read(socket, buf.get(), size));
+                    std::cout << ">> Receiving following meta from server node\n";
+                    tmp.dump();
+#else
+                    read(socket, buf.get(), size);
+#endif
                     tmp.deserialize(buf.get());
-
                     meta.update(tmp);
 #ifdef __HILL_DEBUG__
                     meta.dump();
@@ -491,9 +494,20 @@ namespace Hill {
         auto Monitor::return_cluster_meta(int socket) noexcept -> void {
             ++meta.version;
             auto size= meta.total_size();
+#ifdef __HILL_DEBUG__
+            std::cout << ">> Sending size of " << size << " to server node\n";
+            Misc::check_socket_read_write(write(socket, &size, sizeof(size)));
+#else
             write(socket, &size, sizeof(size));
+#endif 
             auto buf = meta.serialize();
+#ifdef __HILL_DEBUG__
+            std::cout << ">> Sending following meta to server node:\n";
+            meta.dump();
+            Misc::check_socket_read_write(write(socket, buf.get(), size));
+#else
             write(socket, buf.get(), size);
+#endif            
         }
 
         auto Monitor::dump() const noexcept -> void {
