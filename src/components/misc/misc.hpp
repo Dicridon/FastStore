@@ -22,6 +22,9 @@ namespace Hill {
         int connect_socket(int sockfd, int socket_port, const char *server);
         int accept_blocking(int sockfd);
         int accept_nonblocking(int sockfd);
+
+        int send_all(int sockfd, void *buf, size_t count);
+        int recv_all(int sockfd, void *buf, size_t count);
         
         /*
          * This function serves as a shortcut for establishing blocking socket connection

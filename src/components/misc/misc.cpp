@@ -28,7 +28,7 @@ namespace Hill {
                 std::cout << ">> Error: " << "can not listen socket\n";
                 exit(-1);
             }
-            
+
             return sockfd;
         }
 
@@ -53,6 +53,39 @@ namespace Hill {
         int accept_nonblocking(int sockfd) {
             return accept4(sockfd, NULL, NULL, SOCK_NONBLOCK);
         }
+
+        int send_all(int sockfd, void *buf, size_t count) {
+            ssize_t sent = 0;
+            ssize_t ret = 0;
+            do {
+                ret = write(sockfd, reinterpret_cast<char *>(buf) + sent, count - sent);
+                if (ret < 0) {
+                    if (sent == 0) {
+                        return ret;
+                    }
+                    break;
+                }
+                sent += ret;
+            } while(sent < static_cast<ssize_t>(count));
+            return sent;
+        }
+
+        int recv_all(int sockfd, void *buf, size_t count) {
+            ssize_t got = 0;
+            ssize_t ret = 0;
+            do {
+                ret = read(sockfd, reinterpret_cast<char *>(buf) + got, count - got);
+                if (ret < 0) {
+                    if (got == 0) {
+                        return ret;
+                    }
+                    break;
+                }
+                got+= ret;
+            } while(got < static_cast<ssize_t>(count));
+            return got;
+        }
+            
 
         int socket_connect(bool is_server, int socket_port, const char *server) {
             auto sockfd = make_socket(is_server, socket_port);

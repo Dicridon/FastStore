@@ -297,16 +297,16 @@ namespace Hill {
 #endif
                 auto total = 0UL;
 #ifdef __HILL_DEBUG__
-                Misc::check_socket_read_write(read(sock, &total, sizeof(total)));
+                Misc::check_socket_read_write(Misc::recv_all(sock, &total, sizeof(total)));
                 std::cout << ">> Receiving size of " << total << " from monitor\n";
 #else                
-                read(sock, &total, sizeof(total));
+                Misc::recv_all(sock, &total, sizeof(total));
 #endif                
                 auto buf = std::make_unique<byte_t[]>(total);
 #ifdef __HILL_DEBUG__
-                Misc::check_socket_read_write(read(sock, buf.get(), total));
+                Misc::check_socket_read_write(Misc::recv_all(sock, buf.get(), total));
 #else                
-                read(sock, buf.get(), total);
+                Misc::recv_all(sock, buf.get(), total);
 #endif                
 
                 cluster_status.deserialize(buf.get());
@@ -348,34 +348,34 @@ namespace Hill {
             ++cluster_status.version;
             // all machines are little-endian
 #ifdef __HILL_DEBUG__
-            Misc::check_socket_read_write(write(socket, &to_size, sizeof(to_size)), false);
+            Misc::check_socket_read_write(Misc::send_all(socket, &to_size, sizeof(to_size)), false);
             std::cout << ">> Writing size of " << to_size << " to monitor\n";
 #else
-            write(socket, &to_size, sizeof(to_size));
+            Misc::send_all(socket, &to_size, sizeof(to_size));
 #endif
       
             auto to_buf = cluster_status.serialize();
 #ifdef __HILL_DEBUG__
             std::cout << ">> Writnig following meta to monitor\n";
-            Misc::check_socket_read_write(write(socket, to_buf.get(), to_size), false);
+            Misc::check_socket_read_write(Misc::send_all(socket, to_buf.get(), to_size), false);
             cluster_status.dump();            
 #else
-            write(socket, to_buf.get(), to_size);
+            Misc::send_all(socket, to_buf.get(), to_size);
 #endif
 
             auto size = 0UL;
 #ifdef __HILL_DEBUG__
-            read(socket, &size, sizeof(size));
+            Misc::recv_all(socket, &size, sizeof(size));
             std::cout << ">> Receiving size of " << size << " from monitor\n";
 #else
-            read(socket, &size, sizeof(size));
+            Misc::recv_all(socket, &size, sizeof(size));
 #endif
 
             auto buf = std::make_unique<byte_t[]>(size);
 #ifdef __HILL_DEBUG__
-            Misc::check_socket_read_write(read(socket, buf.get(), size));
+            Misc::check_socket_read_write(Misc::recv_all(socket, buf.get(), size));
 #else
-            read(socket, buf.get(), size);
+            Misc::recv_all(socket, buf.get(), size);
 #endif
             ClusterMeta tmp;
             tmp.deserialize(buf.get());
@@ -484,18 +484,18 @@ namespace Hill {
                 auto to_size = meta.total_size();
 #ifdef __HILL_DEBUG__
                 std::cout << ">> Sending size of " << to_size << " to server node\n";
-                Misc::check_socket_read_write(write(socket, &to_size, sizeof(to_size)), false);
+                Misc::check_socket_read_write(Misc::send_all(socket, &to_size, sizeof(to_size)), false);
 #else
-                write(socket, &to_size, sizeof(to_size));
+                Misc::send_all(socket, &to_size, sizeof(to_size));
 #endif
 
                 auto to_buf = meta.serialize();
 #ifdef __HILL_DEBUG__
-                Misc::check_socket_read_write(write(socket, to_buf.get(), to_size), false);
+                Misc::check_socket_read_write(Misc::send_all(socket, to_buf.get(), to_size), false);
                 std::cout << ">> Sending following meta to server node:\n";
                 meta.dump();
 #else
-                write(socket, to_buf.get(), to_size);
+                Misc::send_all(socket, to_buf.get(), to_size);
 #endif
                 
                 // keepalive
@@ -503,19 +503,19 @@ namespace Hill {
                     ClusterMeta tmp;
                     auto size = 0UL;
 #ifdef __HILL_DEBUG__
-                    Misc::check_socket_read_write(read(socket, &size, sizeof(size)));
+                    Misc::check_socket_read_write(Misc::recv_all(socket, &size, sizeof(size)));
                     std::cout << ">> Receiving size of " << size << " from server node\n";
 #else                    
-                    read(socket, &size, sizeof(size));
+                    Misc::recv_all(socket, &size, sizeof(size));
 #endif
                     auto buf = std::make_unique<byte_t[]>(size);
 #ifdef __HILL_DEBUG__
-                    Misc::check_socket_read_write(read(socket, buf.get(), size));
+                    Misc::check_socket_read_write(Misc::recv_all(socket, buf.get(), size));
                     std::cout << ">> Receiving following meta from server node\n";
                     tmp.deserialize(buf.get());                    
                     tmp.dump();
 #else
-                    read(socket, buf.get(), size);
+                    Misc::recv_all(socket, buf.get(), size);
                     tmp.deserialize(buf.get());                    
 #endif
 
@@ -536,17 +536,17 @@ namespace Hill {
             auto size= meta.total_size();
 #ifdef __HILL_DEBUG__
             std::cout << ">> Sending size of " << size << " to server node\n";
-            Misc::check_socket_read_write(write(socket, &size, sizeof(size)), false);
+            Misc::check_socket_read_write(Misc::send_all(socket, &size, sizeof(size)), false);
 #else
-            write(socket, &size, sizeof(size));
+            Misc::send_all(socket, &size, sizeof(size));
 #endif 
             auto buf = meta.serialize();
 #ifdef __HILL_DEBUG__
             std::cout << ">> Sending following meta to server node:\n";
             meta.dump();
-            Misc::check_socket_read_write(write(socket, buf.get(), size), false);
+            Misc::check_socket_read_write(Misc::send_all(socket, buf.get(), size), false);
 #else
-            write(socket, buf.get(), size);
+            Misc::send_all(socket, buf.get(), size);
 #endif            
         }
 
