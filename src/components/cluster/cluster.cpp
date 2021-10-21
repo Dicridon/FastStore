@@ -296,12 +296,18 @@ namespace Hill {
                 std::cout << ">> Monitor connected\n";
 #endif
                 auto total = 0UL;
+#ifdef __HILL_DEBUG__
+                Misc::check_socket_read_write(read(sock, &total, sizeof(total)));
+                std::cout << ">> Receiving size of " << total << "from monitor\n";
+#else                
                 read(sock, &total, sizeof(total));
+#endif                
                 auto buf = std::make_unique<byte_t[]>(total);
                 read(sock, buf.get(), total);
 
                 cluster_status.deserialize(buf.get());
 #ifdef __HILL_DEBUG__
+                std::cout << ">> Receiving following meta monitor\n";
                 cluster_status.dump();
 #endif
                 cluster_status.cluster.nodes[node_id].version = 1;
@@ -337,16 +343,42 @@ namespace Hill {
             ++cluster_status.cluster.nodes[node_id].version;
             ++cluster_status.version;
             // all machines are little-endian
+#ifdef __HILL_DEBUG__
+            Misc::check_socket_read_write(write(socket, &to_size, sizeof(to_size)));
+            std::cout << ">> Writing size of " << to_size << " to monitor\n";
+#else
             write(socket, &to_size, sizeof(to_size));
+#endif
+      
             auto to_buf = cluster_status.serialize();
+#ifdef __HILL_DEBUG__
+            std::cout << ">> Writng following meta to monitor\n";
+            cluster_status.dump();
+            Misc::check_socket_read_write(write(socket, to_buf.get(), to_size));
+#else
             write(socket, to_buf.get(), to_size);
-            auto size = 0UL;
-            read(socket, &size, sizeof(size));
-            auto buf = std::make_unique<byte_t[]>(size);
-            read(socket, buf.get(), size);
+#endif
 
+            auto size = 0UL;
+#ifdef __HILL_DEBUG__
+            read(socket, &size, sizeof(size));
+            std::cout << ">> Receiving size of " << size << " from monitor\n";
+#else
+            read(socket, &size, sizeof(size));
+#endif
+
+            auto buf = std::make_unique<byte_t[]>(size);
+#ifdef __HILL_DEBUG__
+            Misc::check_socket_read_write(read(socket, buf.get(), size));
+#else
+            read(socket, buf.get(), size);
+#endif
             ClusterMeta tmp;
             tmp.deserialize(buf.get());
+#ifdef __HILL_DEBUG__
+            std::cout << ">> Receiving following meta from monitor\n";
+            cluster_status.dump();
+#endif
             cluster_status.update(tmp);
 #ifdef __HILL_DEBUG__
             cluster_status.dump();
