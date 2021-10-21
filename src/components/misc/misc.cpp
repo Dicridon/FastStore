@@ -95,7 +95,7 @@ namespace Hill {
             return buf.str();
         }
 
-        auto check_socket_read_write(ssize_t ret) -> void {
+        auto check_socket_read_write(ssize_t ret, bool is_read) -> void {
             if (ret == -1) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     std::cout << "nonblocking read, try again\n";
@@ -107,7 +107,10 @@ namespace Hill {
             } else if (ret == 0) {
                 throw std::runtime_error(">> Seems no data");
             } else {
-                std::cout << "Reading " << ret << " bytes\n";
+                if (is_read)
+                    std::cout << "Reading " << ret << " bytes\n";
+                else
+                    std::cout << "Writing " << ret << " bytes\n";
             }
         }
     }
