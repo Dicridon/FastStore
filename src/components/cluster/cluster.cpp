@@ -356,9 +356,9 @@ namespace Hill {
       
             auto to_buf = cluster_status.serialize();
 #ifdef __HILL_DEBUG__
-            std::cout << ">> Writng following meta to monitor\n";
-            cluster_status.dump();
+            std::cout << ">> Writnig following meta to monitor\n";
             Misc::check_socket_read_write(write(socket, to_buf.get(), to_size), false);
+            cluster_status.dump();            
 #else
             write(socket, to_buf.get(), to_size);
 #endif
@@ -384,9 +384,9 @@ namespace Hill {
             cluster_status.dump();
 #endif
             cluster_status.update(tmp);
-            std::cout << "\n\n\n";
 #ifdef __HILL_DEBUG__
             cluster_status.dump();
+            std::cout << "\n\n\n";            
 #endif
             sleep(3);
             return true;
@@ -452,9 +452,6 @@ namespace Hill {
             std::thread work([&, sock]() {
                 while(run) {
                     check_income_connection(sock);
-#ifdef __HILL_DEBUG__
-                    std::cout << "\n\n\n";
-#endif
                     sleep(1);
                 }
                 shutdown(sock, 0);
@@ -515,16 +512,22 @@ namespace Hill {
 #ifdef __HILL_DEBUG__
                     Misc::check_socket_read_write(read(socket, buf.get(), size));
                     std::cout << ">> Receiving following meta from server node\n";
+                    tmp.deserialize(buf.get());                    
                     tmp.dump();
 #else
                     read(socket, buf.get(), size);
+                    tmp.deserialize(buf.get());                    
 #endif
-                    tmp.deserialize(buf.get());
+
                     meta.update(tmp);
 #ifdef __HILL_DEBUG__
                     meta.dump();
 #endif                    
                     return_cluster_meta(socket);
+#ifdef __HILL_DEBUG__
+                    std::cout << "\n\n\n";
+#endif
+                    
                     sleep(1);
                 }
             });
