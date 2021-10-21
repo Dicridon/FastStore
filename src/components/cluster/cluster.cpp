@@ -298,7 +298,7 @@ namespace Hill {
                 auto total = 0UL;
 #ifdef __HILL_DEBUG__
                 Misc::check_socket_read_write(read(sock, &total, sizeof(total)));
-                std::cout << ">> Receiving size of " << total << "from monitor\n";
+                std::cout << ">> Receiving size of " << total << " from monitor\n";
 #else                
                 read(sock, &total, sizeof(total));
 #endif                
@@ -311,7 +311,7 @@ namespace Hill {
 
                 cluster_status.deserialize(buf.get());
 #ifdef __HILL_DEBUG__
-                std::cout << ">> Receiving following meta monitor\n";
+                std::cout << ">> Receiving following meta from monitor\n";
                 cluster_status.dump();
 #endif
                 cluster_status.cluster.nodes[node_id].version = 1;
@@ -520,9 +520,6 @@ namespace Hill {
 #endif
 
                     meta.update(tmp);
-#ifdef __HILL_DEBUG__
-                    meta.dump();
-#endif                    
                     return_cluster_meta(socket);
 #ifdef __HILL_DEBUG__
                     std::cout << "\n\n\n";
