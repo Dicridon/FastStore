@@ -168,10 +168,10 @@ namespace Hill {
             int mr_access = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
             at.qp_type = IBV_QPT_RC;
             at.sq_sig_all = 1;
-            at.cap.max_send_wr = 128;
-            at.cap.max_recv_wr = 128;
-            at.cap.max_send_sge = 128;
-            at.cap.max_recv_sge = 128;
+            at.cap.max_send_wr = 1;
+            at.cap.max_recv_wr = 1;
+            at.cap.max_send_sge = 1;
+            at.cap.max_recv_sge = 1;
 
             if (auto status = open(base, size, 128, mr_access, at); status != Status::Ok) {
                 std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
