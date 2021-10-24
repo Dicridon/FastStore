@@ -133,6 +133,7 @@ namespace Hill {
             }
 
             return std::thread([&](int tid) {
+                std::cout << ">> Client thread launched\n";
                 detail::ClientContext c_ctx;
                 c_ctx.thread_id = tid;
                 c_ctx.client = this->client.get();
@@ -151,11 +152,12 @@ namespace Hill {
                                                          &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
                                                          response_continuation, &node_id);
 
-                    while (node_id != 0) {
-                        c_ctx.rpcs[node_id]->run_event_loop_once();
-                    }
+                    c_ctx.rpcs[node_id]->run_event_loop_once();
                 }
                 this->client->unregister_thread(tid);
+                std::cout << ">> Job done, reporting stats\n";
+                std::cout << ">> Insert: " << c_ctx.successful_inserts << "/" << load.size();
+                std::cout << ">> Search: " << c_ctx.successful_searches << "/" << load.size();
             }, tid.value());
         }
 

@@ -211,7 +211,7 @@ namespace Hill {
 
             inline auto launch() -> bool {
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                std::cout << ">> Launching server node at " << client->get_addr_uri() << "\n";
+                std::cout << ">> Launching client node at " << client->get_addr_uri() << "\n";
 #endif
                 if (client->connect_monitor()) {
                     is_launched = true;
