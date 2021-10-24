@@ -7,11 +7,19 @@ namespace Hill {
             StringWorkload ret;
             if (reverse) {
                 for (size_t i = 0; i < batch_size; i++) {
-                    ret.emplace_back(WorkloadItem::make_workload_item(t, std::to_string(fixed - i)));
+                    auto v = std::to_string(fixed - 1);
+                    if (t == Enums::WorkloadType::Search)
+                        ret.emplace_back(WorkloadItem::make_workload_item(t, v));
+                    else
+                        ret.emplace_back(WorkloadItem::make_workload_item(t, v, v));
                 }
             } else {
                 for (size_t i = 0; i < batch_size; i++) {
-                    ret.emplace_back(WorkloadItem::make_workload_item(t, std::to_string(fixed + i)));
+                    auto v = std::to_string(fixed + 1);
+                    if (t == Enums::WorkloadType::Search)
+                        ret.emplace_back(WorkloadItem::make_workload_item(t, v));
+                    else
+                        ret.emplace_back(WorkloadItem::make_workload_item(t, v, v));
                 }
             }
 

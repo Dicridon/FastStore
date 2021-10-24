@@ -225,7 +225,7 @@ namespace Hill {
         int port;
         std::string rpc_uri;
 
-        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];        
+        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];
         std::unique_ptr<byte_t[]> buf;
 
         auto parse_ib(const std::string &config) noexcept -> bool;        
