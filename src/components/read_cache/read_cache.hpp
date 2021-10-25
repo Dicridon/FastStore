@@ -16,7 +16,7 @@ namespace Hill {
 #ifdef __HILL_DEBUG__
             constexpr size_t uCACHE_SIZE = 100UL;
 #else
-            constexpr size_t uCACHE_SIZE = 100000UL;
+            constexpr size_t uCACHE_SIZE = 1000UL;
 #endif
         }
         
