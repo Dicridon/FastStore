@@ -151,20 +151,20 @@ namespace Hill {
 
         std::thread updater([&]() {
             size_t size = 0UL;
-            read(monitor_socket, &size, sizeof(size));
+            Misc::recv_all(monitor_socket, &size, sizeof(size));
             auto buf = std::make_unique<byte_t[]>(size);
-            read(monitor_socket, buf.get(), size);
+            Misc::recv_all(monitor_socket, buf.get(), size);
             meta.deserialize(buf.get());
             
             while(run) {
                 size = meta.total_size();
-                write(monitor_socket, &size, sizeof(size));
+                Misc::send_all(monitor_socket, &size, sizeof(size));
                 buf = meta.serialize();
-                write(monitor_socket, buf.get(), size);
+                Misc::send_all(monitor_socket, buf.get(), size);
                 
-                read(monitor_socket, &size, sizeof(size));
+                Misc::recv_all(monitor_socket, &size, sizeof(size));
                 buf = std::make_unique<byte_t[]>(size);
-                read(monitor_socket, buf.get(), size);
+                Misc::recv_all(monitor_socket, buf.get(), size);
 
                 Cluster::ClusterMeta tmp;
                 tmp.deserialize(buf.get());
