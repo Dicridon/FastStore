@@ -174,6 +174,9 @@ namespace Hill {
             }
         });
         updater.detach();
+
+        // ensure that working threads see a valid cluster meta
+        while(meta.version == 0);
         return true;
     }
 

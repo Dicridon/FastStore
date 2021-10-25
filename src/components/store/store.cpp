@@ -65,7 +65,7 @@ namespace Hill {
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
             *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf) = detail::Enums::RPCOperations::Search;
             
-            auto offset = sizeof(detail::Enums::RPCOperations);            
+            auto offset = sizeof(detail::Enums::RPCOperations);
             if (v == nullptr) {
                 *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Failed;
             } else {
@@ -133,7 +133,9 @@ namespace Hill {
             }
 
             return std::thread([&](int tid) {
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)                
                 std::cout << ">> Client thread launched\n";
+#endif                
                 detail::ClientContext c_ctx;
                 c_ctx.thread_id = tid;
                 c_ctx.client = this->client.get();
@@ -155,9 +157,11 @@ namespace Hill {
                     c_ctx.rpcs[node_id]->run_event_loop_once();
                 }
                 this->client->unregister_thread(tid);
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
                 std::cout << ">> Job done, reporting stats\n";
                 std::cout << ">> Insert: " << c_ctx.successful_inserts << "/" << load.size();
                 std::cout << ">> Search: " << c_ctx.successful_searches << "/" << load.size();
+#endif                
             }, tid.value());
         }
 

@@ -151,8 +151,7 @@ namespace Hill {
             auto filter_node_no_lock(const std::string &key) const noexcept -> int {
                 for (size_t i = 0; i < group.num_infos; i++) {
                     if (group.infos[i].start > key) {
-                        atomic_read_end();
-                        return i;
+                        return group.infos[i].nodes[0];
                     }
                 }
                 return 0;
@@ -160,9 +159,9 @@ namespace Hill {
             
             auto filter_node(const std::string &key) const noexcept -> int {
                 atomic_read_begin();
-                filter_node_no_lock(key);
+                auto ret = filter_node_no_lock(key);
                 atomic_read_end();
-                return 0;
+                return ret;
             }
         } __attribute__((packed));
 

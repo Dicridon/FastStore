@@ -7,7 +7,7 @@ namespace Hill {
             StringWorkload ret;
             if (reverse) {
                 for (size_t i = 0; i < batch_size; i++) {
-                    auto v = std::to_string(fixed - 1);
+                    auto v = std::to_string(fixed - i);
                     if (t == Enums::WorkloadType::Search)
                         ret.emplace_back(WorkloadItem::make_workload_item(t, v));
                     else
@@ -15,7 +15,7 @@ namespace Hill {
                 }
             } else {
                 for (size_t i = 0; i < batch_size; i++) {
-                    auto v = std::to_string(fixed + 1);
+                    auto v = std::to_string(fixed + i);
                     if (t == Enums::WorkloadType::Search)
                         ret.emplace_back(WorkloadItem::make_workload_item(t, v));
                     else

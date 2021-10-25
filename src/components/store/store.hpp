@@ -58,6 +58,9 @@ namespace Hill {
                     for (auto &r : rpcs) {
                         r = nullptr;
                     }
+
+                    successful_inserts = 0;
+                    successful_searches = 0;
                 }
             };
 
