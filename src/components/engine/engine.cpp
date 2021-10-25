@@ -214,7 +214,7 @@ namespace Hill {
         }
 
         server_connections[tid][node_id] = std::move(rdma);
-        return 0;
+        return true;
     }
 
     auto Client::write_to(int tid, int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair {
