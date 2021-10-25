@@ -184,7 +184,7 @@ namespace Hill {
                 }
             }
 
-            if (c_ctx.rpcs[tid] != nullptr) {
+            if (c_ctx.rpcs[node_id] != nullptr) {
                 return node_id;
             }
 
