@@ -169,7 +169,9 @@ namespace Hill {
                 Cluster::ClusterMeta tmp;
                 tmp.deserialize(buf.get());
                 meta.update(tmp);
+#ifdef __HILL_DEBUG__
                 meta.dump();
+#endif                
                 sleep(1);
             }
         });

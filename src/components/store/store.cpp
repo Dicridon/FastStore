@@ -16,6 +16,9 @@ namespace Hill {
                 s_ctx.thread_id = tid;
                 s_ctx.server = server.get();
                 s_ctx.index = index.get();
+#ifdef __HILL_INFO__
+                std::cout << ">> Creating eRPC for thread " << tid << "\n";
+#endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
                 s_ctx.rpc->run_event_loop(10000000);
@@ -184,11 +187,14 @@ namespace Hill {
             if (c_ctx.rpcs[tid] != nullptr) {
                 return node_id;
             }
-            
+
+#ifdef __HILL_INFO__
+            std::cout << ">> Creating eRPC for thread " << tid << "\n";
+#endif
             c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
                                                                   tid, RPCWrapper::ghost_sm_handler);
             auto &node = meta.cluster.nodes[node_id];
-            auto server_uri = node.addr.to_string() + std::to_string(node.port);
+            auto server_uri = node.addr.to_string() + ":" + std::to_string(node.port);
             auto rpc = c_ctx.rpcs[node_id];
             c_ctx.session = rpc->create_session(server_uri, tid);
             if (!rpc->is_connected(c_ctx.session)) {
