@@ -22,6 +22,7 @@ auto run_server(const std::string &file) -> bool {
     }
     engine->dump();
     engine->launch();
+    engine->register_thread();
 
     Misc::pend();
     return true;

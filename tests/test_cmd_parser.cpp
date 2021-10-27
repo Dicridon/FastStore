@@ -15,7 +15,7 @@ auto show(Parser &parser, const std::string &opt) -> void {
 
 static const char *argv[] = {
     "program",
-    "--option1=4321",
+    "--option1 4321",
     "-o2 -187654321",
     "--option3=8",
     "-o4 this_is_a_new_string",
@@ -35,13 +35,15 @@ auto main() -> int{
     parser.parse(5, (char **)argv);
     parser.dump_plain();
 
+    auto o1 = parser.get_as<int>("--option1").value();
     auto o7 = parser.get_as<double>("--option7").value();
     auto o2 = parser.get_as<long>("--option2").value();
     auto o5 = parser.get_as<char>("--option5").value();
     auto o4 = parser.get_as<std::string>("--option4").value();
 
+    std::cout << o1 << "\n";    
     std::cout << o7 << "\n";
     std::cout << o2 << "\n";
     std::cout << o5 << "\n";
-    std::cout << o4 << "\n";    
+    std::cout << o4 << "\n";
 }
