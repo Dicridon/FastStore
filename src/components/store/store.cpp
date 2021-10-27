@@ -211,7 +211,7 @@ namespace Hill {
                                           detail::ClientContext &c_ctx) -> bool
         {
             auto type = item.type;
-            uint8_t *buf = buf = c_ctx.req_bufs[node_id].buf;
+            uint8_t *buf = c_ctx.req_bufs[node_id].buf;
             switch(type) {
             case Hill::Workload::Enums::WorkloadType::Update:
                 *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Update;

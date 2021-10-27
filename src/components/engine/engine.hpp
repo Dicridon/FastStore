@@ -88,6 +88,7 @@ namespace Hill {
          * Established connections are recorded so that one node can find the RDMA connection with a specific node.
          */
         auto check_rdma_request(int tid) noexcept -> int;
+        auto connect_server(int tid, int node_id) -> bool;
 
         inline auto get_logger() noexcept -> WAL::Logger * {
             return logger.get();

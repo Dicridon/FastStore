@@ -208,14 +208,17 @@ namespace Hill {
         auto port = meta.cluster.nodes[node_id].port;
 
         auto socket = Misc::socket_connect(false, port, addr.to_string().c_str());
+
         if (socket == -1) {
             return false;
         }
+        write(socket, &Cluster::Constants::iCLIENT_ID, sizeof(Cluster::Constants::iCLIENT_ID));        
         if (rdma->default_connect(socket, buf.get(), 16 * 1024) != 0) {
             return false;
         }
 
         server_connections[tid][node_id] = std::move(rdma);
+        shutdown(socket, 0);
         return true;
     }
 
