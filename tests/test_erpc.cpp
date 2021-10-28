@@ -27,19 +27,19 @@ auto server_handler(erpc::ReqHandle *req_handle, void *context) -> void {
 
 auto server() -> void {
     auto nexus = new erpc::Nexus("127.0.0.1:31850", 0, 0);
+    nexus->register_req_func(0, server_handler);    
     ServerContext ctx;
     ctx.rpc = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&ctx),
                                               0, RPCWrapper::ghost_sm_handler);
 
-
-    nexus->register_req_func(0, server_handler);
+    std::cout << "server waiting for income requests\n";
     ctx.rpc->run_event_loop(1000000);
 }
 
 auto res_cont(void *context, [[maybe_unused]]void *tag) {
     auto ctx = reinterpret_cast<ClientContext *>(context);
     auto &resp = ctx->resp_buf;
-    std::cout << *reinterpret_cast<uint8_t *>(resp.buf);
+    std::cout << "got " << *reinterpret_cast<uint8_t *>(resp.buf) << " from server\n";
  };
 
 
@@ -59,6 +59,7 @@ auto client() -> void {
 
     uint8_t counter = 0;
     while(true) {
+        std::cout << "sending " << counter << " to server\n";
         *reinterpret_cast<uint8_t *>(ctx.req_buf.buf) = counter++;
         ctx.rpc->enqueue_request(session, 0, &ctx.req_buf, &ctx.resp_buf, res_cont, nullptr);
         sleep(1);
@@ -72,7 +73,7 @@ auto main(int argc, char *argv[]) -> int {
     parser.parse(argc, argv);
 
     auto is_server = parser.get_as<bool>("--server");
-    if (is_server) {
+    if (is_server.value()) {
         server();
     } else {
         client();
