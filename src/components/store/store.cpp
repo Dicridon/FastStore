@@ -194,7 +194,7 @@ namespace Hill {
             c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
                                                                   tid, RPCWrapper::ghost_sm_handler);
             auto &node = meta.cluster.nodes[node_id];
-            auto server_uri = node.addr.to_string() + ":" + std::to_string(node.port);
+            auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
             auto rpc = c_ctx.rpcs[node_id];
             c_ctx.session = rpc->create_session(server_uri, tid);
             if (!rpc->is_connected(c_ctx.session)) {

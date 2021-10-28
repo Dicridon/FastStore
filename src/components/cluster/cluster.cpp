@@ -204,6 +204,7 @@ namespace Hill {
                 std::cout << "-->> availabel pm: " << cluster.nodes[i].available_pm << "\n";
                 std::cout << "-->> ip address: " << cluster.nodes[i].addr.to_string() << "\n";
                 std::cout << "-->> socket port: " << cluster.nodes[i].port << "\n";
+                std::cout << "-->> erpc port: " << cluster.nodes[i].erpc_port << "\n";
             }
             std::cout << ">> range group: \n";
             for (size_t j = 0; j < group.num_infos; j++) {
@@ -231,10 +232,10 @@ namespace Hill {
             std::regex rtotal_pm("total_pm:\\s*(\\d+)");
             std::regex ravailable_pm("available_pm:\\s*(\\d+)");            
             std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::regex rrpc_uri("rpc_uri:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+)");
+            std::regex rerpc_port("erpc_port:\\s*(\\d+)");            
             std::regex rmonitor("monitor:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
 
-            std::smatch vnode_id, vtotal_pm, vaddr, vrpc_uri, vavailable_pm, vmonitor;
+            std::smatch vnode_id, vtotal_pm, vaddr, verpc_port, vavailable_pm, vmonitor;
             if (!std::regex_search(content, vnode_id, rnode_id)) {
                 std::cerr << ">> Error: invalid or unspecified node id\n";
                 return false;
@@ -255,8 +256,8 @@ namespace Hill {
                 return false;
             }
             
-            if (!std::regex_search(content, vrpc_uri, rrpc_uri)) {
-                std::cerr << ">> Error: invalid or unspecified IP RPC uri\n";
+            if (!std::regex_search(content, verpc_port, rerpc_port)) {
+                std::cerr << ">> Error: invalid or unspecified RPC port\n";
                 return false;
             }
             
@@ -271,7 +272,8 @@ namespace Hill {
             // impossible be invalid
             addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
             port = atoi(vaddr[2].str().c_str());
-            rpc_uri = vrpc_uri[1].str();
+            erpc_port = atoi(verpc_port[1].str().c_str());
+            rpc_uri = addr.to_string() + ":" + std::to_string(erpc_port);
             monitor_addr = IPV4Addr::make_ipv4_addr(vmonitor[1].str()).value();
             monitor_port = atoi(vmonitor[2].str().c_str());
             return true;
@@ -319,6 +321,7 @@ namespace Hill {
                 cluster_status.cluster.nodes[node_id].total_pm = total_pm;
                 cluster_status.cluster.nodes[node_id].addr = addr;
                 cluster_status.cluster.nodes[node_id].port = port;
+                cluster_status.cluster.nodes[node_id].erpc_port = erpc_port;
                 cluster_status.cluster.nodes[node_id].is_active = true;
                 
                 while(run) {
