@@ -238,12 +238,13 @@ namespace Hill {
             c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
                                                                   tid, RPCWrapper::ghost_sm_handler);
             auto &node = meta.cluster.nodes[node_id];
-            auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
+            auto server_uri = node.rpc_uri;
             auto rpc = c_ctx.rpcs[node_id];
             c_ctx.session = rpc->create_session(server_uri, remote_id);
             if (!rpc->is_connected(c_ctx.session)) {
 #ifdef __HILL_INFO__
-                std::cerr << "Client can not create session for node " << node_id << " with remote id " << remote_id << "\n";
+                std::cerr << "Client can not create session for node " << node_id << "(" << server_uri << ")"
+                          << " with remote id " << remote_id << "\n";
 #endif                
                 return {};
             }

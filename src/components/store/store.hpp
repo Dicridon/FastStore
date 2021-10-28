@@ -153,6 +153,9 @@ namespace Hill {
                 ret->server = Engine::make_engine(base, config);
                 ret->index = Indexing::OLFIT::make_olfit(ret->server->get_allocator(), ret->server->get_logger());
                 ret->cache = &ReadCache::Cache::make_cache(new byte_t[cache_cap]);
+#ifdef __HILL_INFO__
+                std::cout << ">> Starting nexus for server at " << ret->server->get_rpc_uri() << "\n";
+#endif                
                 ret->nexus = new erpc::Nexus(ret->server->get_rpc_uri(), 0, 0);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Insert, insert_handler);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Search, search_handler);
