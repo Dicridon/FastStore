@@ -3,7 +3,7 @@ total_pm: 222222
 available_pm: 222222
 addr: 127.0.0.1:3223
 monitor: 127.0.0.1:2333
-rpc_uri: 127.0.0.1:31850
+erpc_port: 31850
 dev_name: mlx5_1
 ib_port: 1
 gid_idx: 3
