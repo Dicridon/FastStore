@@ -230,7 +230,9 @@ namespace Hill {
             std::cout << ">> Creating eRPC for thread " << tid << "\n";
             std::cout << ">> Connecting to listen port: " << meta.cluster.nodes[node_id].erpc_listen_port << "\n";
 #endif
-            auto socket = Misc::socket_connect(false, meta.cluster.nodes[node_id].erpc_listen_port);
+            auto socket = Misc::socket_connect(false,
+                                               meta.cluster.nodes[node_id].erpc_listen_port,
+                                               meta.cluster.nodes[node_id].addr.to_string().c_str());
             auto remote_id = 0;
             read(socket, &remote_id, sizeof(remote_id));
             c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
@@ -240,7 +242,9 @@ namespace Hill {
             auto rpc = c_ctx.rpcs[node_id];
             c_ctx.session = rpc->create_session(server_uri, remote_id);
             if (!rpc->is_connected(c_ctx.session)) {
-                std::cerr << "Client can not create session for " << node_id << "\n";
+#ifdef __HILL_INFO__
+                std::cerr << "Client can not create session for node " << node_id << " with remote id " << remote_id << "\n";
+#endif                
                 return {};
             }
             c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);

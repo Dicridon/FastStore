@@ -90,12 +90,16 @@ namespace Hill {
         int socket_connect(bool is_server, int socket_port, const char *server) {
             auto sockfd = make_socket(is_server, socket_port);
             if (!is_server) {
+                if (!server) {
+                    std::cout << ">> Error: server unspecified\n";
+                    return -1;
+                }
                 return connect_socket(sockfd, socket_port, server);
             }
             
             auto ret = accept_blocking(sockfd);
             if (ret == -1) {
-                std::cout << ">> Error: " << "accepting connection failed\n";
+                std::cout << ">> Error: accepting connection failed\n";
                 exit(-1);
             }
             return ret;
