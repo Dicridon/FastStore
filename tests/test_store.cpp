@@ -61,7 +61,7 @@ auto main(int argc, char *argv[]) -> int {
         auto client = StoreClient::make_client(config);
         client->launch();
 
-        auto put_load = Workload::generatep_simple_string_workload(100000, Workload::Enums::Insert);
+        auto put_load = Workload::generate_simple_string_workload(100000, Workload::Enums::Insert);
         auto get_load = Workload::generate_simple_string_workload(100000, Workload::Enums::Search);
         
         auto _thread = client->register_thread(put_load);
