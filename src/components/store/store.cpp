@@ -52,7 +52,7 @@ namespace Hill {
                 s_ctx.server = server.get();
                 s_ctx.index = index.get();
 #ifdef __HILL_INFO__
-                std::cout << ">> Creating eRPC for thread " << tid << "\n";
+                std::cout << ">> Creating eRPC for thread " << tid << ", remote id is also << " << tid << "\n";
 #endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
