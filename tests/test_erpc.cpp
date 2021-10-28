@@ -1,6 +1,80 @@
+#include "cmd_parser/cmd_parser.hpp"
 #include "rpc_wrapper/rpc_wrapper.hpp"
 
 using namespace RPCWrapper;
-auto main() -> int {
-    
+
+struct ServerContext {
+    erpc::Rpc<erpc::CTransport> *rpc;
+};
+
+struct ClientContext {
+    erpc::Rpc<erpc::CTransport> *rpc;
+    erpc::MsgBuffer req_buf;
+    erpc::MsgBuffer resp_buf;    
+};
+
+auto server_handler(erpc::ReqHandle *req_handle, void *context) -> void {
+    auto server_ctx = reinterpret_cast<ServerContext *>(context);
+    auto requests = req_handle->get_req_msgbuf();
+
+    auto in_data = *reinterpret_cast<uint8_t *>(requests->buf);
+
+    auto &resp = req_handle->pre_resp_msgbuf;
+    *reinterpret_cast<uint8_t *>(resp.buf) = in_data + 1;
+    server_ctx->rpc->enqueue_response(req_handle, &resp);
+};
+
+
+auto server() -> void {
+    auto nexus = new erpc::Nexus("127.0.0.1:31850", 0, 0);
+    ServerContext ctx;
+    ctx.rpc = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&ctx),
+                                              0, RPCWrapper::ghost_sm_handler);
+
+
+    nexus->register_req_func(0, server_handler);
+    ctx.rpc->run_event_loop(1000000);
+}
+
+auto res_cont(void *context, [[maybe_unused]]void *tag) {
+    auto ctx = reinterpret_cast<ClientContext *>(context);
+    auto &resp = ctx->resp_buf;
+    std::cout << *reinterpret_cast<uint8_t *>(resp.buf);
+ };
+
+
+auto client() -> void {
+    auto nexus = new erpc::Nexus("127.0.0.1:31850", 0, 0);
+    ClientContext ctx;
+    ctx.rpc = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&ctx),
+                                              0, RPCWrapper::ghost_sm_handler);
+    ctx.req_buf = ctx.rpc->alloc_msg_buffer_or_die(sizeof(uint8_t));
+    ctx.resp_buf = ctx.rpc->alloc_msg_buffer_or_die(sizeof(uint8_t));
+    auto session = ctx.rpc->create_session("127.0.0.1:31850", 0);
+    if (session < 0) {
+        std::cout << "can't create session\n";
+        exit(-1);
+    }
+
+
+    uint8_t counter = 0;
+    while(true) {
+        *reinterpret_cast<uint8_t *>(ctx.req_buf.buf) = counter++;
+        ctx.rpc->enqueue_request(session, 0, &ctx.req_buf, &ctx.resp_buf, res_cont, nullptr);
+        sleep(1);
+        ctx.rpc->run_event_loop_once();
+    }
+}
+
+auto main(int argc, char *argv[]) -> int {
+    CmdParser::Parser parser;
+    parser.add_switch("--server", "-s", true);
+    parser.parse(argc, argv);
+
+    auto is_server = parser.get_as<bool>("--server");
+    if (is_server) {
+        server();
+    } else {
+        client();
+    }
 }
