@@ -1,7 +1,42 @@
 #include "store.hpp"
 namespace Hill {
     namespace Store {
-        auto StoreServer::register_thread() noexcept -> std::optional<std::thread> {
+        auto StoreServer::launch_one_erpc_listen_thread() -> bool {
+            if (!is_launched) {
+                return false;
+            }
+            
+            auto sock = Misc::make_socket(true, server->get_node()->erpc_listen_port);
+            if (sock == -1) {
+#ifdef __HILL__INFO__
+                std::cout << ">> Unable to create socket for eRPC listening\n";
+#endif
+                return false;
+            }
+
+            auto flags = fcntl(sock, F_GETFL);
+            fcntl(sock, flags | O_NONBLOCK);
+            std::thread t([&, sock]() {
+                while(is_launched) {
+                    auto socket = Misc::accept_blocking(sock);
+
+                    if (socket != -1) {
+                        auto tmp = erpc_sessions[(erpc_session_cursor++) % erpc_sessions.size()];
+                        write(socket, &tmp, sizeof(tmp));
+
+                        // check if there are any possible succeeding requests
+                        shutdown(socket, 0);
+                        continue;
+                    }
+                    sleep(1);
+                }
+            });
+            t.detach();
+                
+            return true;
+        }
+        
+        auto StoreServer::register_erpc_handler_thread() noexcept -> std::optional<std::thread> {
             if (!is_launched) {
                 return {};
             }
@@ -21,6 +56,9 @@ namespace Hill {
 #endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
+                session_lock.lock();
+                erpc_sessions.push_back(tid);
+                session_lock.unlock();
                 s_ctx.rpc->run_event_loop(10000000);
                 this->server->unregister_thread(tid);
             }, tid.value());
@@ -177,6 +215,10 @@ namespace Hill {
                 return {};
             }
 
+            if (c_ctx.rpcs[node_id] != nullptr) {
+                return node_id;
+            }
+
             if (!client->is_connected(tid, node_id)) {
                 if (!client->connect_server(tid, node_id)) {
                     std::cerr << "Client can not connect to server " << node_id << "\n";
@@ -184,19 +226,19 @@ namespace Hill {
                 }
             }
 
-            if (c_ctx.rpcs[node_id] != nullptr) {
-                return node_id;
-            }
-
 #ifdef __HILL_INFO__
             std::cout << ">> Creating eRPC for thread " << tid << "\n";
+            std::cout << ">> Connecting to listen port: " << meta.cluster.nodes[node_id].erpc_listen_port << "\n";
 #endif
+            auto socket = Misc::socket_connect(false, meta.cluster.nodes[node_id].erpc_listen_port);
+            auto remote_id = 0;
+            read(socket, &remote_id, sizeof(remote_id));
             c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
                                                                   tid, RPCWrapper::ghost_sm_handler);
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
             auto rpc = c_ctx.rpcs[node_id];
-            c_ctx.session = rpc->create_session(server_uri, tid);
+            c_ctx.session = rpc->create_session(server_uri, remote_id);
             if (!rpc->is_connected(c_ctx.session)) {
                 std::cerr << "Client can not create session for " << node_id << "\n";
                 return {};

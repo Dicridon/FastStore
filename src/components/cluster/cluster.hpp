@@ -65,6 +65,7 @@ namespace Hill {
             IPV4Addr addr;
             int port;
             int erpc_port;
+            int erpc_listen_port;
             bool is_active;
         } __attribute__((packed));
 
@@ -219,7 +220,12 @@ namespace Hill {
             float cpu_usage;
             IPV4Addr addr;
             int port;
+
+            // erpc_port is used for handling eRPC call
             int erpc_port;
+            // erpc_listen_port is used for listening eRPC connection requests
+            int erpc_listen_port;
+            
             std::string rpc_uri;
             IPV4Addr monitor_addr;
             int monitor_port;

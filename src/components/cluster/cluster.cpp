@@ -173,7 +173,7 @@ namespace Hill {
                 }
 
                 /*
-                 * This update is not always correct because range group may change, e.g., more partitions are 
+                 * This update is not always correct because range group may change, e.g., more partitions are
                  * created. But currently I don't handle this because for experiment, range group is fixed
                  *
                  * To fully update a range group, we can make use RPC.
@@ -230,12 +230,13 @@ namespace Hill {
 
             std::regex rnode_id("node_id:\\s*(\\d+)");
             std::regex rtotal_pm("total_pm:\\s*(\\d+)");
-            std::regex ravailable_pm("available_pm:\\s*(\\d+)");            
+            std::regex ravailable_pm("available_pm:\\s*(\\d+)");
             std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::regex rerpc_port("erpc_port:\\s*(\\d+)");            
+            std::regex rerpc_port("erpc_port:\\s*(\\d+)");
+            std::regex rerpc_listen_port("erpc_listen_port:\\s*(\\d+)");
             std::regex rmonitor("monitor:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
 
-            std::smatch vnode_id, vtotal_pm, vaddr, verpc_port, vavailable_pm, vmonitor;
+            std::smatch vnode_id, vtotal_pm, vaddr, verpc_port, verpc_listen_port, vavailable_pm, vmonitor;
             if (!std::regex_search(content, vnode_id, rnode_id)) {
                 std::cerr << ">> Error: invalid or unspecified node id\n";
                 return false;
@@ -250,21 +251,26 @@ namespace Hill {
                 std::cerr << ">> Error: invalid or unspecified available PM\n";
                 return false;
             }
-            
+
             if (!std::regex_search(content, vaddr, raddr)) {
                 std::cerr << ">> Error: invalid or unspecified IP address\n";
                 return false;
             }
-            
+
             if (!std::regex_search(content, verpc_port, rerpc_port)) {
                 std::cerr << ">> Error: invalid or unspecified RPC port\n";
                 return false;
             }
             
+            if (!std::regex_search(content, verpc_listen_port, rerpc_listen_port)) {
+                std::cerr << ">> Error: invalid or unspecified RPC listen port\n";
+                return false;
+            }
+
             if (!std::regex_search(content, vmonitor, rmonitor)) {
                 std::cerr << ">> Error: invalid or unspecified monitor\n";
                 return false;
-            }            
+            }
 
             node_id = atoi(vnode_id[1].str().c_str());
             total_pm = atoll(vtotal_pm[1].str().c_str());
@@ -273,6 +279,7 @@ namespace Hill {
             addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
             port = atoi(vaddr[2].str().c_str());
             erpc_port = atoi(verpc_port[1].str().c_str());
+            erpc_listen_port = atoi(verpc_listen_port[1].str().c_str());
             rpc_uri = addr.to_string() + ":" + std::to_string(erpc_port);
             monitor_addr = IPV4Addr::make_ipv4_addr(vmonitor[1].str()).value();
             monitor_port = atoi(vmonitor[2].str().c_str());
@@ -292,7 +299,7 @@ namespace Hill {
 #endif
                 return false;
             }
-            
+
             std::thread background([&, sock]() {
 #if defined (__HILL__DEBUG) || defined (__HILL_INFO__)
                 std::cout << ">> Monitor connected\n";
@@ -301,15 +308,15 @@ namespace Hill {
 #ifdef __HILL_DEBUG__
                 Misc::check_socket_read_write(Misc::recv_all(sock, &total, sizeof(total)));
                 std::cout << ">> Receiving size of " << total << " from monitor\n";
-#else                
+#else
                 Misc::recv_all(sock, &total, sizeof(total));
-#endif                
+#endif
                 auto buf = std::make_unique<byte_t[]>(total);
 #ifdef __HILL_DEBUG__
                 Misc::check_socket_read_write(Misc::recv_all(sock, buf.get(), total));
-#else                
+#else
                 Misc::recv_all(sock, buf.get(), total);
-#endif                
+#endif
 
                 cluster_status.deserialize(buf.get());
 #ifdef __HILL_DEBUG__
@@ -322,8 +329,9 @@ namespace Hill {
                 cluster_status.cluster.nodes[node_id].addr = addr;
                 cluster_status.cluster.nodes[node_id].port = port;
                 cluster_status.cluster.nodes[node_id].erpc_port = erpc_port;
+                cluster_status.cluster.nodes[node_id].erpc_listen_port = erpc_listen_port;
                 cluster_status.cluster.nodes[node_id].is_active = true;
-                
+
                 while(run) {
                     keepalive(sock);
                 }
@@ -356,12 +364,12 @@ namespace Hill {
 #else
             Misc::send_all(socket, &to_size, sizeof(to_size));
 #endif
-      
+
             auto to_buf = cluster_status.serialize();
 #ifdef __HILL_DEBUG__
             std::cout << ">> Writnig following meta to monitor\n";
             Misc::check_socket_read_write(Misc::send_all(socket, to_buf.get(), to_size), false);
-            cluster_status.dump();            
+            cluster_status.dump();
 #else
             Misc::send_all(socket, to_buf.get(), to_size);
 #endif
@@ -389,7 +397,7 @@ namespace Hill {
             cluster_status.update(tmp);
 #ifdef __HILL_DEBUG__
             cluster_status.dump();
-            std::cout << "\n\n\n";            
+            std::cout << "\n\n\n";
 #endif
             sleep(3);
             return true;
@@ -430,13 +438,13 @@ namespace Hill {
 
             addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
             port = atoi(vaddr[2].str().c_str());
-            meta.cluster.node_num = atoi(vnode_num[1].str().c_str());                            
+            meta.cluster.node_num = atoi(vnode_num[1].str().c_str());
 
             while (std::regex_search(content, vranges, rranges)) {
                 meta.group.add_main(vranges[2].str(), atoi(vranges[3].str().c_str()));
                 content = vranges.suffix();
             }
-            
+
             return true;
         }
 
@@ -445,7 +453,7 @@ namespace Hill {
             auto sock = Misc::make_socket(true, port);
             auto flags = fcntl(sock, F_GETFL);
             fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-            
+
             if (sock == -1) {
                 return false;
             }
@@ -466,14 +474,14 @@ namespace Hill {
         auto Monitor::stop() -> void {
             run = false;
         }
-        
+
         auto Monitor::check_income_connection(int sock) -> void {
             // accept should be non-blocking, but read/write should be blocking
             auto socket = Misc::accept_blocking(sock);
             if (socket == -1) {
 #ifdef __HILL_DEBUG__
                 std::cout << ">> No new connection is detected\n";
-#endif                
+#endif
                 return;
             }
 #ifdef __HILL_DEBUG__
@@ -500,7 +508,7 @@ namespace Hill {
 #else
                 Misc::send_all(socket, to_buf.get(), to_size);
 #endif
-                
+
                 // keepalive
                 while(run) {
                     ClusterMeta tmp;
@@ -508,18 +516,18 @@ namespace Hill {
 #ifdef __HILL_DEBUG__
                     Misc::check_socket_read_write(Misc::recv_all(socket, &size, sizeof(size)));
                     std::cout << ">> Receiving size of " << size << " from server node\n";
-#else                    
+#else
                     Misc::recv_all(socket, &size, sizeof(size));
 #endif
                     auto buf = std::make_unique<byte_t[]>(size);
 #ifdef __HILL_DEBUG__
                     Misc::check_socket_read_write(Misc::recv_all(socket, buf.get(), size));
                     std::cout << ">> Receiving following meta from server node\n";
-                    tmp.deserialize(buf.get());                    
+                    tmp.deserialize(buf.get());
                     tmp.dump();
 #else
                     Misc::recv_all(socket, buf.get(), size);
-                    tmp.deserialize(buf.get());                    
+                    tmp.deserialize(buf.get());
 #endif
 
                     meta.update(tmp);
@@ -527,13 +535,13 @@ namespace Hill {
 #ifdef __HILL_DEBUG__
                     std::cout << "\n\n\n";
 #endif
-                    
+
                     sleep(1);
                 }
             });
             heartbeat.detach();
         }
-        
+
         auto Monitor::return_cluster_meta(int socket) noexcept -> void {
             ++meta.version;
             auto size= meta.total_size();
@@ -542,7 +550,7 @@ namespace Hill {
             Misc::check_socket_read_write(Misc::send_all(socket, &size, sizeof(size)), false);
 #else
             Misc::send_all(socket, &size, sizeof(size));
-#endif 
+#endif
             auto buf = meta.serialize();
 #ifdef __HILL_DEBUG__
             std::cout << ">> Sending following meta to server node:\n";
@@ -550,12 +558,12 @@ namespace Hill {
             Misc::check_socket_read_write(Misc::send_all(socket, buf.get(), size), false);
 #else
             Misc::send_all(socket, buf.get(), size);
-#endif            
+#endif
         }
 
         auto Monitor::dump() const noexcept -> void {
             std::cout << ">> Monitor info: \n";
-            std::cout << "-->> Addr: " << addr.to_string() << ":" << port << "\n";            
+            std::cout << "-->> Addr: " << addr.to_string() << ":" << port << "\n";
             std::cout << "-->> Meta:\n";
             meta.dump();
         }

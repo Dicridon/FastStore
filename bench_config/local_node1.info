@@ -4,6 +4,7 @@ available_pm: 111111
 addr: 127.0.0.1:3222
 monitor: 127.0.0.1:2333
 erpc_port: 31850
+erpc_listen_port: 3223
 dev_name: mlx5_1
 ib_port: 1
 gid_idx: 2

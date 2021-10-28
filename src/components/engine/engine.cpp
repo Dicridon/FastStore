@@ -1,7 +1,7 @@
 #include "engine.hpp"
 namespace Hill {
     auto Engine::check_rdma_request(int tid) noexcept -> int {
-        auto socket = Misc::accept_nonblocking(sock);
+        auto socket = Misc::accept_blocking(sock);
 
         if (socket == -1) {
             return -1;
@@ -208,10 +208,10 @@ namespace Hill {
         auto port = meta.cluster.nodes[node_id].port;
 
         auto socket = Misc::socket_connect(false, port, addr.to_string().c_str());
-
         if (socket == -1) {
             return false;
         }
+        
         write(socket, &Cluster::Constants::iCLIENT_ID, sizeof(Cluster::Constants::iCLIENT_ID));        
         if (rdma->default_connect(socket, buf.get(), 16 * 1024) != 0) {
             return false;
@@ -269,7 +269,5 @@ namespace Hill {
         gid_idx = atoi(vgid_idx[1].str().c_str());
         return true;
     }
-
-    
 }
 

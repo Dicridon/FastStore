@@ -43,7 +43,7 @@ auto main() -> int {
         tid = _tid.value();
     }
     
-    OLFIT olfit(alloc, logger.get());
+    OLFIT olfit(tid, alloc, logger.get());
     if (logger == nullptr) {
         std::cout << ">> Logger moved\n";
     }

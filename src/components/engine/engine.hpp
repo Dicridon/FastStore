@@ -66,15 +66,16 @@ namespace Hill {
             offset += sizeof(WAL::LogRegions);
             ret->allocator = Memory::Allocator::make_allocator(base + offset, ret->node->available_pm);
             offset += sizeof(Memory::Allocator);
-            for (int i = 0; i < Memory::Constants::iTHREAD_LIST_NUM; i++)
-                ret->agents[i] = Memory::RemoteMemoryAgent::make_agent(base + offset, &ret->peer_connections[i]);
+            for (int i = 0; i < Memory::Constants::iTHREAD_LIST_NUM; i++) {
+                ret->agents[i] = Memory::RemoteMemoryAgent::make_agent(base + offset, &ret->peer_connections[i]);                
+            }
+
 
             ret->sock = 0;
             ret->base = base;
             ret->run = false;
             return ret;
         }
-
 
         /*
          * Launch this engine and establish connectin with the monitor
@@ -90,6 +91,10 @@ namespace Hill {
         auto check_rdma_request(int tid) noexcept -> int;
         auto connect_server(int tid, int node_id) -> bool;
 
+        inline auto get_node() const noexcept -> const Cluster::Node * {
+            return node.get();
+        }
+        
         inline auto get_logger() noexcept -> WAL::Logger * {
             return logger.get();
         }
@@ -98,7 +103,7 @@ namespace Hill {
             return allocator;
         }
 
-        inline auto get_rpc_uri() const noexcept -> std::string {
+        inline auto get_rpc_uri() const noexcept -> const std::string & {
             return node->rpc_uri;
         }
 

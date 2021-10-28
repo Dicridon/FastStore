@@ -159,6 +159,7 @@ namespace Hill {
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Update, update_handler);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::Range, range_handler);
                 ret->nexus->register_req_func(detail::Enums::RPCOperations::CallForMemory, memory_handler);
+                ret->erpc_session_cursor = 0;
                 
                 ret->is_launched = false;
                 return ret;
@@ -170,11 +171,18 @@ namespace Hill {
 #endif
                 return is_launched = server->launch();
             }
+
+            inline auto stop() -> void {
+                server->stop();
+                is_launched = false;
+            }
+
+            auto launch_one_erpc_listen_thread() -> bool;
             /*
              * If a thread is successfully registered, a background thread would be launched handling
              * income eRPC requests. 
              */
-            auto register_thread() noexcept -> std::optional<std::thread>;
+            auto register_erpc_handler_thread() noexcept -> std::optional<std::thread>;
 
         private:
             // server represents all servers that are not a monitor
@@ -183,6 +191,10 @@ namespace Hill {
             ReadCache::Cache *cache;
             erpc::Nexus *nexus;
             bool is_launched;
+
+            std::mutex session_lock;
+            std::vector<int> erpc_sessions;
+            std::atomic_uint erpc_session_cursor;
 
             static auto insert_handler(erpc::ReqHandle *req_handle, void *context) -> void;
             static auto update_handler(erpc::ReqHandle *req_handle, void *context) -> void;        
