@@ -18,8 +18,9 @@ auto server_handler(erpc::ReqHandle *req_handle, void *context) -> void {
     auto requests = req_handle->get_req_msgbuf();
 
     auto in_data = *reinterpret_cast<uint8_t *>(requests->buf);
-
-    auto &resp = req_handle->pre_resp_msgbuf;
+    std::cout << "got " << in_data << " from client\n";:
+    auto &resp = req_handle->dyn_resp_msgbuf;
+    resp = server_ctx->rpc->alloc_msg_buffer_or_die(sizeof(uint8_t));
     *reinterpret_cast<uint8_t *>(resp.buf) = in_data + 1;
     server_ctx->rpc->enqueue_response(req_handle, &resp);
 };

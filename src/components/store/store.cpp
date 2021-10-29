@@ -241,7 +241,7 @@ namespace Hill {
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
             auto rpc = c_ctx.rpcs[node_id];
             c_ctx.session = rpc->create_session(server_uri, remote_id);
-            if (!rpc->is_connected(c_ctx.session)) {
+            if (c_ctx.session < 0) {
 #ifdef __HILL_INFO__
                 std::cerr << "Client can not create session for node " << node_id << "(" << server_uri << ")"
                           << " with remote id " << remote_id << "\n";
