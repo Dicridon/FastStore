@@ -9,7 +9,7 @@ struct ServerContext {
 
 struct ClientContext {
     erpc::Rpc<erpc::CTransport> *rpc;
-    bool done;
+    std::atomic_bool done;
     erpc::MsgBuffer req_buf;
     erpc::MsgBuffer resp_buf;    
 };
@@ -42,7 +42,7 @@ auto server() -> void {
 auto res_cont(void *context, [[maybe_unused]]void *tag) {
     auto ctx = reinterpret_cast<ClientContext *>(context);
     auto &resp = ctx->resp_buf;
-    std::cout << "got " << *reinterpret_cast<uint64_t *>(resp.buf); << " from server\n";
+    std::cout << "got " << *reinterpret_cast<uint64_t *>(resp.buf) << " from server\n";
     ctx->done = true;
 };
 
@@ -66,9 +66,16 @@ auto client() -> void {
         std::cout << "sending " << counter << " to server\n";
         *reinterpret_cast<uint64_t *>(ctx.req_buf.buf) = counter++;
         ctx.done = false;
+        std::cout << "req_buf is " << ctx.req_buf.buf << "\n";
+        std::cout << "req_buf size is " << ctx.req_buf.get_data_size() << "\n";
+        std::cout << "resp_buf is " << ctx.resp_buf.buf << "\n";
+        std::cout << "resp_buf size is " << ctx.resp_buf.get_data_size() << "\n";
+        
         ctx.rpc->enqueue_request(session, 0, &ctx.req_buf, &ctx.resp_buf, res_cont, nullptr);
-        while (!ctx.done) {
-            ctx.rpc->run_event_loop_once();            
+        // sleepp(1)
+        // ctx.rpc->run_event_loop_once();
+        while (!ctx.done.load()) {
+            ctx.rpc->run_event_loop_once();
         }
     }
 }
