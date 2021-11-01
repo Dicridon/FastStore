@@ -56,9 +56,9 @@ auto client() -> void {
     ctx.req_buf = ctx.rpc->alloc_msg_buffer_or_die(sizeof(uint64_t));
     ctx.resp_buf = ctx.rpc->alloc_msg_buffer_or_die(sizeof(uint64_t));
     auto session = ctx.rpc->create_session("10.0.0.48:31850", 0);
-    if (session < 0) {
-        std::cout << "can't create session\n";
-        exit(-1);
+    while (!ctx.rpc->is_connected(session)) {
+        std::cout << "waiting connection\n";
+        ctx.rpc->run_event_loop_once();
     }
 
     uint64_t counter = 0;
