@@ -64,7 +64,7 @@ class Parser
   end
 
   def parse_hostname
-    mat = @args.match(/-h\s*(\d{1,3}.){3}\d{1,3}/)
+    mat = @args.match(/-h\s*((\d{1,3}.){3}\d{1,3})/)
     @hostname = mat[1] if mat
   end
 
