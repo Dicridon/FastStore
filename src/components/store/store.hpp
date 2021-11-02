@@ -45,12 +45,13 @@ namespace Hill {
                 erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
                 erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
                 int session;
-
+                bool is_done;
                 std::atomic_long successful_inserts;
                 std::atomic_long successful_searches;
 
                 ClientContext() {
                     thread_id = 0;
+                    is_done = false;
                     for (auto &u : server_uri) {
                         u = "";
                     }

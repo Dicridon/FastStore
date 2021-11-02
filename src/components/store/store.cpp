@@ -184,6 +184,7 @@ namespace Hill {
                 std::optional<int> _node_id;
                 int node_id;
                 for (auto &i : load) {
+                    c_ctx.is_done = false;
                     _node_id = check_rpc_connection(tid, i, c_ctx);
                     if (!_node_id.has_value()) {
                         continue;
@@ -194,8 +195,9 @@ namespace Hill {
                     c_ctx.rpcs[node_id]->enqueue_request(c_ctx.session, i.type,
                                                          &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
                                                          response_continuation, &node_id);
-
-                    c_ctx.rpcs[node_id]->run_event_loop_once();
+                    while(!c_ctx.is_done) {
+                        c_ctx.rpcs[node_id]->run_event_loop_once();                        
+                    }
                 }
                 this->client->unregister_thread(tid);
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
