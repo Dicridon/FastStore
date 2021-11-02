@@ -1,4 +1,5 @@
 #include "indexing/indexing.hpp"
+#include "workload/workload.hpp"
 
 #include <cassert>
 using namespace Hill;
@@ -33,7 +34,7 @@ auto register_thread(Memory::Allocator *alloc, UniqueLogger &logger) -> std::opt
 }
 
 auto main() -> int {
-    auto alloc = Memory::Allocator::make_allocator(new byte_t[1024 * 1024], 1024 * 1024);
+    auto alloc = Memory::Allocator::make_allocator(new byte_t[1024 * 1024 * 1024], 1024 * 1024 * 1024);
     auto logger = WAL::Logger::make_unique_logger(new byte_t[1024 * 1024 * 128]);
 
     int tid;
@@ -48,11 +49,11 @@ auto main() -> int {
         std::cout << ">> Logger moved\n";
     }
 
-    auto workload = generate_strings(1000, true);
+    auto workload = Workload::generate_simple_string_workload(100000, Workload::Enums::Insert);
 
     for (const auto &w : workload) {
-        std::cout << ">> Inserting: " << ColorizedString(w, Colors::Magenta) << "\n";
-        olfit.insert(tid, w.c_str(), w.size(), w.c_str(), w.size());
+        std::cout << ">> Inserting: " << ColorizedString(w.key, Colors::Magenta) << "\n";
+        olfit.insert(tid, w.key.c_str(), w.key.size(), w.key.c_str(), w.key.size());
         // std::cout << ">> Dumping\n";
         // olfit.dump();
         // std::cout << "\n";
@@ -61,14 +62,14 @@ auto main() -> int {
     std::cout << ">> Insertion done\n";
     std::cout << ">> Searching begins\n";
     for (const auto &w : workload) {
-        if (auto [v, _] = olfit.search(w.c_str(), w.size()); v != nullptr) {
+        if (auto [v, _] = olfit.search(w.key.c_str(), w.key.size()); v != nullptr) {
             auto value = v.get_as<hill_value_t *>();
-            if (value->compare(w.c_str(), w.size()) != 0) {
-                std::cout << w << " should be matched\n";
+            if (value->compare(w.key.c_str(), w.key.size()) != 0) {
+                std::cout << w.key << " should be matched\n";
                 exit(-1);
             }
         } else {
-            std::cout << "I'm searching for " << w << "\n";
+            std::cout << "I'm searching for " << w.key << "\n";
             std::cout << "Can you just tell me how can you find a nullptr?\n";
             exit(-1);
         }

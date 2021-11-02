@@ -244,6 +244,7 @@ namespace Hill {
             while (!rpc->is_connected(c_ctx.session)) {
                 rpc->run_event_loop_once();
             }
+            
             c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
             c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
             shutdown(socket, 0);
