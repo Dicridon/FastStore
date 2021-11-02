@@ -241,16 +241,12 @@ namespace Hill {
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
             auto rpc = c_ctx.rpcs[node_id];
             c_ctx.session = rpc->create_session(server_uri, remote_id);
-            if (c_ctx.session < 0) {
-#ifdef __HILL_INFO__
-                std::cerr << "Client can not create session for node " << node_id << "(" << server_uri << ")"
-                          << " with remote id " << remote_id << "\n";
-#endif                
-                return {};
+            while (!rpc->is_connected(c_ctx.session)) {
+                rpc->run_event_loop_once();
             }
             c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
             c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
-
+            shutdown(socket, 0);
             return node_id;
         }
 
@@ -302,7 +298,7 @@ namespace Hill {
 
             case detail::Enums::RPCOperations::Search: {
                 if (status == detail::Enums::RPCStatus::Ok) {
-                    ++ctx->successful_inserts;
+                    ++ctx->successful_searches;
                 }
             }
                 
