@@ -235,6 +235,9 @@ namespace Hill {
             auto socket = Misc::socket_connect(false,
                                                meta.cluster.nodes[node_id].erpc_listen_port,
                                                meta.cluster.nodes[node_id].addr.to_string().c_str());
+#ifdef __HILL_INFO__
+            std::cout << ">> Connected\n";
+#endif
             auto remote_id = 0;
             read(socket, &remote_id, sizeof(remote_id));
             c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
@@ -314,8 +317,9 @@ namespace Hill {
             }
                 
             default:
-                return;
+                break;
             }
+            ctx->is_done = true;
         }
     }
 }
