@@ -9,8 +9,10 @@ namespace Hill {
         std::mutex allocator_global_lock;
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
             auto unavailable = header.header_cursor + sizeof(RecordHeader) > header.record_cursor - size;
-            if (unavailable)
+            if (unavailable) {
+                ptr = nullptr;
                 return;
+            }
 
             auto snapshot = header;
             auto tmp_ptr = reinterpret_cast<byte_ptr_t>(this);
@@ -71,7 +73,7 @@ namespace Hill {
                     
                     if (to_be_used > remain) {
                         ptr = nullptr;
-                        return;
+                        throw std::runtime_error("Insufficient PM\n");
                     } else {
                         if (header.freelist) {
                             // check global free list
