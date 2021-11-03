@@ -300,20 +300,22 @@ namespace Hill {
                 if (status == detail::Enums::RPCStatus::Ok) {
                     ++ctx->successful_inserts;
                 }
+                break;
             }
 
             case detail::Enums::RPCOperations::Search: {
                 if (status == detail::Enums::RPCStatus::Ok) {
                     ++ctx->successful_searches;
                 }
+                break;                
             }
                 
             case detail::Enums::RPCOperations::Update: {
-                
+                break;
             }
                 
             case detail::Enums::RPCOperations::Range: {
-                
+                break;                
             }
                 
             default:
