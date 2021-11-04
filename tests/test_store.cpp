@@ -10,6 +10,7 @@ auto main(int argc, char *argv[]) -> int {
     parser.add_option<std::string>("--type", "-t", "monitor");
     parser.add_option<std::string>("--uri", "-u", "127.0.0.1:2333");
     parser.add_option<std::string>("--config", "-c", "config.moni");
+    parser.add_option<int>("--size", "-s", 100000);
     
     if (argc < 2) {
         std::cerr << "Usage: ./test_store --type [monitor, server, client] --config filename";
@@ -18,20 +19,8 @@ auto main(int argc, char *argv[]) -> int {
     
     parser.parse(argc, argv);
 
-    auto _type = parser.get_as<std::string>("--type");
-    if (!_type.has_value()) {
-        std::cerr << "Failed to parse launching type\n";
-        return -1;
-    }
-    
-    auto _config = parser.get_as<std::string>("--config");
-    if (!_config.has_value()) {
-        std::cerr << "Failed to parse config file\n";
-        return -1;
-    }
-
-    auto type = _type.value();
-    auto config = _config.value();
+    auto type = parser.get_as<std::string>("--type").value();
+    auto config = parser.get_as<std::string>("--config").value();
 
     if (type == "monitor") {
         auto monitor = Monitor::make_monitor(config);
@@ -63,6 +52,7 @@ auto main(int argc, char *argv[]) -> int {
             return -1;
         }
     } else {
+        auto size = parser.get_as<int>("--size").value();
         auto client = StoreClient::make_client(config);
         client->launch();
 

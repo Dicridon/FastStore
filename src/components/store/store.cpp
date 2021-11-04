@@ -1,4 +1,7 @@
 #include "store.hpp"
+
+#include <chrono>
+
 namespace Hill {
     namespace Store {
         auto StoreServer::launch_one_erpc_listen_thread() -> bool {
@@ -183,6 +186,9 @@ namespace Hill {
 
                 std::optional<int> _node_id;
                 int node_id;
+#ifdef __HILL_INFO__
+                auto start = std:chrono::steady_clock::now();
+#endif                
                 for (auto &i : load) {
                     c_ctx.is_done = false;
                     _node_id = check_rpc_connection(tid, i, c_ctx);
@@ -204,22 +210,36 @@ namespace Hill {
                 std::cout << ">> Job done, reporting stats\n";
                 std::cout << ">> Insert: " << c_ctx.successful_inserts << "/" << load.size() << "\n";
                 std::cout << ">> Search: " << c_ctx.successful_searches << "/" << load.size() << "\n";
-#endif                
+#endif
+#ifdef __HILL_INFO__
+                auto end = std::chrono::steady_clock::now();
+                double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+                if (c_ctx.successful_inserts != 0) {
+                    std::Cout << ">> Insert throughput: "
+                              << c_ctx.successful_inserts / duration * 1000 << "OPS\n";
+                }
+
+                if (c_ctx.successful_searches != 0) {
+                    std::Cout << ">> Search throughput: "
+                              << c_ctx.successful_searches / duration * 1000 << "OPS\n";
+                }
+#endif
             }, tid.value());
         }
 
         auto StoreClient::check_rpc_connection(int tid, const Workload::WorkloadItem &item,
                                                detail::ClientContext &c_ctx) -> std::optional<int>
         {
-            const auto &meta = this->client->get_cluster_meta();
-            auto node_id = meta.filter_node(item.key);
-            if (node_id == 0) {
-                return {};
-            }
-
             if (c_ctx.rpcs[node_id] != nullptr) {
                 return node_id;
             }
+
+            if (node_id == 0) {
+                return {};
+            }
+            
+            const auto &meta = this->client->get_cluster_meta();
+            auto node_id = meta.filter_node(item.key);
 
             if (!client->is_connected(tid, node_id)) {
                 if (!client->connect_server(tid, node_id)) {
@@ -250,8 +270,8 @@ namespace Hill {
                 rpc->run_event_loop_once();
             }
             
-            c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
-            c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(128);
+            c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
+            c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
             shutdown(socket, 0);
             return node_id;
         }
@@ -260,9 +280,10 @@ namespace Hill {
                                           detail::ClientContext &c_ctx) -> bool
         {
             auto type = item.type;
-            uint8_t *buf = c_ctx.req_bufs[node_id].buf;
+            uint8_t *buf = c_ctx.req_bufs[node_id].buf;            
             switch(type) {
             case Hill::Workload::Enums::WorkloadType::Update:
+
                 *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Update;
                 [[fallthrough]];
             case Hill::Workload::Enums::WorkloadType::Range:
