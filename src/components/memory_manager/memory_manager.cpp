@@ -9,7 +9,7 @@ namespace Hill {
          */
         std::mutex allocator_global_lock;
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
-            auto unavailable = header.header_cursor + sizeof(RecordHeader) > header.record_cursor - size;
+            auto unavailable = header.header_cursor + sizeof(RecordHeader) + size > header.record_cursor;
             if (unavailable) {
                 ptr = nullptr;
                 return;

@@ -18,15 +18,24 @@ namespace Hill {
     // For durability, use this with a WAL
     namespace Memory {
         extern std::mutex allocator_global_lock;
-        
+
         struct Page;
         namespace Constants {
+#ifdef __HILL_DEBUG__
+            static constexpr size_t uPAGE_SIZE = 128UL;
+            static constexpr uint64_t uPAGE_MASK = 0xffffffffffffff80UL;
+            static constexpr Page * pTHREAD_LIST_AVAILABLE = nullptr;
+            static constexpr int iTHREAD_LIST_NUM = 8;
+            static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
+            static constexpr size_t uPREALLOCATION = 1;
+#else
             static constexpr size_t uPAGE_SIZE = 16 * 1024UL;
             static constexpr uint64_t uPAGE_MASK = 0xffffffffffffc000UL;
             static constexpr Page * pTHREAD_LIST_AVAILABLE = nullptr;
             static constexpr int iTHREAD_LIST_NUM = 64;
             static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
             static constexpr size_t uPREALLOCATION = 1;
+#endif            
         }
 
         namespace Enums {
@@ -40,11 +49,11 @@ namespace Hill {
         /*
          * All pointers used in Hill are natural pointers (possibly with some embeded functional bits)
          * We do not't use offset so that memory deallocation is simplified
-         * 
+         *
          * Considering that ASLR is enabled for security concerns, the mapped PM device is not guaranteed
          * to be mapped to the same address upon restart. Fortunately, libpmem offsers an environment
-         * variable named PMEM_MMAP_HINT, which will disable ASLR and force libpmem to TRY to map the 
-         * device the the address specified by PMEM_MMAP_HINT. Thus I assume we can finally find an 
+         * variable named PMEM_MMAP_HINT, which will disable ASLR and force libpmem to TRY to map the
+         * device the the address specified by PMEM_MMAP_HINT. Thus I assume we can finally find an
          * address available for such mapping.
          */
         namespace TypeAliases {
@@ -59,7 +68,7 @@ namespace Hill {
             }
         }
         /*
-         * A Page(16KB) is the basic memory alloction granularity, more 
+         * A Page(16KB) is the basic memory alloction granularity, more
          * fine grained allocation is performed within each page in each
          * thread (this implies no concurrency control is required)
          *
@@ -94,7 +103,7 @@ namespace Hill {
         struct RecordHeader {
             uint16_t offset;
         };
-            
+
         struct Page {
         private:
             struct PageHeader {
@@ -105,7 +114,7 @@ namespace Hill {
                 uint64_t header_cursor: 24;
                 uint64_t record_cursor: 24;
             };
-            
+
         public:
             Page() = delete;
             ~Page() {};
@@ -126,7 +135,7 @@ namespace Hill {
             }
 
             static auto get_page(const byte_ptr_t &ptr) -> Page * {
-                return reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(ptr) & Constants::uPAGE_MASK);                
+                return reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(ptr) & Constants::uPAGE_MASK);
             }
 
             auto allocate(size_t size, byte_ptr_t &ptr) noexcept -> void;
@@ -136,7 +145,7 @@ namespace Hill {
                 auto tmp = reinterpret_cast<byte_ptr_t>(this);
                 return reinterpret_cast<RecordHeader *>(tmp + sizeof(PageHeader));
             }
-            
+
             inline auto is_empty() const noexcept -> bool {
                 return header.records == 0;
             }
@@ -170,7 +179,7 @@ namespace Hill {
          * for metadata. Moreover, this class is used to manage a node's own memory
          * for this node's own use. To manage another node's memory, use the RemoteAllocator
          */
-        
+
         class Allocator {
         public:
             Allocator() = delete;
@@ -182,7 +191,7 @@ namespace Hill {
 
             static auto make_allocator(const byte_ptr_t &base, size_t size) -> Allocator * {
                 auto allocator = reinterpret_cast<Allocator *>(base);
-                
+
                 switch(allocator->recover()){
                 case Enums::AllocatorRecoveryStatus::Ok:
                     return allocator;
@@ -193,7 +202,7 @@ namespace Hill {
                 default:
                     break;
                 }
-                
+
                 allocator->header.magic = Constants::uALLOCATOR_MAGIC;
                 allocator->header.total_size = size;
                 allocator->header.freelist = nullptr;
@@ -213,7 +222,7 @@ namespace Hill {
 
             auto register_thread() noexcept -> std::optional<int>;
             auto unregister_thread(int id) noexcept -> void;
-            
+
             auto allocate(int id, size_t size, byte_ptr_t &ptr) -> void;
             auto free(int id, byte_ptr_t &ptr) -> void;
 
@@ -237,7 +246,7 @@ namespace Hill {
                 Page *to_be_freed[Constants::iTHREAD_LIST_NUM];
                 Page *thread_busy_pages[Constants::iTHREAD_LIST_NUM];
             } header;
-            
+
             auto recover_global_free_list() -> void {
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                     // on-going allocation is detected
@@ -264,7 +273,7 @@ namespace Hill {
                     }
                 }
             }
-            
+
             auto recover_global_heap() -> void {
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                     if (header.thread_free_lists[i] == header.cursor) {
@@ -272,7 +281,7 @@ namespace Hill {
                     }
                 }
             }
-            
+
             auto recover_pending_list() -> void {
                 // on-going unregisteration
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {

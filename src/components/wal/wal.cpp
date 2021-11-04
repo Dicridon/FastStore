@@ -85,7 +85,7 @@ namespace Hill {
             checkpointed = 0;
             Memory::Util::mfence();            
             cursor = checkpointed;
-
+            
 #ifdef PMEM
             // checkpointed is not forced to persist since recover just replays the checkpointing
             pmem_persist(&cursor, sizeof(cursor));

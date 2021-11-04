@@ -70,7 +70,6 @@ namespace Hill {
                 ret->agents[i] = Memory::RemoteMemoryAgent::make_agent(base + offset, &ret->peer_connections[i]);                
             }
 
-
             ret->sock = 0;
             ret->base = base;
             ret->run = false;

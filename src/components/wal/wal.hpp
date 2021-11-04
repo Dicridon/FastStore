@@ -15,8 +15,8 @@ namespace Hill {
         namespace Constants {
             static constexpr int iREGION_NUM = Memory::Constants::iTHREAD_LIST_NUM;
 #ifdef __HILL_DEBUG__
-            static constexpr size_t uBATCH_SIZE = 8UL;
-            static constexpr size_t uREGION_SIZE = 64UL;
+            static constexpr size_t uBATCH_SIZE = 1UL;
+            static constexpr size_t uREGION_SIZE = 3UL;
 #else
             static constexpr size_t uBATCH_SIZE = 64UL;
             static constexpr size_t uREGION_SIZE = 1024UL;
@@ -256,6 +256,7 @@ namespace Hill {
             inline auto commit(int id) noexcept -> void {
                 if (++counters[id] == Constants::uBATCH_SIZE) {
                     regions->regions[id].checkpoint();
+                    counters[id] = 0;
                 }
             }
 

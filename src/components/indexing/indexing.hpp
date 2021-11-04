@@ -245,7 +245,7 @@ namespace Hill {
                  * partially allocated memory blocks
                  */
                 root = LeafNode::make_leaf(ptr);
-                logger->commit(0);
+                logger->commit(tid);
             }
             ~OLFIT() = default;
 
