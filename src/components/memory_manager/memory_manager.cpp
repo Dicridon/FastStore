@@ -1,3 +1,4 @@
+#include "config/config.hpp"
 #include "memory_manager.hpp"
 
 namespace Hill {
@@ -65,6 +66,9 @@ namespace Hill {
             
             {
                 std::unique_lock l(allocator_global_lock);
+#ifdef __HILL_DEBUG__
+                std::cout << ">> Allocating more pages\n";
+#endif
                 // busy page has no enough space and no thread-local free pages are available
                 if (header.thread_free_lists[id] == nullptr) {
                     // the 1 is for current page

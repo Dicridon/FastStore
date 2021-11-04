@@ -9,17 +9,17 @@
 #include <unordered_set>
 
 namespace Hill {
-    using namespace Memory::TypeAliases;    
+    using namespace Memory::TypeAliases;
     namespace WAL {
         extern std::mutex wal_global_lock;
         namespace Constants {
             static constexpr int iREGION_NUM = Memory::Constants::iTHREAD_LIST_NUM;
-#ifdef __HILL_DEBUG__            
+#ifdef __HILL_DEBUG__
+            static constexpr size_t uBATCH_SIZE = 8UL;
+            static constexpr size_t uREGION_SIZE = 64UL;
+#else
             static constexpr size_t uBATCH_SIZE = 64UL;
             static constexpr size_t uREGION_SIZE = 1024UL;
-#else
-            static constexpr size_t uBATCH_SIZE = 8UL;
-            static constexpr size_t uREGION_SIZE = 64UL;            
 #endif
             static constexpr uint64_t uLOG_REGIONS_MAGIC = 0x1357246813572468UL;
         }
@@ -40,7 +40,7 @@ namespace Hill {
                 Ok,
                 NoRegions,
             };
-            
+
             enum class RegionRecoverStatus {
                 Ok,
                 No,
@@ -48,7 +48,7 @@ namespace Hill {
 
             enum class Ops {
                 Insert,
-                Update,                
+                Update,
                 Delete,
                 NodeSplit,
                 Unknown,
@@ -100,19 +100,19 @@ namespace Hill {
                 address = nullptr;
                 status = Enums::LogStatus::None;
             }
-            
+
             ~LogEntry() = default;
             LogEntry(const LogEntry &) = delete;
             LogEntry(LogEntry &&) = delete;
             auto operator=(const LogEntry &) -> LogEntry & = delete;
-            auto operator=(LogEntry &&) -> LogEntry & = delete;            
-            
+            auto operator=(LogEntry &&) -> LogEntry & = delete;
+
         };
 
 
         /*
          * A LogRegion is a continuous persistent memory chunk recording operations
-         * 
+         *
          * A thread first get a LogEntry via make_log. Then it decides if a commit
          * is needed and call LogEntry::commit to actively commit a log. Or it can
          * wait for a checkpointing for batch commit.
@@ -135,13 +135,13 @@ namespace Hill {
             }
 
             /*
-             * Recover iterates over each uncheckpointed log entry and apply the 
+             * Recover iterates over each uncheckpointed log entry and apply the
              * user-defined callback to the entry
              *
              * During the iteration, memory chunks are logically reclaimed, contents
-             * in the memory chunks are not touched, thus the callback is allowed 
+             * in the memory chunks are not touched, thus the callback is allowed
              * to use the contents. The logically reclaimed memory chunks is allocated
-             * upon allocation, thus once recovery is done, the contents are not 
+             * upon allocation, thus once recovery is done, the contents are not
              * guaranteed to be valid.
              */
             using page_vector_ptr = std::unique_ptr<std::vector<Memory::Page *>>;
@@ -154,7 +154,7 @@ namespace Hill {
             LogRegion() = delete;
             ~LogRegion() = default;
             LogRegion(const LogRegion &) = delete;
-            LogRegion(LogRegion &&) = delete; 
+            LogRegion(LogRegion &&) = delete;
             auto operator=(const LogRegion &) -> LogRegion & = delete;
             auto operator=(LogRegion &&) -> LogRegion & = delete;
 
@@ -194,23 +194,23 @@ namespace Hill {
 
                 return make_regions(ptr);
             }
-                
+
             LogRegions() = delete;
             ~LogRegions() = default;
             LogRegions(const LogRegions &) = delete;
-            LogRegions(LogRegions &&) = delete; 
+            LogRegions(LogRegions &&) = delete;
             auto operator=(const LogRegions &) -> LogRegions & = delete;
             auto operator=(LogRegions &&) -> LogRegions & = delete;
-            
+
         };
 
         /*
          * !!! NEVER INHERIT FROM ANY OTHER CLASSES OR STRUCTS
-         * WAL::logger is used in combination with Memory::MemoryManager to avoid memory leaks and 
+         * WAL::logger is used in combination with Memory::MemoryManager to avoid memory leaks and
          * redo/undo operations
          *
-         * Upon recovery, each address should be checked, i.e., the page owning the the address. 
-         * should be scanned to find the exact number of valid records. Since logging entryies are 
+         * Upon recovery, each address should be checked, i.e., the page owning the the address.
+         * should be scanned to find the exact number of valid records. Since logging entryies are
          * committed in batches, there at most Constants::iREGION_NUM * Constants::uBATCH_SIZE
          */
         class Logger {
@@ -218,7 +218,7 @@ namespace Hill {
             static auto make_unique_logger(const byte_ptr_t &pm_ptr) -> std::unique_ptr<Logger> {
                 auto out = std::make_unique<Logger>();
                 out->regions = &LogRegions::make_regions(pm_ptr);
-                out->init_utility();                
+                out->init_utility();
 
                 return out;
             }
@@ -226,8 +226,8 @@ namespace Hill {
             static auto make_shared_logger(const byte_ptr_t &pm_ptr) -> std::shared_ptr<Logger> {
                 auto out = std::make_shared<Logger>();
                 out->regions = &LogRegions::make_regions(pm_ptr);
-                out->init_utility();                
-                
+                out->init_utility();
+
                 return out;
             }
 
@@ -243,16 +243,16 @@ namespace Hill {
                 auto out = std::make_shared<Logger>();
                 out->regions = &LogRegions::recover_or_make_regions(pm_ptr, action);
                 out->init_utility();
-                
+
                 return out;
             }
-            
+
             auto register_thread() noexcept -> std::optional<int>;
             auto unregister_thread(int id) noexcept -> void;
             inline auto make_log(int id, Enums::Ops op) noexcept -> byte_ptr_t & {
                 return regions->regions[id].make_log(op);
             }
-        
+
             inline auto commit(int id) noexcept -> void {
                 if (++counters[id] == Constants::uBATCH_SIZE) {
                     regions->regions[id].checkpoint();
@@ -262,14 +262,14 @@ namespace Hill {
             inline auto checkpoint(int id) noexcept -> void {
                 regions->regions[id].checkpoint();
             }
-           
+
             Logger() = default;
             ~Logger() = default;
             Logger(const Logger &) = delete;
-            Logger(Logger &&) = delete; 
+            Logger(Logger &&) = delete;
             auto operator=(const Logger &) -> Logger & = delete;
             auto operator=(Logger &&) -> Logger & = delete;
-            
+
         private:
             LogRegions *regions;
             bool in_use[Constants::iREGION_NUM];

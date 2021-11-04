@@ -202,8 +202,8 @@ namespace Hill {
                 this->client->unregister_thread(tid);
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
                 std::cout << ">> Job done, reporting stats\n";
-                std::cout << ">> Insert: " << c_ctx.successful_inserts << "/" << load.size();
-                std::cout << ">> Search: " << c_ctx.successful_searches << "/" << load.size();
+                std::cout << ">> Insert: " << c_ctx.successful_inserts << "/" << load.size() << "\n";
+                std::cout << ">> Search: " << c_ctx.successful_searches << "/" << load.size() << "\n";
 #endif                
             }, tid.value());
         }
