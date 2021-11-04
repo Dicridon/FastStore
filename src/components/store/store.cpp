@@ -187,7 +187,7 @@ namespace Hill {
                 std::optional<int> _node_id;
                 int node_id;
 #ifdef __HILL_INFO__
-                auto start = std:chrono::steady_clock::now();
+                auto start = std::chrono::steady_clock::now();
 #endif                
                 for (auto &i : load) {
                     c_ctx.is_done = false;
@@ -215,12 +215,12 @@ namespace Hill {
                 auto end = std::chrono::steady_clock::now();
                 double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
                 if (c_ctx.successful_inserts != 0) {
-                    std::Cout << ">> Insert throughput: "
+                    std::cout << ">> Insert throughput: "
                               << c_ctx.successful_inserts / duration * 1000 << "OPS\n";
                 }
 
                 if (c_ctx.successful_searches != 0) {
-                    std::Cout << ">> Search throughput: "
+                    std::cout << ">> Search throughput: "
                               << c_ctx.successful_searches / duration * 1000 << "OPS\n";
                 }
 #endif
@@ -230,6 +230,9 @@ namespace Hill {
         auto StoreClient::check_rpc_connection(int tid, const Workload::WorkloadItem &item,
                                                detail::ClientContext &c_ctx) -> std::optional<int>
         {
+            const auto &meta = this->client->get_cluster_meta();
+            auto node_id = meta.filter_node(item.key);
+            
             if (c_ctx.rpcs[node_id] != nullptr) {
                 return node_id;
             }
@@ -238,8 +241,6 @@ namespace Hill {
                 return {};
             }
             
-            const auto &meta = this->client->get_cluster_meta();
-            auto node_id = meta.filter_node(item.key);
 
             if (!client->is_connected(tid, node_id)) {
                 if (!client->connect_server(tid, node_id)) {
