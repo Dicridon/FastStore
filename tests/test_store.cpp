@@ -10,10 +10,11 @@ auto main(int argc, char *argv[]) -> int {
     parser.add_option<std::string>("--type", "-t", "monitor");
     parser.add_option<std::string>("--uri", "-u", "127.0.0.1:2333");
     parser.add_option<std::string>("--config", "-c", "config.moni");
-    parser.add_option<int>("--size", "-s", 100000);
+    parser.add_option<int>("--batch", "-b", 100000);
+    parser.add_option<std::string>("--pmem", "-p", "/mnt/pmem2");
+    parser.add_option<size_t>("--pmem_size", "-s", 1024 * 1024 * 1024);
     
     if (argc < 2) {
-        std::cerr << "Usage: ./test_store --type [monitor, server, client] --config filename";
         return -1;
     }
     
@@ -28,7 +29,19 @@ auto main(int argc, char *argv[]) -> int {
         monitor->launch();
         Misc::pend();
     } else if (type == "server") {
-        auto base = new byte_t[1024 * 1024 * 1024];
+        auto pmem_file = parser.get_as<std::string>("--pmem").value();
+        auto pmem_size = parser.get_as<size_t>("--pmem_size").value();
+        size_t mapped = 0;
+        int is_pmem = 0;
+
+        auto base = reinterpret_cast<byte_ptr_t>(pmem_map_file(pmem_file.c_str(), pmem_size,
+                                                               PMEM_FILE_CREATE, 0666, &mapped, &is_pmem));
+        if (!is_pmem) {
+            std::cout << "Can't map pmem\n";
+            return -1;
+        } else {
+            std::cout << mapped / 1024 / 1024 / 1024.0 << "GB pmem is mapped\n";
+        }
 
         auto server = StoreServer::make_server(base, config, 1024 * 1024);
         server->launch();
@@ -52,12 +65,12 @@ auto main(int argc, char *argv[]) -> int {
             return -1;
         }
     } else {
-        auto size = parser.get_as<int>("--size").value();
+        auto batch = parser.get_as<int>("--batch").value();
         auto client = StoreClient::make_client(config);
         client->launch();
 
-        auto put_load = Workload::generate_simple_string_workload(100000, Workload::Enums::Insert);
-        auto get_load = Workload::generate_simple_string_workload(100000, Workload::Enums::Search);
+        auto put_load = Workload::generate_simple_string_workload(batch, Workload::Enums::Insert);
+        auto get_load = Workload::generate_simple_string_workload(batch, Workload::Enums::Search);
         
         auto _thread = client->register_thread(put_load);
         
