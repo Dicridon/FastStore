@@ -9,8 +9,10 @@
 
 #include <shared_mutex>
 #include <atomic>
+#include <cstring>
 
 #include <fcntl.h>
+
 namespace Hill {
     /*
      * This engine manages all RDMA connections, communications with monitor and the whole PM resource on one node
@@ -74,7 +76,7 @@ namespace Hill {
                                                                        &mapped_size, &is_pmem));
                 if (!is_pmem) {
                     std::cout << ">> Unable to map pmem file " << ret->pmem_file << "\n";
-                    std::cout << ">> Errno is " << errno << "\n";
+                    std::cout << ">> Errno is " << errno << ": " << strerror(errno) << "\n";
                     return nullptr;
                 } else {
                     std::cout << ">> " << mapped_size / 1024 / 1024 / 1024.0 << "GB pmem is mapped\n";
