@@ -80,6 +80,7 @@ int main(int argc, char *argv[]) {
         auto s = steady_clock::now();
         for (auto &s : workload) {
             rdma->post_write((uint8_t *)s.c_str(), s.size(), offset);
+            rdma->poll_completion();
             offset += s.size();
         }
         auto e = steady_clock::now();
@@ -90,10 +91,15 @@ int main(int argc, char *argv[]) {
         syncop(sockfd);
     }
 
+    offset = 0;
     if (!is_server) {
         auto s = steady_clock::now();
         for (auto &s : workload) {
             rdma->post_read(s.size(), offset);
+            rdma->poll_completion();            
+            for (auto i = 0UL; i < s.size(); i++) {
+                std::cout << rdma->get_char_buf()[i] << "\n";
+            }
             offset += s.size();
         }
         auto e = steady_clock::now();
