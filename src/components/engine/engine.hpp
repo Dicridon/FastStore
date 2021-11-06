@@ -74,6 +74,7 @@ namespace Hill {
                                                                        &mapped_size, &is_pmem));
                 if (!is_pmem) {
                     std::cout << ">> Unable to map pmem file " << ret->pmem_file << "\n";
+                    std::cout << ">> Errno is " << errno << "\n";
                     return nullptr;
                 } else {
                     std::cout << ">> " << mapped_size / 1024 / 1024 / 1024.0 << "GB pmem is mapped\n";

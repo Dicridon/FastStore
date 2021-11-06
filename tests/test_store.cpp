@@ -55,7 +55,8 @@ auto main(int argc, char *argv[]) -> int {
 
         auto put_load = Workload::generate_simple_string_workload(batch, Workload::Enums::Insert);
         auto get_load = Workload::generate_simple_string_workload(batch, Workload::Enums::Search);
-        
+
+        std::cout << ">> Insertion begins\n";
         auto _thread = client->register_thread(put_load);
         
         if (!_thread.has_value()) {
@@ -70,6 +71,23 @@ auto main(int argc, char *argv[]) -> int {
             std::cerr << "Can't join client thread\n";
             return -1;
         }
+
+        std::cout << ">> Search begins\n";
+        _thread = client->register_thread(put_load);
+        
+        if (!_thread.has_value()) {
+            std::cerr << "Can't start a client thread\n";
+            return -1;
+        }
+
+        thread = std::move(_thread.value());
+        if (thread.joinable()) {
+            thread.join();            
+        } else {
+            std::cerr << "Can't join client thread\n";
+            return -1;
+        }
+        
     }
     return 0;
 }
