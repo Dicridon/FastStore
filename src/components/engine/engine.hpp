@@ -12,7 +12,6 @@
 #include <cstring>
 
 #include <fcntl.h>
-
 namespace Hill {
     /*
      * This engine manages all RDMA connections, communications with monitor and the whole PM resource on one node
@@ -69,12 +68,11 @@ namespace Hill {
                 ret->base = new byte_t[ret->node->available_pm];
             } else {
                 size_t mapped_size;
-                int is_pmem = 0;
                 ret->base = reinterpret_cast<byte_ptr_t>(pmem_map_file(ret->pmem_file.c_str(),
                                                                        ret->node->available_pm,
                                                                        PMEM_FILE_CREATE, 0666,
-                                                                       &mapped_size, &is_pmem));
-                if (!is_pmem) {
+                                                                       &mapped_size, nullptr));
+                if (ret->base == nullptr) {
                     std::cout << ">> Unable to map pmem file " << ret->pmem_file << "\n";
                     std::cout << ">> Errno is " << errno << ": " << strerror(errno) << "\n";
                     return nullptr;
