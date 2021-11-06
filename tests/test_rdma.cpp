@@ -6,6 +6,7 @@
 #include <infiniband/verbs.h>
 #include <iostream>
 #include <sstream>
+#include <chrono>
 
 
 #include <sys/socket.h>
@@ -16,6 +17,8 @@
 using namespace Hill;
 using namespace Hill::Misc;
 using namespace Hill::RDMAUtil;
+using namespace std::chrono;
+
 const ColorizedString error_msg("Error: ", Colors::Red);
 const ColorizedString warning_msg("Warning: ", Colors::Magenta);
 
@@ -66,70 +69,39 @@ int main(int argc, char *argv[]) {
     }
 
     syncop(sockfd);
-    std::string rdma_msg;
- 
-    std::cout << ">> buf before send/recv\n";
-    for (size_t i = 0; i < rdma_msg.length(); i++) {
-        std::cout << buf[i];
+    std::vector<std::string> workload;
+    auto start = (1UL << 63) + (1UL << 62);
+    for (auto i = 0UL; i < 1000000; i++) {
+        workload.emplace_back(std::to_string(start - i));
     }
 
-    for (int i = 0; i < 10; i++) {
-        std::ostringstream stream;
-        stream << "Hello RDMA " << i << "\n";
-        auto rdma_msg = stream.str();
-        if (is_server) {
-            sleep(1); // just ensure server posts send AFTER client's recv
-            rdma->post_send((uint8_t *)rdma_msg.c_str(), rdma_msg.length());
-        } else {
-            rdma->post_recv_to(rdma_msg.length());
+    auto offset = 0UL;
+    if (!is_server) {
+        auto s = steady_clock::now();
+        for (auto &s : workload) {
+            rdma->post_write((uint8_t *)s.c_str(), s.size(), offset);
+            offset += s.size();
         }
-
-        if (rdma->poll_completion() < 0) {
-            std::cout << ">> " << error_msg << "polling failed\n";
-            return -1;
-        }
-
-        std::cout << ">> buf after send/recv\n";
-        for (size_t i = 0; i < rdma_msg.length(); i++) {
-            std::cout << rdma->get_char_buf()[i];
-        }
-        std::cout << "\n";
-    }
-
-    for (int i = 0; i < 10; i++) {
-        std::ostringstream stream;
-        stream << "This is a call from client: " << i;
-        auto client_msg = stream.str();
-        if (!is_server) {
-            rdma->post_write((uint8_t *)client_msg.c_str(), client_msg.length());
-            rdma->poll_completion();
-        }
-    
+        auto e = steady_clock::now();
+        auto throughput = 1000000.0 / duration_cast<milliseconds>(e - s).count();
+        std::cout << "Throughput of write is " << throughput * 1000 << " OPS";
         syncop(sockfd);
-        std::cout << ">> buf after rdma write\n";
-        for (size_t i = 0; i < client_msg.length(); i++) {
-            std::cout << rdma->get_char_buf()[i];
-        }
+    } else {
+        syncop(sockfd);
     }
 
-    for (int i = 0; i < 10; i++) {
-        std::ostringstream stream;
-        stream << "This is a gift from client: " << i;
-        auto client_msg = stream.str();
-        
-        if (!is_server) {
-            rdma->fill_buf((uint8_t *)client_msg.c_str(), client_msg.length());
-            syncop(sockfd);
-        } else {
-            syncop(sockfd);
-            rdma->post_read(client_msg.length());
-            rdma->poll_completion();
+    if (!is_server) {
+        auto s = steady_clock::now();
+        for (auto &s : workload) {
+            rdma->post_read(s.size(), offset);
+            offset += s.size();
         }
-    
-        std::cout << ">> buf after rdma read\n";
-        for (size_t i = 0; i < client_msg.length(); i++) {
-            std::cout << rdma->get_char_buf()[i];
-        }
+        auto e = steady_clock::now();
+        auto throughput = 1000000.0 / duration_cast<milliseconds>(e - s).count();
+        std::cout << "Throughput of read is " << throughput * 1000 << " OPS";
+        syncop(sockfd);
+    } else {
+        syncop(sockfd);
     }
     
     close(sockfd);
