@@ -123,22 +123,39 @@ namespace Hill {
         std::smatch vdev_name, vib_port, vgid_idx;
         if (!std::regex_search(content, vdev_name, rdev_name)) {
             std::cerr << ">> Error: invalid or unspecified ib device name\n";
-            return -1;
+            return false;
         }
 
         if (!std::regex_search(content, vib_port, rib_port)) {
             std::cerr << ">> Error: invalid or unspecified IB port\n";
-            return -1;
+            return false;
         }
 
         if (!std::regex_search(content, vgid_idx, rgid_idx)) {
             std::cerr << ">> Error: invalid or unspecified GID index\n";
-            return -1;
+            return false;
         }
 
         rdma_dev_name = vdev_name[1];
         ib_port = atoi(vib_port[1].str().c_str());
         gid_idx = atoi(vgid_idx[1].str().c_str());
+        return true;
+    }
+
+    auto Engine::parse_pmem(const std::string &config) noexcept -> bool {
+        auto content_ = Misc::file_as_string(config);
+        if (!content_.has_value()) {
+            return false;
+        }
+        auto content = content_.value();
+        std::regex rpmem_file("pmem_file:\\s+(\\S+)");
+
+        std::smatch vpmem_file;
+        if (!std::regex_search(content, vpmem_file, rpmem_file)) {
+            std::cerr << ">> Error: invalid or unspecified pmem file\n";
+            return false;
+        }
+        pmem_file = vpmem_file[1];
         return true;
     }
 

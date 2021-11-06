@@ -147,11 +147,11 @@ namespace Hill {
             auto operator=(const StoreServer &) -> StoreServer & = delete;
             auto operator=(StoreServer &&) -> StoreServer & = delete;
 
-            static auto make_server(const byte_ptr_t &base, const std::string &config, size_t cache_cap)
+            static auto make_server(const std::string &config, size_t cache_cap)
                 -> std::unique_ptr<StoreServer>
             {
                 auto ret = std::make_unique<StoreServer>();
-                ret->server = Engine::make_engine(base, config);
+                ret->server = Engine::make_engine(config);
                 ret->index = Indexing::OLFIT::make_olfit(ret->server->get_allocator(), ret->server->get_logger());
                 ret->cache = &ReadCache::Cache::make_cache(new byte_t[cache_cap]);
 #ifdef __HILL_INFO__

@@ -10,9 +10,7 @@ auto main(int argc, char *argv[]) -> int {
     parser.add_option<std::string>("--type", "-t", "monitor");
     parser.add_option<std::string>("--uri", "-u", "127.0.0.1:2333");
     parser.add_option<std::string>("--config", "-c", "config.moni");
-    parser.add_option<int>("--batch", "-b", 100000);
-    parser.add_option<std::string>("--pmem", "-p", "/mnt/pmem2");
-    parser.add_option<size_t>("--pmem_size", "-s", 1024 * 1024 * 1024);
+    parser.add_option<int>("--size", "-s", 100000);
     
     if (argc < 2) {
         return -1;
@@ -29,21 +27,7 @@ auto main(int argc, char *argv[]) -> int {
         monitor->launch();
         Misc::pend();
     } else if (type == "server") {
-        auto pmem_file = parser.get_as<std::string>("--pmem").value();
-        auto pmem_size = parser.get_as<size_t>("--pmem_size").value();
-        size_t mapped = 0;
-        int is_pmem = 0;
-
-        auto base = reinterpret_cast<byte_ptr_t>(pmem_map_file(pmem_file.c_str(), pmem_size,
-                                                               PMEM_FILE_CREATE, 0666, &mapped, &is_pmem));
-        if (!is_pmem) {
-            std::cout << "Can't map pmem\n";
-            return -1;
-        } else {
-            std::cout << mapped / 1024 / 1024 / 1024.0 << "GB pmem is mapped\n";
-        }
-
-        auto server = StoreServer::make_server(base, config, 1024 * 1024);
+        auto server = StoreServer::make_server(config, 1024 * 1024);
         server->launch();
 
         if (!server->launch_one_erpc_listen_thread()) {
@@ -65,7 +49,7 @@ auto main(int argc, char *argv[]) -> int {
             return -1;
         }
     } else {
-        auto batch = parser.get_as<int>("--batch").value();
+        auto batch = parser.get_as<int>("--size").value();
         auto client = StoreClient::make_client(config);
         client->launch();
 

@@ -15,8 +15,7 @@ auto run_monitor(const std::string &file) -> bool {
 }
 
 auto run_server(const std::string &file) -> bool {
-    auto base = std::make_unique<byte_t[]>(1024 * 1024 * 1024UL);
-    auto engine = Engine::make_engine(base.get(), file);
+    auto engine = Engine::make_engine(file);
     if (engine == nullptr) {
         return false;
     }
