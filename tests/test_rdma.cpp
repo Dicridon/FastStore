@@ -46,7 +46,10 @@ int main(int argc, char *argv[]) {
     parser.add_option<int>("--ib_port", "-p", 1);
     parser.add_option<int>("--socket_port", "-P", 2333);
     parser.add_option<int>("--gid_idx", "-g", 2);
+    parser.add_option<size_t>("--batch", "-b", 10);
     parser.add_switch("--is_server", "-s", true);
+    parser.add_switch("--debug", "-d", true);
+
     parser.parse(argc, argv);
     // parser.Parse(argv, argv + argc);
     auto dev_name = parser.get_as<std::string>("--device").value();
@@ -54,6 +57,8 @@ int main(int argc, char *argv[]) {
     auto socket_port = parser.get_as<int>("--socket_port").value();
     auto gid_idx = parser.get_as<int>("--gid_idx").value();    
     auto is_server = parser.get_as<bool>("--is_server").value();
+    auto batch = parser.get_as<size_t>("--batch").value();
+    auto debug = parser.get_as<bool>("--debug").value();
     
     auto [rdma, status] = RDMA::make_rdma(dev_name, ib_port, gid_idx);
     if (!rdma) {
@@ -71,7 +76,7 @@ int main(int argc, char *argv[]) {
     syncop(sockfd);
     std::vector<std::string> workload;
     auto start = (1UL << 63) + (1UL << 62);
-    for (auto i = 0UL; i < 1000000; i++) {
+    for (auto i = 0UL; i < batch; i++) {
         workload.emplace_back(std::to_string(start - i));
     }
 
@@ -84,7 +89,7 @@ int main(int argc, char *argv[]) {
             offset += s.size();
         }
         auto e = steady_clock::now();
-        auto throughput = 1000000.0 / duration_cast<milliseconds>(e - s).count();
+        auto throughput = double(batch) / duration_cast<milliseconds>(e - s).count();
         std::cout << "Throughput of write is " << throughput * 1000 << " OPS";
         syncop(sockfd);
     } else {
@@ -96,14 +101,17 @@ int main(int argc, char *argv[]) {
         auto s = steady_clock::now();
         for (auto &s : workload) {
             rdma->post_read(s.size(), offset);
-            rdma->poll_completion();            
-            for (auto i = 0UL; i < s.size(); i++) {
-                std::cout << rdma->get_char_buf()[i] << "\n";
+            rdma->poll_completion();
+            if (debug) {
+                for (auto i = 0UL; i < s.size(); i++) {
+                    std::cout << rdma->get_char_buf()[i];
+                }
+                std::cout << "\n";
             }
             offset += s.size();
         }
         auto e = steady_clock::now();
-        auto throughput = 1000000.0 / duration_cast<milliseconds>(e - s).count();
+        auto throughput = double(batch) / duration_cast<milliseconds>(e - s).count();
         std::cout << "Throughput of read is " << throughput * 1000 << " OPS";
         syncop(sockfd);
     } else {
