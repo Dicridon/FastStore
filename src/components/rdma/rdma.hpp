@@ -110,12 +110,14 @@ namespace Hill {
             RDMA(RDMA &&) = delete;
             RDMA &operator=(const RDMA &) = delete;
             RDMA &operator=(RDMA&&) = delete;
-            RDMA(struct ibv_context *ctx_, int ib_port_, int gid_idx_) :
-                ctx(ctx_), pd(nullptr), cq(nullptr), mr(nullptr), qp(nullptr), ib_port(ib_port_), gid_idx(gid_idx_),
-                buf(nullptr) {
+            RDMA(struct ibv_context *ctx_, int ib_port_, int gid_idx_)
+                : ctx(ctx_), pd(nullptr), cq(nullptr), mr(nullptr), qp(nullptr),
+                  ib_port(ib_port_), gid_idx(gid_idx_), buf(nullptr)
+            {
                 memset(&local, 0, sizeof(connection_certificate));
                 memset(&remote, 0, sizeof(connection_certificate));            
             };
+            
             ~RDMA() {
                 if (qp) ibv_destroy_qp(qp);
                 if (mr) ibv_dereg_mr(mr);

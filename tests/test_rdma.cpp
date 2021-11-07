@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     parser.add_option<int>("--gid_idx", "-g", 2);
     parser.add_option<size_t>("--batch", "-b", 10);
     parser.add_switch("--is_server", "-s", true);
-    parser.add_switch("--debug", "-d", true);
+    parser.add_switch("--debug", "-D", true);
 
     parser.parse(argc, argv);
     // parser.Parse(argv, argv + argc);
@@ -66,9 +66,10 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    auto buf = new byte_t[1024];
+    size_t registered = 1024 * 1024 * 1024;
+    auto buf = new byte_t[registered];
     auto sockfd = socket_connect(is_server, socket_port, "127.0.0.1");
-    if (rdma->default_connect(sockfd, buf, 1024) != 0) {
+    if (rdma->default_connect(sockfd, buf, registered) != 0) {
         std::cerr << "Default RDMA connection failed\n";
         return -1;
     }
