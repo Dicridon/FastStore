@@ -450,9 +450,7 @@ namespace Hill {
 
         auto Monitor::launch() -> bool {
             run = true;
-            auto sock = Misc::make_socket(true, port);
-            auto flags = fcntl(sock, F_GETFL);
-            fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+            auto sock = Misc::make_async_socket(true, port);
 
             if (sock == -1) {
                 return false;

@@ -44,12 +44,10 @@ namespace Hill {
     }
 
     auto Engine::launch() noexcept -> bool {
-        sock = Misc::make_socket(true, node->port);
+        sock = Misc::make_async_socket(true, node->port);
         if (sock == -1) {
             return false;
         }
-        auto flags = fcntl(sock, F_GETFL);
-        fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
         return run = node->launch();
     }

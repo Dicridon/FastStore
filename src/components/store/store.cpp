@@ -9,7 +9,7 @@ namespace Hill {
                 return false;
             }
             
-            auto sock = Misc::make_socket(true, server->get_node()->erpc_listen_port);
+            auto sock = Misc::make_async_socket(true, server->get_node()->erpc_listen_port);
             if (sock == -1) {
 #ifdef __HILL__INFO__
                 std::cout << ">> Unable to create socket for eRPC listening\n";
@@ -17,8 +17,6 @@ namespace Hill {
                 return false;
             }
 
-            auto flags = fcntl(sock, F_GETFL);
-            fcntl(sock, flags | O_NONBLOCK);
             std::thread t([&, sock]() {
                 while(is_launched) {
                     auto socket = Misc::accept_blocking(sock);

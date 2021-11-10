@@ -32,13 +32,23 @@ namespace Hill {
             return sockfd;
         }
 
+        int make_async_socket(bool is_server, int socket_port) {
+            auto sockfd = make_socket(is_server, socket_port);
+            if (sockfd == -1) {
+                return sockfd;
+            }
+            
+            auto flags = fcntl(sockfd, F_GETFL);
+            fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+            return sockfd;
+        }        
+
         int connect_socket(int sockfd, int socket_port, const char *server) {
             struct sockaddr_in seraddr;
             memset(&seraddr, 0, sizeof(struct sockaddr));
             seraddr.sin_family = AF_INET;
             seraddr.sin_port = htons(socket_port);
             inet_pton(AF_INET, server, &seraddr.sin_addr);
-            
         
             if (connect(sockfd, (struct sockaddr *)&seraddr, sizeof(seraddr)) == -1) {
                 return -1;

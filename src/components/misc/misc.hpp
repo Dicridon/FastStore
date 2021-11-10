@@ -11,6 +11,8 @@
 #include <optional>
 #include <sstream>
 
+#include <fcntl.h>
+
 namespace Hill {
     namespace Misc {
         /*
@@ -19,6 +21,7 @@ namespace Hill {
          */
         // make a new socket file descriptor and listen
         int make_socket(bool is_server, int socket_port);
+        int make_async_socket(bool is_server, int socket_port);
         int connect_socket(int sockfd, int socket_port, const char *server);
         int accept_blocking(int sockfd);
         int accept_nonblocking(int sockfd);
