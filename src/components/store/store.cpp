@@ -214,12 +214,12 @@ namespace Hill {
                 double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
                 if (c_ctx.successful_inserts != 0) {
                     std::cout << ">> Insert throughput: "
-                              << c_ctx.successful_inserts / duration * 1000 << "OPS\n";
+                              << c_ctx.successful_inserts / duration << " KOPS\n";
                 }
 
                 if (c_ctx.successful_searches != 0) {
                     std::cout << ">> Search throughput: "
-                              << c_ctx.successful_searches / duration * 1000 << "OPS\n";
+                              << c_ctx.successful_searches / duration << " KOPS\n";
                 }
 #endif
             }, tid.value());

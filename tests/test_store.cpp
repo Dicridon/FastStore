@@ -73,7 +73,7 @@ auto main(int argc, char *argv[]) -> int {
         }
 
         std::cout << ">> Search begins\n";
-        _thread = client->register_thread(put_load);
+        _thread = client->register_thread(get_load);
         
         if (!_thread.has_value()) {
             std::cerr << "Can't start a client thread\n";

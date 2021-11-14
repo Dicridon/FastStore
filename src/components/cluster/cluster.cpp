@@ -283,6 +283,7 @@ namespace Hill {
             rpc_uri = addr.to_string() + ":" + std::to_string(erpc_port);
             monitor_addr = IPV4Addr::make_ipv4_addr(vmonitor[1].str()).value();
             monitor_port = atoi(vmonitor[2].str().c_str());
+
             return true;
         }
 
