@@ -68,10 +68,8 @@ namespace Hill {
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<detail::ServerContext *>(context);
             auto [type, key, value] = parse_request_message(req_handle, context);
-            // auto status = ctx->index->insert(ctx->thread_id, key->raw_chars(), key->size(),
-            // value->raw_chars(), value->size());
-            auto status = Indexing::Enums::OpStatus::Ok;
-
+            auto status = ctx->index->insert(ctx->thread_id, key->raw_chars(), key->size(),
+                                             value->raw_chars(), value->size());
             auto& resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(detail::Enums::RPCStatus);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
@@ -100,8 +98,7 @@ namespace Hill {
         auto StoreServer::search_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<detail::ServerContext *>(context);
             auto [type, key, value] = parse_request_message(req_handle, context);
-            // auto [v, v_sz] = ctx->index->search(key->raw_chars(), key->size());
-            auto v = ctx;
+            auto [v, v_sz] = ctx->index->search(key->raw_chars(), key->size());
             auto& resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
                 + sizeof(size_t) + sizeof(detail::Enums::RPCStatus);

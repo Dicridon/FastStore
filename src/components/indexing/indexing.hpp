@@ -17,7 +17,7 @@ namespace Hill {
         using namespace KVPair::TypeAliases;
         using namespace WAL::TypeAliases;
         namespace Constants {
-            static constexpr int iDEGREE = 3;
+            static constexpr int iDEGREE = 64;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
         }
 
@@ -50,11 +50,11 @@ namespace Hill {
             inline auto lock() noexcept -> void {
                 auto expected = 0UL;
                 do {
-                    tmp = l.load();                    
+                    tmp = l.load();
                     expected = tmp & (~0x1UL);
                 } while (l.compare_exchange_strong(expected, tmp | (0x1UL)));
             }
-            
+
             inline auto try_lock() noexcept -> bool {
                 tmp = l.load();
                 auto expected = tmp & (~0x1UL);
@@ -86,10 +86,10 @@ namespace Hill {
 
         struct InnerNode;
         struct LeafNode {
-            hill_key_t *highkey;            
+            hill_key_t *highkey;
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             Memory::PolymorphicPointer values[Constants::iNUM_HIGHKEY];
-            size_t value_sizes[Constants::iNUM_HIGHKEY];            
+            size_t value_sizes[Constants::iNUM_HIGHKEY];
             LeafNode *right_link;
             // for convenient access
             VersionLock version_lock;
@@ -124,7 +124,7 @@ namespace Hill {
             auto dump() const noexcept -> void;
         };
 
-        
+
         struct PolymorphicNodePointer {
             Enums::NodeType type;
             void *value;
@@ -146,14 +146,14 @@ namespace Hill {
                 value = reinterpret_cast<void *>(v);
                 return *this;
             }
-            
+
             auto operator=(InnerNode *v) -> PolymorphicNodePointer & {
                 type = Enums::NodeType::Inner;
                 value = reinterpret_cast<void *>(v);
                 return *this;
             }
 
-            
+
             inline auto is_leaf() const noexcept -> bool {
                 return type == Enums::NodeType::Leaf;
             }
@@ -181,7 +181,7 @@ namespace Hill {
                 return get_as<LeafNode *>()->highkey;
             }
         };
-        
+
 
         /*
          * The layout of a node is as follows
@@ -193,7 +193,7 @@ namespace Hill {
          * We do not use smart pointers either because we need atomic update to pointers
          */
         struct InnerNode {
-            hill_key_t *highkey;            
+            hill_key_t *highkey;
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             PolymorphicNodePointer children[Constants::iDEGREE];
             InnerNode *right_link;
@@ -229,7 +229,7 @@ namespace Hill {
             auto dump() const noexcept -> void;
         };
 
-        
+
         class OLFIT {
         public:
             // for convenience of testing
@@ -239,7 +239,7 @@ namespace Hill {
                 auto ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
                 // crashing here is ok, because no memory allocation is done;
                 alloc->allocate(tid, sizeof(LeafNode), ptr);
-                /* 
+                /*
                  * crash here is ok, allocation is done. Crash in the allocation function
                  * is fine because on recovery, the allocator scans memory regions to restore
                  * partially allocated memory blocks
@@ -250,6 +250,10 @@ namespace Hill {
             ~OLFIT() = default;
 
             static auto make_olfit(Memory::Allocator *alloc, WAL::Logger *logger) -> std::unique_ptr<OLFIT> {
+#ifdef __HILL_INFO__
+                std::cout << ">> OLFIT degree: " << Constants::iDEGREE << "\n";
+#endif
+
                 auto a_tid = alloc->register_thread();
                 if (!a_tid.has_value()) {
                     return nullptr;
@@ -270,7 +274,7 @@ namespace Hill {
                 logger->unregister_thread(l_tid.value());
                 return ret;
             }
-            
+
             // external interfaces use const char * as input
             auto insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus;
             auto search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t>;
@@ -278,7 +282,7 @@ namespace Hill {
                 agent = agent_;
             }
             auto dump() const noexcept -> void;
-            
+
         private:
             PolymorphicNodePointer root;
             Memory::Allocator *alloc;
@@ -288,7 +292,7 @@ namespace Hill {
                 if (root.is_leaf()) {
                     return {root.get_as<LeafNode *>(), {}};
                 }
-                
+
                 PolymorphicNodePointer current = root;
                 PolymorphicNodePointer next = nullptr;
                 InnerNode *inner;
@@ -309,7 +313,7 @@ namespace Hill {
                 if (root.is_leaf()) {
                     return root.get_as<LeafNode *>();
                 }
-                
+
                 PolymorphicNodePointer current = root;
                 PolymorphicNodePointer next = nullptr;
                 InnerNode *inner;
@@ -324,9 +328,9 @@ namespace Hill {
                 }
                 return current.get_as<LeafNode *>();
             }
-            
 
-            // follow the original paper of OLFIT, OT 
+
+            // follow the original paper of OLFIT, OT
             auto find_next(InnerNode *current, const char *k, size_t k_sz, std::vector<InnerNode *>& ans) const noexcept -> PolymorphicNodePointer {
                 auto result = current->highkey->compare(k, k_sz);
                 if (result == 0) {
@@ -345,7 +349,7 @@ namespace Hill {
                 }
                 else {
                     if (current->right_link) {
-                        return current->right_link;                        
+                        return current->right_link;
                     } else {
                         int i;
                         for (i = Constants::iDEGREE - 1; i >= 0; i--) {
@@ -354,7 +358,7 @@ namespace Hill {
                             }
                         }
                         ans.push_back(current);
-                        return current->children[i];                        
+                        return current->children[i];
                     }
                 }
             }
@@ -369,7 +373,7 @@ namespace Hill {
                             break;
                         }
                     }
-                    return current->children[i];                        
+                    return current->children[i];
                 } else if (result > 0) {
                     int i;
                     for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
@@ -380,7 +384,7 @@ namespace Hill {
                     return current->children[i];
                 } else {
                     if (current->right_link) {
-                        return current->right_link;                        
+                        return current->right_link;
                     } else {
                         int i;
                         for (i = Constants::iDEGREE - 1; i >= 0; i--) {
@@ -388,7 +392,7 @@ namespace Hill {
                                 break;
                             }
                         }
-                        return current->children[i];                        
+                        return current->children[i];
                     }
                 }
             }
