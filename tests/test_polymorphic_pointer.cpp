@@ -13,8 +13,8 @@ int main() {
 
     auto remote = RemotePointer::make_remote_pointer(nodeid, &alpha);
 
-    auto poly_remote = PolymorphicPointer::make_ploymorphic_pointer(remote);
-    auto poly_local = PolymorphicPointer::make_ploymorphic_pointer(&beta);
+    auto poly_remote = PolymorphicPointer::make_polymorphic_pointer(remote);
+    auto poly_local = PolymorphicPointer::make_polymorphic_pointer(&beta);
 
     if (!poly_remote.is_remote()) {
         std::cout << "It is remote!\n";

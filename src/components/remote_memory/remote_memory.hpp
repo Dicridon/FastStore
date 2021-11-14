@@ -143,13 +143,13 @@ namespace Hill {
             }
 
             template<typename T, typename = std::enable_if_t<std::is_pointer_v<T>>>
-            static auto make_ploymorphic_pointer(const T &t) -> PolymorphicPointer {
+            static auto make_polymorphic_pointer(const T &t) -> PolymorphicPointer {
                 PolymorphicPointer ret;
                 ret.ptr.local = t;
                 return ret;
             }
 
-            static auto make_ploymorphic_pointer(const RemotePointer &t) -> PolymorphicPointer {
+            static auto make_polymorphic_pointer(const RemotePointer &t) -> PolymorphicPointer {
                 PolymorphicPointer ret;
                 ret.ptr.remote = t;
                 return ret;
@@ -187,7 +187,6 @@ namespace Hill {
                     return ptr.remote.get_as<T>();
                 }
             }
-            
             
         private:
             union {

@@ -68,11 +68,12 @@ namespace Hill {
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<detail::ServerContext *>(context);
             auto [type, key, value] = parse_request_message(req_handle, context);
-            auto status = ctx->index->insert(ctx->thread_id, key->raw_chars(), key->size(),
-                                             value->raw_chars(), value->size());
-            
+            // auto status = ctx->index->insert(ctx->thread_id, key->raw_chars(), key->size(),
+            // value->raw_chars(), value->size());
+            auto status = Indexing::Enums::OpStatus::Ok;
+
             auto& resp = req_handle->pre_resp_msgbuf;
-            auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(detail::Enums::RPCStatus);
+            constexpr auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(detail::Enums::RPCStatus);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
 
             *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf) = detail::Enums::RPCOperations::Insert;
@@ -99,10 +100,11 @@ namespace Hill {
         auto StoreServer::search_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<detail::ServerContext *>(context);
             auto [type, key, value] = parse_request_message(req_handle, context);
-            auto [v, v_sz] = ctx->index->search(key->raw_chars(), key->size());
-            
+            // auto [v, v_sz] = ctx->index->search(key->raw_chars(), key->size());
+            auto v = ctx;
             auto& resp = req_handle->pre_resp_msgbuf;
-            auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer) + sizeof(size_t);
+            constexpr auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
+                + sizeof(size_t) + sizeof(detail::Enums::RPCStatus);
 
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
             *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf) = detail::Enums::RPCOperations::Search;
@@ -112,10 +114,10 @@ namespace Hill {
                 *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Failed;
             } else {
                 *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Ok;
-                offset += sizeof(detail::Enums::RPCStatus);
-                *reinterpret_cast<size_t *>(resp.buf + offset) = v_sz;
-                offset += sizeof(size_t);
-                *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = v;
+                // offset += sizeof(detail::Enums::RPCStatus);
+                // *reinterpret_cast<size_t *>(resp.buf + offset) = v_sz;
+                // offset += sizeof(size_t);
+                // *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = v;
             }
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
