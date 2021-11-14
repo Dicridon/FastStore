@@ -35,11 +35,11 @@ namespace Hill {
             if (!agent) {
                 alloc->allocate(tid, total, ptr);
                 KVPair::HillString::make_string(ptr, v, v_sz);
-                values[i] = Memory::PolymorphicPointer::make_ploymorphic_pointer(ptr);
+                values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(ptr);
                 value_sizes[i] = total;
             } else {
                 agent->allocate(tid, total, ptr);
-                values[i] = Memory::PolymorphicPointer::make_ploymorphic_pointer(ptr);
+                values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(ptr);
                 value_sizes[i] = total;
                 auto &connection = agent->get_peer_connection(values[i].remote_ptr().get_node());
                 auto buf = std::make_unique<byte_t[]>(total);
