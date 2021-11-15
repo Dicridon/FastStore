@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     if (!is_server) {
         auto s = steady_clock::now();
         for (auto &s : workload) {
-            rdma_ctx->post_write((uint8_t *)s.c_str(), s.size(), offset);
+            rdma_ctx->post_write((uint8_t *)s.c_str(), s.size(), offset, offset);
             rdma_ctx->poll_completion_once();
             offset += s.size();
         }
@@ -108,11 +108,11 @@ int main(int argc, char *argv[]) {
     if (!is_server) {
         auto s = steady_clock::now();
         for (auto &s : workload) {
-            rdma_ctx->post_read(s.size(), offset);
+            rdma_ctx->post_read(s.size(), offset, offset);
             rdma_ctx->poll_completion_once();
             if (debug) {
                 for (auto i = 0UL; i < s.size(); i++) {
-                    std::cout << rdma_ctx->get_char_buf()[i];
+                    std::cout << rdma_ctx->get_char_buf()[offset + i];
                 }
                 std::cout << "\n";
             }
