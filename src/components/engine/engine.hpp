@@ -90,6 +90,13 @@ namespace Hill {
                                                                        &ret->peer_connections[i]);
             }
 
+            auto [rdma_device, status] = RDMADevice::make_rdma(ret->rdma_dev_name, ret->ib_port, ret->gid_idx);
+            if (status != Status::Ok) {
+                return nullptr;
+            }
+            
+            ret->rdma_device = std::move(rdma_device);
+            
             ret->sock = 0;
             ret->run = false;
             return ret;
@@ -138,6 +145,7 @@ namespace Hill {
         std::unique_ptr<WAL::Logger> logger;
         Memory::Allocator *allocator;
 
+        std::unique_ptr<RDMADevice> rdma_device;
         std::string rdma_dev_name;
         int ib_port;
         int gid_idx;
@@ -146,8 +154,8 @@ namespace Hill {
         bool run;
 
         int sock;
-        std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
-        std::vector<RDMA::RDMAPtr> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
+        std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
+        std::vector<std::unique_ptr<RDMAContext>> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
         Memory::RemoteMemoryAgent *agents[Memory::Constants::iTHREAD_LIST_NUM];
 
         auto parse_ib(const std::string &config) noexcept -> bool;
@@ -199,6 +207,11 @@ namespace Hill {
             ret->run = false;
             ret->parse_ib(config);
             ret->buf = std::make_unique<byte_t[]>(16 * 1024);
+
+            auto [rdma_device, status] = RDMADevice::make_rdma(ret->rdma_dev_name, ret->ib_port, ret->gid_idx);
+            if (status != Status::Ok) {
+                return nullptr;
+            }
             return ret;
         }
         auto connect_monitor() noexcept -> bool;
@@ -242,6 +255,7 @@ namespace Hill {
         int monitor_port;
          int monitor_socket;
 
+        std::unique_ptr<RDMADevice> rdma_device;
         Cluster::ClusterMeta meta;
         std::string rdma_dev_name;
         int ib_port;
@@ -251,7 +265,7 @@ namespace Hill {
         int port;
         std::string rpc_uri;
 
-        std::array<RDMAUtil::RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];
+        std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];
         std::unique_ptr<byte_t[]> buf;
 
         auto parse_ib(const std::string &config) noexcept -> bool;

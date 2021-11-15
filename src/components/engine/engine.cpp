@@ -20,22 +20,23 @@ namespace Hill {
             }
         }
 
-        auto [rdma, status] = RDMA::make_rdma(rdma_dev_name, ib_port, gid_idx);
-        if (!rdma) {
+        auto [rdma_ctx, status] = rdma_device->open(base, node->available_pm, 12, RDMADevice::get_default_mr_access(),
+                                                    *RDMADevice::get_default_qp_init_attr());
+        if (!rdma_ctx) {
             std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
             return -1;
         }
 
-        if (auto err = rdma->default_connect(socket, base, node->available_pm); err != 0) {
+        if (auto err = rdma_ctx->default_connect(socket); err != 0) {
             std::cerr << "RDMA connection failed\n";
             return err;
         }
 
         if (remote_id == Cluster::Constants::iCLIENT_ID) {
             // just keep this connection alive
-            client_connections[tid].push_back(std::move(rdma));
+            client_connections[tid].push_back(std::move(rdma_ctx));
         } else {
-            peer_connections[tid][remote_id] = std::move(rdma);            
+            peer_connections[tid][remote_id] = std::move(rdma_ctx);
         }
 
         // no longer needed
@@ -84,7 +85,7 @@ namespace Hill {
         }
 
         auto tid = a_tid.value();
-        
+
         std::thread checker([&, tid] {
             while(this->run) {
                 check_rdma_request(tid);
@@ -170,13 +171,13 @@ namespace Hill {
             auto buf = std::make_unique<byte_t[]>(size);
             Misc::recv_all(monitor_socket, buf.get(), size);
             meta.deserialize(buf.get());
-            
+
             while(run) {
                 size = meta.total_size();
                 Misc::send_all(monitor_socket, &size, sizeof(size));
                 buf = meta.serialize();
                 Misc::send_all(monitor_socket, buf.get(), size);
-                
+
                 Misc::recv_all(monitor_socket, &size, sizeof(size));
                 buf = std::make_unique<byte_t[]>(size);
                 Misc::recv_all(monitor_socket, buf.get(), size);
@@ -186,7 +187,7 @@ namespace Hill {
                 meta.update(tmp);
 #ifdef __HILL_DEBUG__
                 meta.dump();
-#endif                
+#endif
                 sleep(1);
             }
         });
@@ -210,12 +211,13 @@ namespace Hill {
     auto Client::unregister_thread([[maybe_unused]] int tid) -> void {
 
     }
-    
+
     auto Client::connect_server(int tid, int node_id) noexcept -> bool {
         if (node_id <= 0 || size_t(node_id) > Cluster::Constants::uMAX_NODE) {
             return false;
         }
-        auto [rdma, status] = RDMA::make_rdma(rdma_dev_name, ib_port, gid_idx);
+        auto [rdma, status] = rdma_device->open(buf.get(), 16 * 1024, 12, RDMADevice::get_default_mr_access(),
+                                                *RDMADevice::get_default_qp_init_attr());
         if (!rdma) {
             std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
             return false;
@@ -228,9 +230,9 @@ namespace Hill {
         if (socket == -1) {
             return false;
         }
-        
-        write(socket, &Cluster::Constants::iCLIENT_ID, sizeof(Cluster::Constants::iCLIENT_ID));        
-        if (rdma->default_connect(socket, buf.get(), 16 * 1024) != 0) {
+
+        write(socket, &Cluster::Constants::iCLIENT_ID, sizeof(Cluster::Constants::iCLIENT_ID));
+        if (rdma->default_connect(socket) != 0) {
             return false;
         }
 
@@ -287,4 +289,3 @@ namespace Hill {
         return true;
     }
 }
-

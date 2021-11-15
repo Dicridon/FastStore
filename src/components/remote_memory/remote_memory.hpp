@@ -259,7 +259,7 @@ namespace Hill {
             auto operator=(const RemotePointer &) -> RemotePointer & = delete;
             auto operator=(RemotePointer &&) -> RemotePointer & = delete;
 
-            static auto make_agent(const byte_ptr_t &pm, std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> *p) -> RemoteMemoryAgent * {
+            static auto make_agent(const byte_ptr_t &pm, std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> *p) -> RemoteMemoryAgent * {
                 auto tmp = reinterpret_cast<RemoteMemoryAgent *>(pm);
                 memset(tmp, 0, sizeof(RemoteMemoryAgent));
                 tmp->peer_connections = p;
@@ -276,14 +276,14 @@ namespace Hill {
                 allocators[tid][cursors[tid]].free(ptr);
             }
 
-            auto get_peer_connection(int node_id) -> RDMA::RDMAPtr & {
+            auto get_peer_connection(int node_id) -> std::unique_ptr<RDMAContext> & {
                 return (*peer_connections)[node_id];
             }
         private:
             RemoteAllocator allocators[Constants::iTHREAD_LIST_NUM][Constants::uREMOTE_REGIONS];
             int cursors[Constants::iTHREAD_LIST_NUM];
             // a reference to the engine's peer connections
-            std::array<RDMA::RDMAPtr, Cluster::Constants::uMAX_NODE> *peer_connections;
+            std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> *peer_connections;
         };
     }
 }

@@ -45,170 +45,35 @@ namespace Hill {
                 return "Unknown status";
             }
         }
-        
-        auto RDMA::make_rdma(std::string &dev_name, int ib_port, int gid_idx) -> std::pair<RDMAPtr, Status> {
-            int dev_num = 0;
-            struct ibv_device **devices = ibv_get_device_list(&dev_num);
-            if (!devices) {
-                return std::make_pair(nullptr, Status::NoRDMADeviceList);
-            }
 
-            for (int i = 0; i < dev_num; i++) {
-                if (dev_name.compare(ibv_get_device_name(devices[i])) == 0) {
-                    if (auto ctx = ibv_open_device(devices[i]); ctx) {
-                        return std::make_pair(std::make_unique<RDMA>(ctx, ib_port, gid_idx), Status::Ok);
-                    }
-                }
-            }
-            return std::make_pair(nullptr, Status::DeviceNotFound);
-        }
-
-        auto RDMA::open(void *membuf, size_t memsize, size_t cqe, int mr_access, struct ibv_qp_init_attr &attr) -> Status {
-            if (!membuf || !cqe) {
-                return Status::InvalidArguments;
-            }
-
-            if (!(pd = ibv_alloc_pd(ctx))) {
-                return Status::CannotAllocPD;
-            }
-
-            if (!(cq = ibv_create_cq(ctx, cqe, nullptr, nullptr, 0))) {
-                return Status::CannotCreateCQ;
-            }
-
-            if (!(mr = ibv_reg_mr(pd, membuf, memsize, mr_access))) {
-                return Status::CannotRegMR;
-            }
-
-            attr.send_cq = cq;
-            attr.recv_cq = cq;
-            if (!(qp = ibv_create_qp(pd, &attr))) {
-                return Status::CannotCreateQP;
-            }
-
-            union ibv_gid my_gid;
-            if (gid_idx >= 0) {
-                if (ibv_query_gid(ctx, ib_port, gid_idx, &my_gid)) {
-                    return Status::NoGID;
-                }
-                memcpy(local.gid, &my_gid, 16);
-            }
-            local.addr = (uint64_t)membuf;
-            local.rkey = mr->rkey;
-            local.qp_num = qp->qp_num;
-
-            struct ibv_port_attr pattr;
-            if (ibv_query_port(ctx, ib_port, &pattr)) {
-                return Status::CannotQueryPort;
-            }
-            local.lid = pattr.lid;
-
-            buf = membuf;
-            return Status::Ok;
-        }
-
-        auto RDMA::get_default_qp_init_attr(const int ib_port) -> std::unique_ptr<struct ibv_qp_attr> {
-            auto attr = std::make_unique<struct ibv_qp_attr>();
-            memset(attr.get(), 0, sizeof(struct ibv_qp_attr));
-
-            attr->qp_state = IBV_QPS_INIT;
-            attr->port_num = ib_port;
-            attr->pkey_index = 0;
-            attr->qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
-            return attr;
-        }
-
-        auto RDMA::get_default_qp_rtr_attr(const connection_certificate &remote,
-                                           const int ib_port = 1,
-                                           const int sgid_idx = -1) -> std::unique_ptr<struct ibv_qp_attr> {
-            auto attr = std::make_unique<struct ibv_qp_attr>();
-            memset(attr.get(), 0, sizeof(struct ibv_qp_attr));
-        
-            attr->qp_state = IBV_QPS_RTR;
-            attr->path_mtu = IBV_MTU_256;
-            attr->dest_qp_num = remote.qp_num;
-            attr->rq_psn = 0;
-            attr->max_dest_rd_atomic = 1;
-            attr->min_rnr_timer = 0x12;
-
-            attr->ah_attr.is_global = 0;
-            attr->ah_attr.dlid = remote.lid;
-            attr->ah_attr.sl = 0;
-            attr->ah_attr.src_path_bits = 0;
-            attr->ah_attr.port_num = ib_port;
-        
-            if (sgid_idx >= 0) {
-                attr->ah_attr.is_global = 1;
-                attr->ah_attr.port_num = 1;
-                memcpy(&attr->ah_attr.grh.dgid, remote.gid, 16);
-                attr->ah_attr.grh.flow_label = 0;
-                attr->ah_attr.grh.hop_limit = 1;
-                attr->ah_attr.grh.sgid_index = sgid_idx;
-                attr->ah_attr.grh.traffic_class = 0;
-            }
-            return attr;
-        }
-
-        auto RDMA::get_default_qp_rts_attr() -> std::unique_ptr<struct ibv_qp_attr> {
-            auto attr = std::make_unique<struct ibv_qp_attr>();
-            memset(attr.get(), 0, sizeof(struct ibv_qp_attr));
-        
-            attr->qp_state = IBV_QPS_RTS;
-            attr->timeout = 0x12; // 18
-            attr->retry_cnt = 6;
-            attr->rnr_retry = 0;
-            attr->sq_psn = 0;
-            attr->max_rd_atomic = 1;
-            return attr;
-        }
-
-        auto RDMA::default_connect(int socket, const byte_ptr_t &base, size_t size) -> int {
-            struct ibv_qp_init_attr at;
-            memset(&at, 0, sizeof(struct ibv_qp_init_attr));
-            int mr_access = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
-            at.qp_type = IBV_QPT_RC;
-            at.sq_sig_all = 1;
-            at.cap.max_send_wr = 1;
-            at.cap.max_recv_wr = 1;
-            at.cap.max_send_sge = 1;
-            at.cap.max_recv_sge = 1;
-
-            if (auto status = open(base, size, 128, mr_access, at); status != Status::Ok) {
-                std::cerr << "Failed to open RDMA, error code: " << decode_rdma_status(status) << "\n";
-                return -1;
-            }
-
+        auto RDMAContext::default_connect(int socket) -> int {
             if (auto status = exchange_certificate(socket); status != Status::Ok) {
                 std::cerr << "Failed to exchange RDMA, error code: " << decode_rdma_status(status) << "\n";
                 return -1;
             }
 
-            auto init_attr = RDMA::get_default_qp_init_attr();
-            if (auto [status, err] = modify_qp(*init_attr, RDMA::get_default_qp_init_attr_mask()); status != Status::Ok) {
+            auto init_attr = RDMADevice::get_default_qp_init_state_attr();
+            if (auto [status, err] = modify_qp(*init_attr, RDMADevice::get_default_qp_init_state_attr_mask()); status != Status::Ok) {
                 std::cerr << "Modify QP to Init failed, error code: " << err << "\n";
                 return err;
             }
 
-            auto rtr_attr = RDMA::get_default_qp_rtr_attr(get_remote(), get_ib_port(), get_gid_idx());
-            if (auto [status, err] = modify_qp(*rtr_attr, RDMA::get_default_qp_rtr_attr_mask()); status != Status::Ok) {
+            auto rtr_attr = RDMADevice::get_default_qp_rtr_attr(remote, device->get_ib_port(), device->get_gid_idx());
+            if (auto [status, err] = modify_qp(*rtr_attr, RDMADevice::get_default_qp_rtr_attr_mask()); status != Status::Ok) {
                 std::cerr << "Modify QP to Rtr failed, error code: " << err << "\n";
                 return err;
             }
 
-            auto rts_attr = RDMA::get_default_qp_rts_attr();
-            if (auto [status, err] = modify_qp(*rts_attr, RDMA::get_default_qp_rts_attr_mask()); status != Status::Ok) {
+            auto rts_attr = RDMADevice::get_default_qp_rts_attr();
+            if (auto [status, err] = modify_qp(*rts_attr, RDMADevice::get_default_qp_rts_attr_mask()); status != Status::Ok) {
                 std::cerr << "Modify QP to Rts failed, error code: " << err << "\n";
                 return err;
             }
             return 0;
         }
-        
 
-        auto RDMA::modify_qp(struct ibv_qp_attr &attr, int mask) noexcept -> StatusPair {
-            if (!is_opened()) {
-                return std::make_pair(Status::DeviceNotOpened, -1);
-            }
-        
+
+        auto RDMAContext::modify_qp(struct ibv_qp_attr &attr, int mask) noexcept -> StatusPair {
             if (auto ret =  ibv_modify_qp(qp, &attr, mask); ret == 0) {
                 return std::make_pair(Status::Ok, ret);
             } else {
@@ -216,10 +81,7 @@ namespace Hill {
             }
         }
 
-        auto RDMA::exchange_certificate(int sockfd) noexcept -> Status {
-            if (!is_opened())
-                return Status::DeviceNotOpened;
-        
+        auto RDMAContext::exchange_certificate(int sockfd) noexcept -> Status {
             const int normal = sizeof(connection_certificate);
             connection_certificate tmp;
             tmp.addr = htonll(local.addr);
@@ -243,20 +105,23 @@ namespace Hill {
             return Status::Ok;
         }
 
-        auto RDMA::post_send_helper(const uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t offset) -> StatusPair {
+        auto RDMAContext::post_send_helper(const uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode,
+                                           size_t local_offset, size_t remote_offset) -> StatusPair
+        {
             struct ibv_sge sg;
             struct ibv_send_wr sr;
             struct ibv_send_wr *bad_wr;
+            auto byte_buf = reinterpret_cast<byte_ptr_t>(buf) + local_offset;
 
             if (msg) {
-                memcpy(buf, msg, msg_len);
+                memcpy(byte_buf, msg, msg_len);
             }
-        
+
             memset(&sg, 0, sizeof(sg));
-            sg.addr	  = (uintptr_t)buf;                
+            sg.addr	  = reinterpret_cast<uint64_t>(byte_buf);
             sg.length = msg_len;
             sg.lkey	  = mr->lkey;
- 
+
             memset(&sr, 0, sizeof(sr));
             sr.wr_id      = 0;
             sr.sg_list    = &sg;
@@ -265,45 +130,56 @@ namespace Hill {
             sr.send_flags = IBV_SEND_SIGNALED;
 
             if (opcode != IBV_WR_SEND) {
-                sr.wr.rdma.remote_addr = remote.addr + offset;
+                sr.wr.rdma.remote_addr = remote.addr + remote_offset;
                 sr.wr.rdma.rkey = remote.rkey;
             }
- 
+
             if (auto ret = ibv_post_send(qp, &sr, &bad_wr); ret != 0) {
                 return {Status::PostFailed, ret};
             }
             return {Status::Ok, 0};
         }
-        auto RDMA::post_send_helper(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode) -> StatusPair {
-            auto offset = reinterpret_cast<uint64_t>(ptr) - remote.addr;
-            return post_send_helper(msg, msg_len, opcode, offset);
-        }
-        
-        auto RDMA::post_send(const uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
-            return post_send_helper(msg, msg_len, IBV_WR_SEND, offset);
+
+        auto RDMAContext::post_send_helper(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len,
+                                           enum ibv_wr_opcode opcode, size_t local_offset) -> StatusPair
+        {
+            auto remote_offset = reinterpret_cast<uint64_t>(ptr) - remote.addr;
+            return post_send_helper(msg, msg_len, opcode, local_offset, remote_offset);
         }
 
-        auto RDMA::post_send(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair {
-            return post_send_helper(ptr, msg, msg_len, IBV_WR_SEND);
-        }
-    
-        auto RDMA::post_read(size_t msg_len, size_t offset) -> StatusPair {
-            return post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ, offset);
+        auto RDMAContext::post_send(const uint8_t *msg, size_t msg_len, size_t local_offset)
+            -> StatusPair
+        {
+            return post_send_helper(msg, msg_len, IBV_WR_SEND, local_offset, 0);
         }
 
-        auto RDMA::post_read(const byte_ptr_t &ptr, size_t msg_len) -> StatusPair {
-            return post_send_helper(ptr, nullptr, msg_len, IBV_WR_RDMA_READ);
+        auto RDMAContext::post_send(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, size_t local_offset)
+            -> StatusPair
+        {
+            return post_send_helper(ptr, msg, msg_len, IBV_WR_SEND, local_offset);
         }
 
-        auto RDMA::post_write(const uint8_t *msg, size_t msg_len, size_t offset) -> StatusPair {
-            return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE, offset);
+        auto RDMAContext::post_read(size_t msg_len, size_t local_offset, size_t remote_offset) -> StatusPair {
+            return post_send_helper(nullptr, msg_len, IBV_WR_RDMA_READ, local_offset, remote_offset);
         }
 
-        auto RDMA::post_write(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len) -> StatusPair {
-            return post_send_helper(ptr, msg, msg_len, IBV_WR_RDMA_WRITE);
+        auto RDMAContext::post_read(const byte_ptr_t &ptr, size_t msg_len, size_t local_offset) -> StatusPair {
+            return post_send_helper(ptr, nullptr, msg_len, IBV_WR_RDMA_READ, local_offset);
         }
-        
-        auto RDMA::post_recv_to(size_t msg_len, size_t offset) -> StatusPair {
+
+        auto RDMAContext::post_write(const uint8_t *msg, size_t msg_len, size_t local_offset, size_t remote_offset)
+            -> StatusPair
+        {
+            return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE, local_offset, remote_offset);
+        }
+
+        auto RDMAContext::post_write(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, size_t local_offset)
+            -> StatusPair
+        {
+            return post_send_helper(ptr, msg, msg_len, IBV_WR_RDMA_WRITE, local_offset);
+        }
+
+        auto RDMAContext::post_recv_to(size_t msg_len, size_t offset) -> StatusPair {
             struct ibv_sge sg;
             struct ibv_recv_wr wr;
             struct ibv_recv_wr *bad_wr;
@@ -313,21 +189,22 @@ namespace Hill {
             sg.addr	  = (uintptr_t)tmp;
             sg.length = msg_len;
             sg.lkey	  = mr->lkey;
- 
+
             memset(&wr, 0, sizeof(wr));
             wr.wr_id      = 0;
             wr.sg_list    = &sg;
             wr.num_sge    = 1;
- 
+
             if (auto ret = ibv_post_recv(qp, &wr, &bad_wr); ret != 0) {
                 return std::make_pair(Status::RecvFailed, ret);
             }
             return std::make_pair(Status::Ok, 0);
         }
 
-        auto RDMA::poll_completion() noexcept -> int {
+        auto RDMAContext::poll_completion_once(bool send) noexcept -> int {
             struct ibv_wc wc;
             int ret;
+            auto cq = send ? out_cq : in_cq;
             do {
                 ret = ibv_poll_cq(cq, 1, &wc);
             } while (ret == 0);
@@ -335,8 +212,155 @@ namespace Hill {
             return ret;
         }
 
-        auto RDMA::fill_buf(uint8_t *msg, size_t msg_len, size_t offset) -> void{
+        auto RDMAContext::poll_one_completion(bool send) noexcept
+            -> std::pair<std::unique_ptr<struct ibv_wc>, int>
+        {
+            auto wc = std::make_unique<struct ibv_wc>();
+            int ret;
+            auto cq = send ? out_cq : in_cq;            
+            do {
+                ret = ibv_poll_cq(cq, 1, wc.get());
+            } while (ret == 0);
+
+            return {std::move(wc), ret};
+        }
+
+        auto RDMAContext::poll_multiple_completions(size_t no, bool send) noexcept
+            -> std::pair<std::unique_ptr<struct ibv_wc[]>, int>
+        {
+            auto wc = std::make_unique<struct ibv_wc[]>(no);
+            int ret;
+            auto cq = send ? out_cq : in_cq;            
+            do {
+                ret = ibv_poll_cq(cq, no, wc.get());
+            } while (ret == 0);
+
+            return {std::move(wc), ret};
+        }        
+
+        auto RDMAContext::fill_buf(uint8_t *msg, size_t msg_len, size_t offset) -> void{
             memcpy((uint8_t *)buf + offset, msg, msg_len);
+        }
+
+
+        auto RDMADevice::open(void *membuf, size_t memsize, size_t cqe, int mr_access,
+                              struct ibv_qp_init_attr &attr) -> std::pair<std::unique_ptr<RDMAContext>, Status>
+        {
+            auto rdma_ctx = RDMAContext::make_rdma_context();
+            if (!membuf || !cqe) {
+                return {nullptr, Status::InvalidArguments};
+            }
+
+            if (!(rdma_ctx->pd = ibv_alloc_pd(ctx))) {
+                return {nullptr, Status::CannotAllocPD};
+            }
+
+            if (!(rdma_ctx->in_cq = ibv_create_cq(ctx, cqe, nullptr, nullptr, 0))) {
+                return {nullptr, Status::CannotCreateCQ};
+            }
+
+            if (!(rdma_ctx->out_cq = ibv_create_cq(ctx, cqe, nullptr, nullptr, 0))) {
+                return {nullptr, Status::CannotCreateCQ};
+            }
+
+            if (!(rdma_ctx->mr = ibv_reg_mr(rdma_ctx->pd, membuf, memsize, mr_access))) {
+                return {nullptr, Status::CannotRegMR};
+            }
+
+            attr.send_cq = rdma_ctx->out_cq;
+            attr.recv_cq = rdma_ctx->in_cq;
+            if (!(rdma_ctx->qp = ibv_create_qp(rdma_ctx->pd, &attr))) {
+                return {nullptr, Status::CannotCreateQP};
+            }
+
+            union ibv_gid my_gid;
+            if (gid_idx >= 0) {
+                if (ibv_query_gid(ctx, ib_port, gid_idx, &my_gid)) {
+                    return {nullptr, Status::NoGID};
+                }
+                memcpy(rdma_ctx->local.gid, &my_gid, 16);
+            }
+            rdma_ctx->local.addr = (uint64_t)membuf;
+            rdma_ctx->local.rkey = rdma_ctx->mr->rkey;
+            rdma_ctx->local.qp_num = rdma_ctx->qp->qp_num;
+
+            struct ibv_port_attr pattr;
+            if (ibv_query_port(ctx, ib_port, &pattr)) {
+                return {nullptr, Status::CannotQueryPort};
+            }
+            rdma_ctx->local.lid = pattr.lid;
+
+            rdma_ctx->buf = membuf;
+            rdma_ctx->device = this;
+            return {std::move(rdma_ctx), Status::Ok};
+        }
+
+        auto RDMADevice::get_default_qp_init_attr() -> std::unique_ptr<struct ibv_qp_init_attr> {
+            auto at = std::make_unique<ibv_qp_init_attr>();
+            memset(at.get(), 0, sizeof(struct ibv_qp_init_attr));
+
+            at->qp_type = IBV_QPT_RC;
+            at->sq_sig_all = 1;
+            at->cap.max_send_wr = 1;
+            at->cap.max_recv_wr = 1;
+            at->cap.max_send_sge = 1;
+            at->cap.max_recv_sge = 1;
+            return at;
+        }
+
+        auto RDMADevice::get_default_qp_init_state_attr(const int ib_port) -> std::unique_ptr<struct ibv_qp_attr> {
+            auto attr = std::make_unique<struct ibv_qp_attr>();
+            memset(attr.get(), 0, sizeof(struct ibv_qp_attr));
+
+            attr->qp_state = IBV_QPS_INIT;
+            attr->port_num = ib_port;
+            attr->pkey_index = 0;
+            attr->qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
+            return attr;
+        }
+
+        auto RDMADevice::get_default_qp_rtr_attr(const connection_certificate &remote,
+                                                 const int ib_port = 1,
+                                                 const int sgid_idx = -1) -> std::unique_ptr<struct ibv_qp_attr> {
+            auto attr = std::make_unique<struct ibv_qp_attr>();
+            memset(attr.get(), 0, sizeof(struct ibv_qp_attr));
+
+            attr->qp_state = IBV_QPS_RTR;
+            attr->path_mtu = IBV_MTU_256;
+            attr->dest_qp_num = remote.qp_num;
+            attr->rq_psn = 0;
+            attr->max_dest_rd_atomic = 1;
+            attr->min_rnr_timer = 0x12;
+
+            attr->ah_attr.is_global = 0;
+            attr->ah_attr.dlid = remote.lid;
+            attr->ah_attr.sl = 0;
+            attr->ah_attr.src_path_bits = 0;
+            attr->ah_attr.port_num = ib_port;
+
+            if (sgid_idx >= 0) {
+                attr->ah_attr.is_global = 1;
+                attr->ah_attr.port_num = 1;
+                memcpy(&attr->ah_attr.grh.dgid, remote.gid, 16);
+                attr->ah_attr.grh.flow_label = 0;
+                attr->ah_attr.grh.hop_limit = 1;
+                attr->ah_attr.grh.sgid_index = sgid_idx;
+                attr->ah_attr.grh.traffic_class = 0;
+            }
+            return attr;
+        }
+
+        auto RDMADevice::get_default_qp_rts_attr() -> std::unique_ptr<struct ibv_qp_attr> {
+            auto attr = std::make_unique<struct ibv_qp_attr>();
+            memset(attr.get(), 0, sizeof(struct ibv_qp_attr));
+
+            attr->qp_state = IBV_QPS_RTS;
+            attr->timeout = 0x12; // 18
+            attr->retry_cnt = 6;
+            attr->rnr_retry = 0;
+            attr->sq_psn = 0;
+            attr->max_rd_atomic = 1;
+            return attr;
         }
     }
 }

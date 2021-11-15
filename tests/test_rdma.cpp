@@ -60,16 +60,23 @@ int main(int argc, char *argv[]) {
     auto batch = parser.get_as<size_t>("--batch").value();
     auto debug = parser.get_as<bool>("--debug").value();
     
-    auto [rdma, status] = RDMA::make_rdma(dev_name, ib_port, gid_idx);
-    if (!rdma) {
-        std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
+    auto [rdma_device, dstatus] = RDMADevice::make_rdma(dev_name, ib_port, gid_idx);
+    if (!rdma_device) {
+        std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(dstatus) << "\n";
         return -1;
     }
 
     size_t registered = 1024 * 1024 * 1024;
     auto buf = new byte_t[registered];
     auto sockfd = socket_connect(is_server, socket_port, "127.0.0.1");
-    if (rdma->default_connect(sockfd, buf, registered) != 0) {
+    auto [rdma_ctx, cstatus] = rdma_device->open(buf, registered, 12, RDMADevice::get_default_mr_access(),
+                                                 *RDMADevice::get_default_qp_init_attr());
+    if (!rdma_ctx) {
+        std::cerr << "Failed to open RDMA device, error code: " << decode_rdma_status(cstatus) << "\n";
+        return -1;
+    }
+    
+    if (rdma_ctx->default_connect(sockfd) != 0) {
         std::cerr << "Default RDMA connection failed\n";
         return -1;
     }
@@ -85,8 +92,8 @@ int main(int argc, char *argv[]) {
     if (!is_server) {
         auto s = steady_clock::now();
         for (auto &s : workload) {
-            rdma->post_write((uint8_t *)s.c_str(), s.size(), offset);
-            rdma->poll_completion();
+            rdma_ctx->post_write((uint8_t *)s.c_str(), s.size(), offset);
+            rdma_ctx->poll_completion_once();
             offset += s.size();
         }
         auto e = steady_clock::now();
@@ -101,11 +108,11 @@ int main(int argc, char *argv[]) {
     if (!is_server) {
         auto s = steady_clock::now();
         for (auto &s : workload) {
-            rdma->post_read(s.size(), offset);
-            rdma->poll_completion();
+            rdma_ctx->post_read(s.size(), offset);
+            rdma_ctx->poll_completion_once();
             if (debug) {
                 for (auto i = 0UL; i < s.size(); i++) {
-                    std::cout << rdma->get_char_buf()[i];
+                    std::cout << rdma_ctx->get_char_buf()[i];
                 }
                 std::cout << "\n";
             }
