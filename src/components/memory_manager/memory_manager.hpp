@@ -191,6 +191,25 @@ namespace Hill {
 
             static auto make_allocator(const byte_ptr_t &base, size_t size) -> Allocator * {
                 auto allocator = reinterpret_cast<Allocator *>(base);
+                allocator->header.magic = Constants::uALLOCATOR_MAGIC;
+                allocator->header.total_size = size;
+                allocator->header.freelist = nullptr;
+
+                auto aligned = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(base + sizeof(AllocatorHeader)) & Constants::uPAGE_MASK);
+                allocator->header.base = reinterpret_cast<Page *>(aligned + 1);
+                allocator->header.cursor = allocator->header.base;
+
+                for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
+                    allocator->header.thread_free_lists[i] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
+                    allocator->header.thread_pending_pages[i] = nullptr;
+                    allocator->header.thread_busy_pages[i] = nullptr;
+                    allocator->header.to_be_freed[i] = nullptr;
+                }
+                return allocator;
+            }
+
+            static auto recover_or_makie_allocator(const byte_ptr_t &base, size_t size) -> Allocator * {
+                auto allocator = reinterpret_cast<Allocator *>(base);
 
                 switch(allocator->recover()){
                 case Enums::AllocatorRecoveryStatus::Ok:
