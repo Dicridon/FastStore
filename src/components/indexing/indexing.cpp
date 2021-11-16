@@ -12,9 +12,16 @@ namespace Hill {
                 if (keys[i] == nullptr) {
                     break;
                 }
-                if (keys[i]->compare(k, k_sz) > 0) {
+                
+                auto c = keys[i]->compare(k, k_sz);
+                if (c > 0) {
                     break;
                 }
+                
+                if (c == 0) {
+                    return Enums::OpStatus::RepeatInsert;
+                }
+                
             }
 
             for (int j = Constants::iNUM_HIGHKEY - 1; j > i; j--) {

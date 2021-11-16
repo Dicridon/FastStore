@@ -28,6 +28,7 @@ namespace Hill {
                 Retry,
                 NoMemory,
                 NeedSplit,
+                RepeatInsert,
             };
 
             enum class NodeType : byte_t {
