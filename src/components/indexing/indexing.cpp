@@ -21,7 +21,6 @@ namespace Hill {
                 if (c == 0) {
                     return Enums::OpStatus::RepeatInsert;
                 }
-                
             }
 
             for (int j = Constants::iNUM_HIGHKEY - 1; j > i; j--) {
