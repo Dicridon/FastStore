@@ -43,6 +43,11 @@ namespace Hill {
      */
     using namespace Memory::TypeAliases;
     using namespace RDMAUtil;
+
+    namespace Constants {
+        constexpr size_t uLOCAL_BUF_SIZE = 16 * 1024;
+    }
+    
     class Engine {
     public:
         Engine() = default;
@@ -206,12 +211,12 @@ namespace Hill {
             ret->rpc_uri = vrpc_uri[1].str();
             ret->run = false;
             ret->parse_ib(config);
-            ret->buf = std::make_unique<byte_t[]>(16 * 1024);
 
             auto [rdma_device, status] = RDMADevice::make_rdma(ret->rdma_dev_name, ret->ib_port, ret->gid_idx);
             if (status != Status::Ok) {
                 return nullptr;
             }
+            ret->rdma_device = std::move(rdma_device);
             return ret;
         }
         auto connect_monitor() noexcept -> bool;
@@ -232,8 +237,8 @@ namespace Hill {
             return server_connections[tid][node_id]->get_buf();
         }
 
-        inline auto get_buf() const noexcept -> const std::unique_ptr<byte_t[]> & {
-            return buf;
+        inline auto get_buf(int tid, int node_id) const noexcept -> const std::unique_ptr<byte_t[]> & {
+            return bufs[tid][node_id];
         }
 
         inline auto get_cluster_meta() const noexcept -> const Cluster::ClusterMeta & {
@@ -266,7 +271,7 @@ namespace Hill {
         std::string rpc_uri;
 
         std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> server_connections[Memory::Constants::iTHREAD_LIST_NUM];
-        std::unique_ptr<byte_t[]> buf;
+        std::array<std::unique_ptr<byte_t[]>, Cluster::Constants::uMAX_NODE> bufs[Memory::Constants::iTHREAD_LIST_NUM];
 
         auto parse_ib(const std::string &config) noexcept -> bool;
     };

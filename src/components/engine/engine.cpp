@@ -216,7 +216,13 @@ namespace Hill {
         if (node_id <= 0 || size_t(node_id) > Cluster::Constants::uMAX_NODE) {
             return false;
         }
-        auto [rdma, status] = rdma_device->open(buf.get(), 16 * 1024, 12, RDMADevice::get_default_mr_access(),
+
+        if (bufs[tid][node_id] == nullptr) {
+            bufs[tid][node_id] = std::make_unique<byte_t[]>(Constants::uLOCAL_BUF_SIZE);
+        }
+        
+        auto [rdma, status] = rdma_device->open(bufs[tid][node_id].get(), Constants::uLOCAL_BUF_SIZE,
+                                                12, RDMADevice::get_default_mr_access(),
                                                 *RDMADevice::get_default_qp_init_attr());
         if (!rdma) {
             std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
