@@ -147,6 +147,14 @@ namespace Hill {
             auto [node, ans] = traverse_node(k, k_sz);
             node->version_lock.lock();
 
+            ////////////////////////////////////////////////////////
+            // std::cout << ">> Thread " << tid << " Inserting "; //
+            // for (size_t i = 0; i < k_sz; i++) {                //
+            //     std::cout << k[i];                             //
+            // }                                                  //
+            // std::cout << "\n";                                 //
+            ////////////////////////////////////////////////////////
+            
             if (!node->is_full()) {
                 auto ret = node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 node->version_lock.unlock();
@@ -167,7 +175,7 @@ namespace Hill {
                 return Enums::OpStatus::Ok;
             }
 
-            auto ret = push_up(tid, new_leaf, ans);
+            auto ret = push_up(new_leaf, ans);
             node->version_lock.unlock();
             return ret;
         }
@@ -278,7 +286,7 @@ namespace Hill {
             return {right, ret_split_key};
         }
 
-        auto OLFIT::push_up(int tid, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus {
+        auto OLFIT::push_up(LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus {
             InnerNode *inner;
             PolymorphicNodePointer new_node = new_leaf;
             hill_key_t *splitkey = new_leaf->keys[0];

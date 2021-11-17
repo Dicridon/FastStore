@@ -17,8 +17,13 @@ namespace Hill {
         using namespace KVPair::TypeAliases;
         using namespace WAL::TypeAliases;
         namespace Constants {
+#ifdef __HILL_DEBUG__
+            static constexpr int iDEGREE = 3;
+            static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
+#else
             static constexpr int iDEGREE = 64;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
+#endif
         }
 
         namespace Enums {
@@ -40,8 +45,7 @@ namespace Hill {
 
         struct VersionLock {
             std::atomic<uint64_t> l;
-            mutable uint64_t tmp;
-            VersionLock() : l(0), tmp(0) {};
+            VersionLock() : l(0) {};
             ~VersionLock() = default;
             VersionLock(const VersionLock &) = delete;
             VersionLock(VersionLock &&) = delete;
@@ -50,14 +54,15 @@ namespace Hill {
 
             inline auto lock() noexcept -> void {
                 auto expected = 0UL;
+                uint64_t tmp;
                 do {
                     tmp = l.load();
                     expected = tmp & (~0x1UL);
-                } while (l.compare_exchange_strong(expected, tmp | (0x1UL)));
+                } while (!l.compare_exchange_strong(expected, tmp | (0x1UL)));
             }
 
             inline auto try_lock() noexcept -> bool {
-                tmp = l.load();
+                auto tmp = l.load();
                 auto expected = tmp & (~0x1UL);
                 auto desired = tmp | (0x1UL);
                 return l.compare_exchange_strong(expected, desired);
@@ -68,8 +73,7 @@ namespace Hill {
             }
 
             inline auto is_locked() const noexcept -> bool {
-                tmp = l.load();
-                return tmp & (0x1UL);
+                return l.load() & (0x1UL);
             }
 
             inline auto version() const noexcept -> uint64_t {
@@ -404,7 +408,7 @@ namespace Hill {
             // split_inner is seperated from split leaf because they have different memory policies
             auto split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *>;
             // push up split keys to ancestors
-            auto push_up(int tid, LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
+            auto push_up(LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
 
         };
     }

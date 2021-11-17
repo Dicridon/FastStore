@@ -66,9 +66,6 @@ namespace Hill {
             
             {
                 std::unique_lock l(allocator_global_lock);
-#ifdef __HILL_DEBUG__
-                std::cout << ">> Allocating more pages\n";
-#endif
                 // busy page has no enough space and no thread-local free pages are available
                 if (header.thread_free_lists[id] == nullptr) {
                     // the 1 is for current page
@@ -124,17 +121,14 @@ namespace Hill {
         }
 
         auto Allocator::register_thread() noexcept -> std::optional<int> {
-#ifdef __HILL_DEBUG__
-            std::cout << ">> Registering in alloctor\n";
-#endif
             std::scoped_lock<std::mutex> _(allocator_global_lock);
             for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
-                if (header.thread_free_lists[i] == Constants::pTHREAD_LIST_AVAILABLE ||
-                    header.thread_busy_pages[i] == nullptr) {
+                if (header.in_use[i] == false) {
                     if (header.thread_pending_pages[i] != nullptr) {
                         header.thread_busy_pages[i] = header.thread_pending_pages[i];
                         header.thread_pending_pages[i] = nullptr;
                     }
+                    header.in_use[i] = true;
                     return i;
                 }
             }
@@ -155,6 +149,7 @@ namespace Hill {
             // if so, free list should be AVAILABLE
             header.thread_pending_pages[id] = header.thread_busy_pages[id];
             header.thread_busy_pages[id] = nullptr;
+            header.in_use[id] = false;
         }
         
         auto Allocator::free(int id, byte_ptr_t &ptr) -> void {

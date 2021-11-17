@@ -35,7 +35,7 @@ namespace Hill {
             static constexpr int iTHREAD_LIST_NUM = 64;
             static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
             static constexpr size_t uPREALLOCATION = 1;
-#endif            
+#endif
         }
 
         namespace Enums {
@@ -204,6 +204,7 @@ namespace Hill {
                     allocator->header.thread_pending_pages[i] = nullptr;
                     allocator->header.thread_busy_pages[i] = nullptr;
                     allocator->header.to_be_freed[i] = nullptr;
+                    allocator->header.in_use[i] = false;
                 }
                 return allocator;
             }
@@ -213,6 +214,9 @@ namespace Hill {
 
                 switch(allocator->recover()){
                 case Enums::AllocatorRecoveryStatus::Ok:
+                    for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
+                        allocator->header.in_use[i] = false;                    
+                    }
                     return allocator;
                 case Enums::AllocatorRecoveryStatus::Corrupted:
                     return nullptr;
@@ -235,6 +239,7 @@ namespace Hill {
                     allocator->header.thread_pending_pages[i] = nullptr;
                     allocator->header.thread_busy_pages[i] = nullptr;
                     allocator->header.to_be_freed[i] = nullptr;
+                    allocator->header.in_use[i] = false;
                 }
                 return allocator;
             }
@@ -264,6 +269,7 @@ namespace Hill {
                 // This list is used to prevent page leak during a free
                 Page *to_be_freed[Constants::iTHREAD_LIST_NUM];
                 Page *thread_busy_pages[Constants::iTHREAD_LIST_NUM];
+                bool in_use[Constants::iTHREAD_LIST_NUM];
             } header;
 
             auto recover_global_free_list() -> void {
