@@ -6,6 +6,7 @@
 #include "kv_pair/kv_pair.hpp"
 #include "misc/misc.hpp"
 #include "coloring/coloring.hpp"
+#include "debug_logger/debug_logger.hpp"
 
 #include <vector>
 #include <atomic>
@@ -124,6 +125,26 @@ namespace Hill {
                 return keys[Constants::iNUM_HIGHKEY - 1] != nullptr;
             }
 
+            inline auto lock() noexcept -> void {
+                version_lock.lock();
+            }
+
+            inline auto unlock() noexcept -> void {
+                version_lock.unlock();
+            }
+
+            inline auto try_lock() noexcept -> bool {
+                return version_lock.try_lock();
+            }
+
+            inline auto version() const noexcept -> uint64_t {
+                return version_lock.version();
+            }
+
+            inline auto is_locked() const noexcept -> bool {
+                return version_lock.is_locked();
+            }
+
             auto insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
                         const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus;
             auto dump() const noexcept -> void;
@@ -229,11 +250,30 @@ namespace Hill {
                 return keys[Constants::iNUM_HIGHKEY - 1] != nullptr;
             }
 
+            inline auto lock() noexcept -> void {
+                version_lock.lock();
+            }
+
+            inline auto unlock() noexcept -> void {
+                version_lock.unlock();
+            }
+
+            inline auto try_lock() noexcept -> bool {
+                return version_lock.try_lock();
+            }
+
+            inline auto version() const noexcept -> uint64_t {
+                return version_lock.version();
+            }
+
+            inline auto is_locked() const noexcept -> bool {
+                return version_lock.is_locked();
+            }
+
             // this child should be on the right of split_key
             auto insert(const hill_key_t *split_key, PolymorphicNodePointer child) -> Enums::OpStatus;
             auto dump() const noexcept -> void;
         };
-
 
         class OLFIT {
         public:
@@ -251,6 +291,7 @@ namespace Hill {
                  */
                 root = LeafNode::make_leaf(ptr);
                 logger->commit(tid);
+                debug_logger = DebugLogger::MultithreadLogger::make_logger();
             }
             ~OLFIT() = default;
 
@@ -286,6 +327,9 @@ namespace Hill {
             inline auto enable_agent(Memory::RemoteMemoryAgent *agent_) -> void {
                 agent = agent_;
             }
+            inline auto open_log(const std::string &log_file) -> bool {
+                return debug_logger->open_log(log_file);
+            }
             auto dump() const noexcept -> void;
 
         private:
@@ -293,6 +337,8 @@ namespace Hill {
             Memory::Allocator *alloc;
             WAL::Logger *logger;
             Memory::RemoteMemoryAgent *agent;
+            std::unique_ptr<DebugLogger::MultithreadLogger> debug_logger;
+            
             auto traverse_node(const char *k, size_t k_sz) const noexcept -> std::pair<LeafNode *, std::vector<InnerNode *>> {
                 if (root.is_leaf()) {
                     return {root.get_as<LeafNode *>(), {}};
@@ -402,6 +448,24 @@ namespace Hill {
                 }
             }
 
+            auto move_right(LeafNode *leaf, const char *k, size_t k_sz) -> LeafNode * {
+                // leaf-hightkey == nullptr is true on stat
+                if (!leaf->highkey || leaf->highkey->compare(k, k_sz) <= 0) {
+                    return leaf;
+                }
+                leaf->right_link->lock();
+                leaf->unlock();
+                return move_right(leaf->right_link, k, k_sz);
+            }
+
+            auto move_right(InnerNode *inner, LeafNode *leaf) -> InnerNode * {
+                if (inner->highkey->compare(leaf->highkey->raw_chars(), leaf->highkey->size()) <= 0) {
+                    return inner;
+                }
+                inner->right_link->lock();
+                inner->unlock();
+                return move_right(inner->right_link, leaf);
+            }
 
             // split an old node and return a new node with keys migrated
             auto split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode *;
@@ -409,7 +473,6 @@ namespace Hill {
             auto split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *>;
             // push up split keys to ancestors
             auto push_up(LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus;
-
         };
     }
 }

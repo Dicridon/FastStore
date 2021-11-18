@@ -63,6 +63,10 @@ auto main(int argc, char *argv[]) -> int {
     
     for (int i = 0; i < num_thread; i++) {
         threads.emplace_back([&](int tid, size_t begin, size_t end) {
+            if (!olfit->open_log("thread_" + std::to_string(tid) + ".log")) {
+                std::cout << "Thread " << tid << " failed to open log file\n";
+                exit(-1);
+            }
             for (size_t i = begin; i < end; i++) {
                 auto &w = workload[i];
                 if (olfit->insert(tid, w.key.c_str(), w.key.size(), w.key.c_str(), w.key.size()) != Enums::OpStatus::Ok) {
@@ -83,14 +87,14 @@ auto main(int argc, char *argv[]) -> int {
             auto value = ptr.get_as<hill_value_t *>();
             if (value->compare(w.key.c_str(), w.key.size()) != 0) {
                 std::cout << w.key << " should match\n";
-                exit(-1);
+                return -1;
             }
         } else {
             std::cout << "I'm searching for " << w.key << "\n";
             std::cout << "Can you just tell me how can you find a nullptr?\n";
             std::cout << "Dumping the tree\n";
             olfit->dump();
-            exit(-1);                
+            return -1;
         }
     }
 

@@ -12,12 +12,12 @@ namespace Hill {
                 if (keys[i] == nullptr) {
                     break;
                 }
-                
+
                 auto c = keys[i]->compare(k, k_sz);
                 if (c > 0) {
                     break;
                 }
-                
+
                 if (c == 0) {
                     return Enums::OpStatus::RepeatInsert;
                 }
@@ -26,7 +26,7 @@ namespace Hill {
             for (int j = Constants::iNUM_HIGHKEY - 1; j > i; j--) {
                 keys[j] = keys[j - 1];
                 values[j] = values[j - 1];
-                value_sizes[j] = value_sizes[j - 1];                
+                value_sizes[j] = value_sizes[j - 1];
             }
 
             auto ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
@@ -144,20 +144,23 @@ namespace Hill {
         }
 
         auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus {
-            auto [node, ans] = traverse_node(k, k_sz);
-            node->version_lock.lock();
+            std::stringstream ss;
+            ss << "Thread " << tid << " start traversing";
+            debug_logger->log_info(ss.str());
+            ss.str("");
 
-            ////////////////////////////////////////////////////////
-            // std::cout << ">> Thread " << tid << " Inserting "; //
-            // for (size_t i = 0; i < k_sz; i++) {                //
-            //     std::cout << k[i];                             //
-            // }                                                  //
-            // std::cout << "\n";                                 //
-            ////////////////////////////////////////////////////////
-            
+            auto [node_, ans] = traverse_node(k, k_sz);
+            node_->lock();
+            auto node = move_right(node_, k, k_sz);
+
+
+            ss << "Thread " << tid << " trying writing " << std::string(k, k_sz) << " to node " << node;
+            debug_logger->log_info(ss.str());
+            ss.str("");
             if (!node->is_full()) {
                 auto ret = node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
-                node->version_lock.unlock();
+                node->unlock();
+                debug_logger->log_info("Done");
                 return ret;
             }
 
@@ -171,12 +174,12 @@ namespace Hill {
                 new_root->highkey = new_leaf->highkey;
                 root = new_root;
 
-                node->version_lock.unlock();
+                node->unlock();
                 return Enums::OpStatus::Ok;
             }
 
             auto ret = push_up(new_leaf, ans);
-            node->version_lock.unlock();
+            node->unlock();
             return ret;
         }
 
@@ -201,22 +204,27 @@ namespace Hill {
             for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
                 n->keys[k - split] = l->keys[k];
                 n->values[k - split] = l->values[k];
-                n->value_sizes[k - split] = l->value_sizes[k];                
+                n->value_sizes[k - split] = l->value_sizes[k];
             }
-            l->right_link = n;
             n->highkey = n->keys[Constants::iNUM_HIGHKEY - 1 - split];
+            l->right_link = n;
 
             for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
                 l->keys[k] = nullptr;
                 l->values[k] = nullptr;
-                l->value_sizes[k] = 0;                
+                l->value_sizes[k] = 0;
             }
 
+            std::stringstream ss;
             if (i < Constants::iNUM_HIGHKEY / 2) {
+                ss << "Actually write to " << l;
+                debug_logger->log_info(ss.str());
                 l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 // should make sure highkey is changed
                 l->highkey = l->keys[split];
             } else {
+                ss << "Actually write to " << n;
+                debug_logger->log_info(ss.str());
                 n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 l->highkey = l->keys[split - 1];
             }
@@ -266,7 +274,7 @@ namespace Hill {
                     start = split_pos + 1;
                     target = right;
                 }
-                
+
                 ret_split_key = l->keys[real_split_pos];
                 int k;
                 for (k = start; k < Constants::iNUM_HIGHKEY; k++) {
@@ -292,20 +300,22 @@ namespace Hill {
             hill_key_t *splitkey = new_leaf->keys[0];
             inner = ans.back();
             while(!ans.empty()) {
-                inner->version_lock.lock();
+                inner->lock();
 
                 //double check if a split is done
                 if (*inner->highkey <= *splitkey) {
                     if (inner->right_link) {
+                        auto old = inner;
                         inner = inner->right_link;
-                        inner->version_lock.unlock();
+                        inner->lock();
+                        old->unlock();
                         continue;
                     }
                 }
 
                 if (!inner->is_full()) {
                     inner->insert(splitkey, new_node);
-                    inner->version_lock.unlock();
+                    inner->unlock();
                     return Enums::OpStatus::Ok;
                 } else {
                     auto split_context = split_inner(inner, splitkey, new_node);
@@ -320,11 +330,11 @@ namespace Hill {
                         new_root->children[1] = new_node;
                         new_root->highkey = new_node.get_highkey();
                         root = new_root;
-                        inner->version_lock.unlock();
+                        inner->unlock();
                         return Enums::OpStatus::Ok;
                     }
                 }
-                inner->version_lock.unlock();
+                inner->unlock();
                 ans.pop_back();
                 inner = ans.back();
 
@@ -336,13 +346,13 @@ namespace Hill {
         {
         RETRY:
             auto leaf = traverse_node_no_tracing(k, k_sz);
-            auto version = leaf->version_lock.version();
+            auto version = leaf->version();
             for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (leaf->keys[i] == nullptr) {
                     return {nullptr, 0};
                 }
                 if (leaf->keys[i]->compare(k, k_sz) == 0) {
-                    if (leaf->version_lock.version() == version && !leaf->version_lock.is_locked())
+                    if (leaf->version() == version && !leaf->is_locked())
                         return {leaf->values[i], leaf->value_sizes[i]};
                     else
                         goto RETRY;
