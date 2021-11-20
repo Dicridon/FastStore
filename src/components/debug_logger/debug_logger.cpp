@@ -1,9 +1,11 @@
 #include "debug_logger.hpp"
 namespace DebugLogger {
-    auto Logger::log_info(const std::string &msg) -> void {
+    auto Logger::log_info(const std::string &msg, bool ret) -> void {
         auto now = std::chrono::steady_clock::now();
         auto micros = std::chrono::duration_cast<std::chrono::microseconds>(now - start_time).count();
-        fstream << "[[ Time: " << micros << " ]] -->> " << msg << "\n";
+        fstream << "[[ Time: " << micros << ", " << "thread: " << std::this_thread::get_id() << " ]] -->> " << msg;
+        if (ret)
+            fstream << "\n";
     }
 
     auto MultithreadLogger::open_log(const std::string &log_file) -> bool {

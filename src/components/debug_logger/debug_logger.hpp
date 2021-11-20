@@ -34,7 +34,7 @@ namespace DebugLogger {
             return ret;
         }
 
-        auto log_info(const std::string &msg) -> void;
+        auto log_info(const std::string &msg, bool ret = true) -> void;
     private:
         std::ofstream fstream;
         std::chrono::time_point<std::chrono::steady_clock> start_time;

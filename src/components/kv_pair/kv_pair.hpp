@@ -101,6 +101,10 @@ namespace Hill {
 
             auto operator<=(const HillString &rhs) const noexcept -> bool {
                 for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
+                    if (content[i] < rhs.content[i]) {
+                        return true;
+                    }
+                    
                     if (content[i] > rhs.content[i]) {
                         return false;
                     }
@@ -110,6 +114,10 @@ namespace Hill {
 
             auto operator>=(const HillString &rhs) const noexcept -> bool {
                 for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
+                    if (content[i] > rhs.content[i]) {
+                        return true;
+                    }
+                    
                     if (content[i] < rhs.content[i]) {
                         return false;
                     }

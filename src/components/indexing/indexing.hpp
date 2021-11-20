@@ -338,9 +338,12 @@ namespace Hill {
             WAL::Logger *logger;
             Memory::RemoteMemoryAgent *agent;
             std::unique_ptr<DebugLogger::MultithreadLogger> debug_logger;
-            
+
             auto traverse_node(const char *k, size_t k_sz) const noexcept -> std::pair<LeafNode *, std::vector<InnerNode *>> {
+                std::stringstream ss;
                 if (root.is_leaf()) {
+                    ss << "Root located " << root.get_as<LeafNode *>();
+                    debug_logger->log_info(ss.str());
                     return {root.get_as<LeafNode *>(), {}};
                 }
 
@@ -351,12 +354,30 @@ namespace Hill {
                 std::vector<InnerNode *> ancestors;
                 while (!current.is_leaf()) {
                     inner = current.get_as<InnerNode *>();
+                    ss << "Finding " << inner << " with ";
+                    for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                        if (inner->keys[i]) {
+                            ss << inner->keys[i]->to_string() << " ";
+                        }
+                    }
+                    ss << "and highkey " << inner->highkey->to_string();
+                    debug_logger->log_info(ss.str());
+                    ss.str("");
                     version = inner->version_lock.version();
                     next = find_next(inner, k, k_sz, ancestors);
                     if (inner->version_lock.version() == version) {
                         current = next;
                     }
                 }
+                ss << "Finding " << current.get_as<LeafNode *>() << " with ";
+                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                    if (current.get_as<LeafNode *>()->keys[i]) {
+                        ss << current.get_as<LeafNode *>()->keys[i]->to_string() << " ";
+                    }
+                }
+                                    
+                ss << "and highkey " << current.get_as<LeafNode *>()->highkey->to_string();
+                debug_logger->log_info(ss.str());
                 return {current.get_as<LeafNode *>(), std::move(ancestors)};
             }
 
@@ -397,8 +418,7 @@ namespace Hill {
                     }
                     ans.push_back(current);
                     return current->children[i];
-                }
-                else {
+                } else {
                     if (current->right_link) {
                         return current->right_link;
                     } else {
@@ -449,8 +469,18 @@ namespace Hill {
             }
 
             auto move_right(LeafNode *leaf, const char *k, size_t k_sz) -> LeafNode * {
-                // leaf-hightkey == nullptr is true on stat
-                if (!leaf->highkey || leaf->highkey->compare(k, k_sz) <= 0) {
+                // leaf-hightkey == nullptr is true on start
+                std::stringstream ss;
+                ss << "Checking leaf node " << leaf << " with ";
+                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                    if (leaf->keys[i]) {
+                        ss << leaf->keys[i]->to_string() << " ";
+                    }
+                }
+                ss << "and highkey " << (leaf->highkey ? leaf->highkey->to_string() : " nullptr ");
+                debug_logger->log_info(ss.str());
+
+                if (!leaf->highkey || leaf->highkey->compare(k, k_sz) >= 0 || !leaf->right_link) {
                     return leaf;
                 }
                 leaf->right_link->lock();
@@ -459,7 +489,18 @@ namespace Hill {
             }
 
             auto move_right(InnerNode *inner, LeafNode *leaf) -> InnerNode * {
-                if (inner->highkey->compare(leaf->highkey->raw_chars(), leaf->highkey->size()) <= 0) {
+                std::stringstream ss;
+                ss << "Checking inner node " << inner << " with ";
+                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                    if (leaf->keys[i]) {
+                        ss << leaf->keys[i]->to_string() << " ";
+                    }
+                }
+
+                ss << "and highkey " << inner->highkey->to_string();
+                debug_logger->log_info(ss.str());
+
+                if (inner->highkey->compare(leaf->highkey->raw_chars(), leaf->highkey->size()) >= 0 || !leaf->right_link) {
                     return inner;
                 }
                 inner->right_link->lock();

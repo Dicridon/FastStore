@@ -145,14 +145,13 @@ namespace Hill {
 
         auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus {
             std::stringstream ss;
-            ss << "Thread " << tid << " start traversing";
+            ss << "Thread " << tid << " start traversing for " << std::string(k, k_sz);
             debug_logger->log_info(ss.str());
             ss.str("");
 
             auto [node_, ans] = traverse_node(k, k_sz);
             node_->lock();
             auto node = move_right(node_, k, k_sz);
-
 
             ss << "Thread " << tid << " trying writing " << std::string(k, k_sz) << " to node " << node;
             debug_logger->log_info(ss.str());
@@ -298,13 +297,25 @@ namespace Hill {
             InnerNode *inner;
             PolymorphicNodePointer new_node = new_leaf;
             hill_key_t *splitkey = new_leaf->keys[0];
+            std::stringstream ss;
             inner = ans.back();
             while(!ans.empty()) {
                 inner->lock();
 
+                ss << "Checking node " << inner << " with rightlinkg being " << inner->right_link;
+                ss << " ,highkey is " << inner->highkey->to_string() << " and splitkey is " << splitkey->to_string();
+                debug_logger->log_info(ss.str());
+                ss.str("");
                 //double check if a split is done
-                if (*inner->highkey <= *splitkey) {
+                auto less = *inner->highkey <= *splitkey;
+                ss << "highkey vs splitkey: " << (less ? "true" : "false");
+                debug_logger->log_info(ss.str());
+                ss.str();
+                if (less) {
                     if (inner->right_link) {
+                        ss << "Moving from " << inner << " to " << inner->right_link;
+                        debug_logger->log_info(ss.str());
+                        ss.str("");
                         auto old = inner;
                         inner = inner->right_link;
                         inner->lock();
@@ -314,6 +325,9 @@ namespace Hill {
                 }
 
                 if (!inner->is_full()) {
+                    ss << "Inserting new node " << new_node.value << " to " << inner;
+                    debug_logger->log_info(ss.str());
+                    ss.str("");
                     inner->insert(splitkey, new_node);
                     inner->unlock();
                     return Enums::OpStatus::Ok;
@@ -321,7 +335,9 @@ namespace Hill {
                     auto split_context = split_inner(inner, splitkey, new_node);
                     new_node = split_context.first;
                     splitkey = split_context.second;
-
+                    ss << "Splitting inner node " << inner << " and got " << new_node.value;
+                    debug_logger->log_info(ss.str());
+                    ss.str("");
                     // root
                     if (ans.front() == ans.back()) {
                         auto new_root = InnerNode::make_inner();
@@ -337,13 +353,11 @@ namespace Hill {
                 inner->unlock();
                 ans.pop_back();
                 inner = ans.back();
-
             }
             return Enums::OpStatus::Ok;
         }
 
-        auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t>
-        {
+        auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t> {
         RETRY:
             auto leaf = traverse_node_no_tracing(k, k_sz);
             auto version = leaf->version();
