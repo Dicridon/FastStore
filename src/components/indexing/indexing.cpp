@@ -66,7 +66,7 @@ namespace Hill {
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
             ColorizedString h(std::string(highkey->raw_chars(), highkey->size()), Colors::Cyan);
-            std::cout << ">> Leaf " << c << " reporting with highkey: " << h << "\n";
+            std::cout << ">> Leaf " << c << " reporting with highkey: " << h << " and parent " << parent << "\n";
             std::cout << "-->> keys: ";
             for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                 if (keys[i] == nullptr) {
@@ -95,6 +95,7 @@ namespace Hill {
             }
             keys[i] = const_cast<hill_key_t *>(split_key);
             children[i + 1] = child;
+            child.set_parent(this);
 
             for (int j = Constants::iDEGREE - 1; j >= 0; j--) {
                 if (!children[j].is_null()) {
@@ -110,7 +111,7 @@ namespace Hill {
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
             ColorizedString h(std::string(highkey->raw_chars(), highkey->size()), Colors::Yellow);
-            std::cout << ">> Inner " << c << " reporting with highkey " << h << "\n";
+            std::cout << ">> Inner " << c << " reporting with highkey " << h << " and " << parent << "\n";
             std::cout << "-->> keys: ";
 
             for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
@@ -149,7 +150,7 @@ namespace Hill {
             debug_logger->log_info(ss.str());
             ss.str("");
 
-            auto [node_, ans] = traverse_node(k, k_sz);
+            auto node_ = traverse_node(k, k_sz);
             node_->lock();
             auto node = move_right(node_, k, k_sz);
 
@@ -168,11 +169,12 @@ namespace Hill {
             debug_logger->log_info(ss.str());
             ss.str("");
             // root is a leaf
-            if (ans.empty()) {
+            if (!node->parent) {
                 auto new_root = InnerNode::make_inner();
                 new_root->keys[0] = new_leaf->keys[0];
                 new_root->children[0] = node;
                 new_root->children[1] = new_leaf;
+                node->parent = new_leaf->parent = new_root;
                 new_root->highkey = new_leaf->highkey;
                 root = new_root;
                 ss << "New root created: " << new_root << " with ";
@@ -188,7 +190,7 @@ namespace Hill {
                 return Enums::OpStatus::Ok;
             }
 
-            auto ret = push_up(new_leaf, ans);
+            auto ret = push_up(new_leaf);
             node->unlock();
             return ret;
         }
@@ -198,6 +200,7 @@ namespace Hill {
             alloc->allocate(tid, sizeof(LeafNode), ptr);
             auto n = LeafNode::make_leaf(ptr);
             n->right_link = l->right_link;
+            n->parent = l->parent;
             Memory::Util::mfence();
 
             int i = 0;
@@ -248,6 +251,7 @@ namespace Hill {
         auto OLFIT::split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *> {
             auto right = InnerNode::make_inner();
             right->right_link = l->right_link;
+            right->parent = l->parent;
 
             auto split_pos = Constants::iDEGREE / 2;
             int i;
@@ -261,11 +265,13 @@ namespace Hill {
             if (i == split_pos) {
                 l->highkey = l->children[split_pos].get_highkey();
                 right->children[0] = child;
+                right->children[0].set_parent(right);
                 int k;
                 for (k = i; k < Constants::iNUM_HIGHKEY; k++) {
                     right->keys[k - i] = l->keys[k];
                     l->keys[k] = nullptr;
                     right->children[k - i + 1] = l->children[k + 1];
+                    right->children[k - i + 1].set_parent(right);
                     l->children[k + 1] = nullptr;
                 }
                 right->highkey = right->children[k - i].get_highkey();
@@ -291,9 +297,11 @@ namespace Hill {
                     right->keys[k - start] = l->keys[k];
                     l->keys[k] = nullptr;
                     right->children[k - start] = l->children[k];
+                    right->children[k - start].set_parent(right);
                     l->children[k] = nullptr;
                 }
                 right->children[k - start] = l->children[k];
+                right->children[k - start].set_parent(right);
                 right->highkey = right->children[k - start].get_highkey();
                 l->highkey = l->children[real_split_pos].get_highkey();
                 l->children[k] = nullptr;
@@ -304,13 +312,13 @@ namespace Hill {
             return {right, ret_split_key};
         }
 
-        auto OLFIT::push_up(LeafNode *new_leaf, std::vector<InnerNode *> &ans) -> Enums::OpStatus {
+        auto OLFIT::push_up(LeafNode *new_leaf) -> Enums::OpStatus {
             InnerNode *inner;
             PolymorphicNodePointer new_node = new_leaf;
             hill_key_t *splitkey = new_leaf->keys[0];
             std::stringstream ss;
-            inner = ans.back();
-            while(!ans.empty()) {
+            inner = new_leaf->parent;
+            while(inner) {
                 inner->lock();
 
                 ss << "Checking node " << inner << " with rightlinkg being " << inner->right_link;
@@ -337,6 +345,7 @@ namespace Hill {
                     debug_logger->log_info(ss.str());
                     ss.str("");
                     inner->insert(splitkey, new_node);
+                    new_node.set_parent(inner);
                     inner->unlock();
                     return Enums::OpStatus::Ok;
                 } else {
@@ -347,11 +356,13 @@ namespace Hill {
                     debug_logger->log_info(ss.str());
                     ss.str("");
                     // root
-                    if (ans.front() == ans.back()) {
+                    if (!inner->parent) {
                         auto new_root = InnerNode::make_inner();
                         new_root->keys[0] = splitkey;
                         new_root->children[0] = inner;
                         new_root->children[1] = new_node;
+                        inner->parent = new_root;
+                        new_node.set_parent(new_root);
                         new_root->highkey = new_node.get_highkey();
                         root = new_root;
                         ss << "New root created: " << new_root << " with ";
@@ -365,9 +376,9 @@ namespace Hill {
                         return Enums::OpStatus::Ok;
                     }
                 }
-                inner->unlock();
-                ans.pop_back();
-                inner = ans.back();
+                auto old = inner;
+                inner = inner->parent;
+                old->unlock();
             }
             return Enums::OpStatus::Ok;
         }
