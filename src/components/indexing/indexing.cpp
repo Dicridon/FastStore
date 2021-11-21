@@ -164,6 +164,9 @@ namespace Hill {
             }
 
             auto new_leaf = split_leaf(tid, node, k, k_sz, v, v_sz);
+            ss << "Splitting leaf node " << node << " and got " << new_leaf;
+            debug_logger->log_info(ss.str());
+            ss.str("");
             // root is a leaf
             if (ans.empty()) {
                 auto new_root = InnerNode::make_inner();
@@ -172,7 +175,15 @@ namespace Hill {
                 new_root->children[1] = new_leaf;
                 new_root->highkey = new_leaf->highkey;
                 root = new_root;
-
+                ss << "New root created: " << new_root << " with ";
+                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                    if (new_root->keys[i]) {
+                        ss << new_root->keys[i]->to_string() << " ";
+                    }
+                }
+                ss << " and highkey " << new_root->highkey->to_string();
+                debug_logger->log_info(ss.str());
+                ss.str("");
                 node->unlock();
                 return Enums::OpStatus::Ok;
             }
@@ -308,9 +319,6 @@ namespace Hill {
                 ss.str("");
                 //double check if a split is done
                 auto less = *inner->highkey <= *splitkey;
-                ss << "highkey vs splitkey: " << (less ? "true" : "false");
-                debug_logger->log_info(ss.str());
-                ss.str();
                 if (less) {
                     if (inner->right_link) {
                         ss << "Moving from " << inner << " to " << inner->right_link;
@@ -346,6 +354,13 @@ namespace Hill {
                         new_root->children[1] = new_node;
                         new_root->highkey = new_node.get_highkey();
                         root = new_root;
+                        ss << "New root created: " << new_root << " with ";
+                        for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                            if (new_root->keys[i]) {
+                                ss << new_root->keys[i]->to_string() << " ";
+                            }
+                        }
+                        ss << " and highkey " << new_root->highkey->to_string();
                         inner->unlock();
                         return Enums::OpStatus::Ok;
                     }
