@@ -56,25 +56,31 @@ auto main(int argc, char *argv[]) -> int {
 
     std::vector<std::thread> threads;
     std::vector<int> tids;
-    auto partition = batch_size / num_thread;
+    std::vector<std::vector<Hill::Workload::WorkloadItem *>> thread_workloads;
+
+    size_t fliper = 0;
+    thread_workloads.resize(num_thread);
+    for (auto &i : workload) {
+        thread_workloads[(fliper++) % num_thread].push_back(&i);
+    }
+    
     for (int i = 0; i < num_thread; i++) {
           tids.push_back(register_thread(alloc, logger).value());
     }
     
     for (int i = 0; i < num_thread; i++) {
-        threads.emplace_back([&](int tid, size_t begin, size_t end) {
+        threads.emplace_back([&](int tid, std::vector<Hill::Workload::WorkloadItem *> &load) {
             if (!olfit->open_log("thread_" + std::to_string(tid) + ".log")) {
                 std::cout << "Thread " << tid << " failed to open log file\n";
                 exit(-1);
             }
-            for (size_t i = begin; i < end; i++) {
-                auto &w = workload[i];
-                if (olfit->insert(tid, w.key.c_str(), w.key.size(), w.key.c_str(), w.key.size()) != Enums::OpStatus::Ok) {
+            for (auto &w : load) {
+                if (olfit->insert(tid, w->key.c_str(), w->key.size(), w->key.c_str(), w->key.size()) != Enums::OpStatus::Ok) {
                     std::cout << ">> Insertion should be successful\n";
                     exit(-1);
                 }
             }
-        }, tids[i], i * partition, (i + 1) * partition);
+        }, tids[i], std::ref(thread_workloads[i]));
     }
 
     for (auto &t : threads) {

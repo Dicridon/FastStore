@@ -92,7 +92,7 @@ namespace Hill {
 
         struct InnerNode;
         struct LeafNode {
-            InnerNode *parent;            
+            InnerNode *parent;
             hill_key_t *highkey;
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             Memory::PolymorphicPointer values[Constants::iNUM_HIGHKEY];
@@ -112,7 +112,7 @@ namespace Hill {
 
             static auto make_leaf(const byte_ptr_t &ptr) -> struct LeafNode * {
                 auto tmp = reinterpret_cast<LeafNode *>(ptr);
-                tmp->version_lock.reset();                
+                tmp->version_lock.reset();
                 for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                     tmp->keys[i] = nullptr;
                     tmp->values[i] = nullptr;
@@ -120,7 +120,7 @@ namespace Hill {
                 }
                 tmp->right_link = nullptr;
                 tmp->highkey = nullptr;
-                tmp->parent = nullptr;                
+                tmp->parent = nullptr;
                 return tmp;
             }
 
@@ -247,7 +247,7 @@ namespace Hill {
 
             static auto make_inner() -> InnerNode * {
                 auto tmp = new InnerNode;
-                tmp->version_lock.reset();                
+                tmp->version_lock.reset();
                 for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                     tmp->keys[i] = nullptr;
                     tmp->children[i] = nullptr;
@@ -387,7 +387,7 @@ namespace Hill {
                         ss << current.get_as<LeafNode *>()->keys[i]->to_string() << " ";
                     }
                 }
-                                    
+
                 ss << "and highkey " << current.get_as<LeafNode *>()->highkey->to_string();
                 debug_logger->log_info(ss.str());
                 return current.get_as<LeafNode *>();
@@ -493,8 +493,11 @@ namespace Hill {
                 }
                 ss << "and highkey " << (leaf->highkey ? leaf->highkey->to_string() : " nullptr ");
                 debug_logger->log_info(ss.str());
+                if (!leaf->right_link) {
+                    return leaf;
+                }
 
-                if (!leaf->highkey || leaf->highkey->compare(k, k_sz) >= 0 || !leaf->right_link) {
+                if (leaf->right_link->keys[0]->compare(k, k_sz) > 0) {
                     return leaf;
                 }
                 leaf->right_link->lock();
@@ -502,24 +505,41 @@ namespace Hill {
                 return move_right(leaf->right_link, k, k_sz);
             }
 
-            auto move_right(InnerNode *inner, LeafNode *leaf) -> InnerNode * {
+            auto update_highkeys(LeafNode *leaf) -> void {
                 std::stringstream ss;
-                ss << "Checking inner node " << inner << " with ";
-                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                    if (leaf->keys[i]) {
-                        ss << leaf->keys[i]->to_string() << " ";
+                if (!leaf->parent) {
+                    ss << "Leaf " << leaf << " has no parent";
+                    debug_logger->log_info(ss.str());
+                    ss.str("");
+                    return;
+                }
+
+                PolymorphicNodePointer current = leaf;
+                auto parent = leaf->parent;
+
+                do {
+                    int i;
+                    for (i = Constants::iDEGREE - 1; i >= 0; i--) {
+                        if (!parent->children[i].is_null()) {
+                            break;
+                        }
                     }
-                }
 
-                ss << "and highkey " << inner->highkey->to_string();
-                debug_logger->log_info(ss.str());
-
-                if (inner->highkey->compare(leaf->highkey->raw_chars(), leaf->highkey->size()) >= 0 || !leaf->right_link) {
-                    return inner;
-                }
-                inner->right_link->lock();
-                inner->unlock();
-                return move_right(inner->right_link, leaf);
+                    if (parent->children[i].value != current.value) {
+                        return;
+                    }
+                    
+                    parent->lock();
+                    if (parent == current.get_parent()) {
+                        ss << "Updating parent " << parent << "\\'s highkey to be " << current.get_highkey()->to_string();
+                        debug_logger->log_info(ss.str());
+                        ss.str("");
+                        parent->highkey = current.get_highkey();
+                    }
+                    parent->unlock();
+                    current = parent;
+                    parent = current.get_parent();
+                } while (parent);
             }
 
             // split an old node and return a new node with keys migrated

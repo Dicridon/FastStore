@@ -58,6 +58,7 @@ namespace Hill {
             if (i == Constants::iNUM_HIGHKEY - 1 || keys[i + 1] == nullptr) {
                 highkey = keys[i];
             }
+
             return Enums::OpStatus::Ok;
         }
 
@@ -159,6 +160,7 @@ namespace Hill {
             ss.str("");
             if (!node->is_full()) {
                 auto ret = node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
+                update_highkeys(node);
                 node->unlock();
                 debug_logger->log_info("Done");
                 return ret;
