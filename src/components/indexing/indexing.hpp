@@ -355,8 +355,8 @@ namespace Hill {
             auto traverse_node(const char *k, size_t k_sz) const noexcept -> LeafNode * {
                 std::stringstream ss;
                 if (root.is_leaf()) {
-                    ss << "Root located " << root.get_as<LeafNode *>();
-                    debug_logger->log_info(ss.str());
+                    // ss << "Root located " << root.get_as<LeafNode *>();
+                    // debug_logger->log_info(ss.str());
                     return root.get_as<LeafNode *>();
                 }
 
@@ -366,53 +366,49 @@ namespace Hill {
                 auto version = 0UL;
                 while (!current.is_leaf()) {
                     inner = current.get_as<InnerNode *>();
-                    ss << "Finding " << inner << " with ";
-                    for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                        if (inner->keys[i]) {
-                            ss << inner->keys[i]->to_string() << " ";
-                        }
+                    ss << "Traversing inner node " << inner << "(" << inner->parent << "): kids";
+                    for (int i = 0; i < Constants::iDEGREE; i++) {
+                        ss << inner->children[i].value << " ";
                     }
-                    ss << "and highkey " << inner->highkey->to_string();
+                    // ss << "and highkey " << inner->highkey->to_string();
                     debug_logger->log_info(ss.str());
                     ss.str("");
                     version = inner->version_lock.version();
                     next = find_next(inner, k, k_sz);
-                    if (inner->version_lock.version() == version) {
-                        current = next;
-                    }
-                }
-                ss << "Finding " << current.get_as<LeafNode *>() << " with ";
-                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                    if (current.get_as<LeafNode *>()->keys[i]) {
-                        ss << current.get_as<LeafNode *>()->keys[i]->to_string() << " ";
-                    }
-                }
 
-                ss << "and highkey " << current.get_as<LeafNode *>()->highkey->to_string();
+                    if (inner->version_lock.is_locked()) {
+                        ss << inner << " is locked, retry";
+                        debug_logger->log_info(ss.str());
+                        ss.str("");
+                        continue;
+                    }
+                    
+                    if (inner->version_lock.version() != version) {
+                        ss << inner << " version is not matched , retry";
+                        debug_logger->log_info(ss.str());
+                        ss.str("");
+                        continue;
+                    }
+
+                    current = next;
+
+                    // if (inner->version_lock.version() == version && !inner->version_lock.is_locked()) {
+                    //     current = next;
+                    // }
+                }
+                // ss << "Finding " << current.get_as<LeafNode *>() << " with ";
+                // for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                //     if (current.get_as<LeafNode *>()->keys[i]) {
+                //         ss << current.get_as<LeafNode *>()->keys[i]->to_string() << " ";
+                //     }
+                // }
+                // 
+                // ss << "and highkey " << current.get_as<LeafNode *>()->highkey->to_string();
+                // debug_logger->log_info(ss.str());
+                ss << "Located leaf node" << current.value;
                 debug_logger->log_info(ss.str());
                 return current.get_as<LeafNode *>();
             }
-
-            auto traverse_node_no_tracing(const char *k, size_t k_sz) const noexcept -> LeafNode * {
-                if (root.is_leaf()) {
-                    return root.get_as<LeafNode *>();
-                }
-
-                PolymorphicNodePointer current = root;
-                PolymorphicNodePointer next = nullptr;
-                InnerNode *inner;
-                auto version = 0UL;
-                while (!current.is_leaf()) {
-                    inner = current.get_as<InnerNode *>();
-                    version = inner->version_lock.version();
-                    next = find_next_no_tracing(inner, k, k_sz);
-                    if (inner->version_lock.version() == version) {
-                        current = next;
-                    }
-                }
-                return current.get_as<LeafNode *>();
-            }
-
 
             // follow the original paper of OLFIT, OT
             auto find_next(InnerNode *current, const char *k, size_t k_sz) const noexcept -> PolymorphicNodePointer {
@@ -448,51 +444,17 @@ namespace Hill {
                 }
             }
 
-            // copied code above here, just to escape redundent branches
-            auto find_next_no_tracing(InnerNode *current, const char *k, size_t k_sz) const noexcept -> PolymorphicNodePointer {
-                auto result = current->highkey->compare(k, k_sz);
-                if (result == 0) {
-                    int i;
-                    for (i = Constants::iDEGREE - 1; i >= 0; i--) {
-                        if (!current->children[i].is_null()) {
-                            break;
-                        }
-                    }
-                    return current->children[i];
-                } else if (result > 0) {
-                    int i;
-                    for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                        if (current->keys[i] == nullptr || current->keys[i]->compare(k, k_sz) > 0) {
-                            return current->children[i];
-                        }
-                    }
-                    return current->children[i];
-                } else {
-                    if (current->right_link) {
-                        return current->right_link;
-                    } else {
-                        int i;
-                        for (i = Constants::iDEGREE - 1; i >= 0; i--) {
-                            if (!current->children[i].is_null()) {
-                                break;
-                            }
-                        }
-                        return current->children[i];
-                    }
-                }
-            }
-
             auto move_right(LeafNode *leaf, const char *k, size_t k_sz) -> LeafNode * {
                 // leaf-hightkey == nullptr is true on start
-                std::stringstream ss;
-                ss << "Checking leaf node " << leaf << " with ";
-                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                    if (leaf->keys[i]) {
-                        ss << leaf->keys[i]->to_string() << " ";
-                    }
-                }
-                ss << "and highkey " << (leaf->highkey ? leaf->highkey->to_string() : " nullptr ");
-                debug_logger->log_info(ss.str());
+                // std::stringstream ss;
+                // ss << "Checking leaf node " << leaf << " with ";
+                // for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                //     if (leaf->keys[i]) {
+                //         ss << leaf->keys[i]->to_string() << " ";
+                //     }
+                // }
+                // ss << "and highkey " << (leaf->highkey ? leaf->highkey->to_string() : " nullptr ");
+                // debug_logger->log_info(ss.str());
                 if (!leaf->right_link) {
                     return leaf;
                 }
@@ -506,11 +468,11 @@ namespace Hill {
             }
 
             auto update_highkeys(LeafNode *leaf) -> void {
-                std::stringstream ss;
+                // std::stringstream ss;
                 if (!leaf->parent) {
-                    ss << "Leaf " << leaf << " has no parent";
-                    debug_logger->log_info(ss.str());
-                    ss.str("");
+                    // ss << "Leaf " << leaf << " has no parent";
+                    // debug_logger->log_info(ss.str());
+                    // ss.str("");
                     return;
                 }
 
@@ -531,9 +493,9 @@ namespace Hill {
                     
                     parent->lock();
                     if (parent == current.get_parent()) {
-                        ss << "Updating parent " << parent << "\\'s highkey to be " << current.get_highkey()->to_string();
-                        debug_logger->log_info(ss.str());
-                        ss.str("");
+                        // ss << "Updating parent " << parent << "\\'s highkey to be " << current.get_highkey()->to_string();
+                        // debug_logger->log_info(ss.str());
+                        // ss.str("");
                         parent->highkey = current.get_highkey();
                     }
                     parent->unlock();

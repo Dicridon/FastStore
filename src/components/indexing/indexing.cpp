@@ -1,5 +1,4 @@
 #include "indexing.hpp"
-
 namespace Hill {
     namespace Indexing {
         auto LeafNode::insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent, const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus {
@@ -147,28 +146,46 @@ namespace Hill {
 
         auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus {
             std::stringstream ss;
-            ss << "Thread " << tid << " start traversing for " << std::string(k, k_sz);
+            // ss << "Thread " << tid << " start traversing for " << std::string(k, k_sz);
+            // debug_logger->log_info(ss.str());
+            // ss.str("");
+            auto node_ = traverse_node(k, k_sz);
+            ss << "Trying to lock leaf node " << node_;
             debug_logger->log_info(ss.str());
             ss.str("");
-
-            auto node_ = traverse_node(k, k_sz);
             node_->lock();
+            debug_logger->log_info("Locked");
             auto node = move_right(node_, k, k_sz);
 
-            ss << "Thread " << tid << " trying writing " << std::string(k, k_sz) << " to node " << node;
+            ss << "move right to " << node;
             debug_logger->log_info(ss.str());
             ss.str("");
+
+            // ss << "Thread " << tid << " trying writing " << std::string(k, k_sz) << " to node " << node;
+            // debug_logger->log_info(ss.str());
+            // ss.str("");
             if (!node->is_full()) {
+                ss << "Inserting to leaf node " << node;
+                debug_logger->log_info(ss.str());
+                debug_logger->flush();
+                ss.str("");
                 auto ret = node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
-                update_highkeys(node);
-                node->unlock();
                 debug_logger->log_info("Done");
+                debug_logger->flush();                
+                debug_logger->log_info("Updaing highkeys");
+                debug_logger->flush();                
+                update_highkeys(node);
+                debug_logger->log_info("Update finished");
+                debug_logger->flush();                
+                node->unlock();
+                debug_logger->flush();
                 return ret;
             }
 
             auto new_leaf = split_leaf(tid, node, k, k_sz, v, v_sz);
             ss << "Splitting leaf node " << node << " and got " << new_leaf;
             debug_logger->log_info(ss.str());
+            debug_logger->flush();
             ss.str("");
             // root is a leaf
             if (!node->parent) {
@@ -179,14 +196,15 @@ namespace Hill {
                 node->parent = new_leaf->parent = new_root;
                 new_root->highkey = new_leaf->highkey;
                 root = new_root;
-                ss << "New root created: " << new_root << " with ";
+                ss << "New root created in insert(): " << new_root << " with ";
                 for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                     if (new_root->keys[i]) {
                         ss << new_root->keys[i]->to_string() << " ";
-                    }
+                     }
                 }
                 ss << " and highkey " << new_root->highkey->to_string();
                 debug_logger->log_info(ss.str());
+                debug_logger->flush();
                 ss.str("");
                 node->unlock();
                 return Enums::OpStatus::Ok;
@@ -198,6 +216,7 @@ namespace Hill {
         }
 
         auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode * {
+            debug_logger->flush();
             auto ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
             alloc->allocate(tid, sizeof(LeafNode), ptr);
             auto n = LeafNode::make_leaf(ptr);
@@ -230,16 +249,16 @@ namespace Hill {
                 l->value_sizes[k] = 0;
             }
 
-            std::stringstream ss;
+            // std::stringstream ss;
             if (i < Constants::iNUM_HIGHKEY / 2) {
-                ss << "Actually write to " << l;
-                debug_logger->log_info(ss.str());
+                // ss << "Actually write to " << l;
+                // debug_logger->log_info(ss.str());
                 l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 // should make sure highkey is changed
                 l->highkey = l->keys[split];
             } else {
-                ss << "Actually write to " << n;
-                debug_logger->log_info(ss.str());
+                // ss << "Actually write to " << n;
+                // debug_logger->log_info(ss.str());
                 n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
                 l->highkey = l->keys[split - 1];
             }
@@ -321,23 +340,33 @@ namespace Hill {
             std::stringstream ss;
             inner = new_leaf->parent;
             while(inner) {
-                inner->lock();
-
-                ss << "Checking node " << inner << " with rightlinkg being " << inner->right_link;
-                ss << " ,highkey is " << inner->highkey->to_string() << " and splitkey is " << splitkey->to_string();
+                ss << "Try to lock inner node in while: " << inner;
                 debug_logger->log_info(ss.str());
+                debug_logger->flush();
                 ss.str("");
+                inner->lock();
+                debug_logger->log_info("Locked");
+                debug_logger->flush();                
+
+                //  ss << "Checking node " << inner << " with rightlinkg being " << inner->right_link;
+                // ss << " ,highkey is " << inner->highkey->to_string() << " and splitkey is " << splitkey->to_string();
+                // debug_logger->log_info(ss.str());
+                // ss.str("");
                 //double check if a split is done
                 auto less = *inner->highkey <= *splitkey;
                 if (less) {
                     if (inner->right_link) {
-                        ss << "Moving from " << inner << " to " << inner->right_link;
-                        debug_logger->log_info(ss.str());
-                        ss.str("");
-                        auto old = inner;
+                        // ss << "Moving from " << inner << " to " << inner->right_link;
+                        // debug_logger->log_info(ss.str());
+                        // ss.str("");
+                        auto before = inner;
                         inner = inner->right_link;
-                        inner->lock();
-                        old->unlock();
+                        ss << "Try to lock right link " << inner;
+                        debug_logger->log_info(ss.str());
+                        debug_logger->flush();                        
+                        ss.str("");
+                        // inner->lock();
+                        before->unlock();
                         continue;
                     }
                 }
@@ -345,6 +374,7 @@ namespace Hill {
                 if (!inner->is_full()) {
                     ss << "Inserting new node " << new_node.value << " to " << inner;
                     debug_logger->log_info(ss.str());
+                    debug_logger->flush();                    
                     ss.str("");
                     inner->insert(splitkey, new_node);
                     new_node.set_parent(inner);
@@ -354,26 +384,31 @@ namespace Hill {
                     auto split_context = split_inner(inner, splitkey, new_node);
                     new_node = split_context.first;
                     splitkey = split_context.second;
-                    ss << "Splitting inner node " << inner << " and got " << new_node.value;
+                    ss << "Splitting inner node " << inner << "(" << inner->parent << ") and got "
+                       << new_node.value << " with lock being " << new_node.get_as<InnerNode *>()->is_locked();
                     debug_logger->log_info(ss.str());
+                    debug_logger->flush();                    
                     ss.str("");
                     // root
                     if (!inner->parent) {
                         auto new_root = InnerNode::make_inner();
                         new_root->keys[0] = splitkey;
-                        new_root->children[0] = inner;
-                        new_root->children[1] = new_node;
                         inner->parent = new_root;
                         new_node.set_parent(new_root);
+                        new_root->children[0] = inner;
+                        new_root->children[1] = new_node;
                         new_root->highkey = new_node.get_highkey();
                         root = new_root;
-                        ss << "New root created: " << new_root << " with ";
+                        ss << "New root in push_up created: " << new_root << " with ";
                         for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                             if (new_root->keys[i]) {
                                 ss << new_root->keys[i]->to_string() << " ";
                             }
                         }
                         ss << " and highkey " << new_root->highkey->to_string();
+                        debug_logger->log_info(ss.str());
+                        debug_logger->flush();                        
+                        ss.str("");
                         inner->unlock();
                         return Enums::OpStatus::Ok;
                     }
@@ -387,7 +422,7 @@ namespace Hill {
 
         auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t> {
         RETRY:
-            auto leaf = traverse_node_no_tracing(k, k_sz);
+            auto leaf = traverse_node(k, k_sz);
             auto version = leaf->version();
             for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (leaf->keys[i] == nullptr) {

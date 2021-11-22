@@ -57,6 +57,7 @@ namespace DebugLogger {
 
         auto open_log(const std::string &log_file) -> bool;
         auto log_info(const std::string &msg) -> void;
+        auto flush() -> void;
 
     private:
         std::mutex m;

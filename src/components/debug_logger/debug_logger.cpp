@@ -31,4 +31,12 @@ namespace DebugLogger {
         }
         v->second->log_info(msg);
     }
+
+    auto MultithreadLogger::flush() -> void {
+        auto v = loggers.find(std::this_thread::get_id());
+        if (v == loggers.end()) {
+            throw std::runtime_error("Logging a non-exist log file\n");
+        }
+        v->second->fstream.flush();
+    }
 }
