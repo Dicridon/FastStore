@@ -44,63 +44,12 @@ namespace Hill {
             };
         }
 
-        struct VersionLock {
-            std::atomic<uint64_t> l;
-            VersionLock() : l(0) {};
-            ~VersionLock() = default;
-            VersionLock(const VersionLock &) = delete;
-            VersionLock(VersionLock &&) = delete;
-            auto operator=(const VersionLock &) -> VersionLock = delete;
-            auto operator=(VersionLock &&) -> VersionLock = delete;
-
-            inline auto lock() noexcept -> void {
-                auto expected = 0UL;
-                uint64_t tmp;
-                do {
-                    tmp = l.load();
-                    expected = tmp & (~0x1UL);
-                } while (!l.compare_exchange_strong(expected, tmp | (0x1UL)));
-            }
-
-            inline auto try_lock() noexcept -> bool {
-                auto tmp = l.load();
-                auto expected = tmp & (~0x1UL);
-                auto desired = tmp | (0x1UL);
-                return l.compare_exchange_strong(expected, desired);
-            }
-
-            inline auto unlock() noexcept -> void {
-                l += 1;
-            }
-
-            inline auto is_locked() const noexcept -> bool {
-                return l.load() & (0x1UL);
-            }
-
-            inline auto version() const noexcept -> uint64_t {
-                return l >> 1;
-            }
-
-            inline auto whole_value() const noexcept -> uint64_t {
-                return l.load();
-            }
-
-            inline auto reset() noexcept -> void {
-                l.store(0);
-            }
-        };
-
         struct InnerNode;
         struct LeafNode {
             InnerNode *parent;
-            hill_key_t *highkey;
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             Memory::PolymorphicPointer values[Constants::iNUM_HIGHKEY];
             size_t value_sizes[Constants::iNUM_HIGHKEY];
-            LeafNode *right_link;
-
-            // for convenient access
-            VersionLock version_lock;
 
             LeafNode() = delete;
             // All nodes are on PM, not in heap or stack
@@ -112,40 +61,17 @@ namespace Hill {
 
             static auto make_leaf(const byte_ptr_t &ptr) -> struct LeafNode * {
                 auto tmp = reinterpret_cast<LeafNode *>(ptr);
-                tmp->version_lock.reset();
                 for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                     tmp->keys[i] = nullptr;
                     tmp->values[i] = nullptr;
                     tmp->value_sizes[i] = 0;
                 }
-                tmp->right_link = nullptr;
-                tmp->highkey = nullptr;
                 tmp->parent = nullptr;
                 return tmp;
             }
 
             inline auto is_full() const noexcept -> bool {
                 return keys[Constants::iNUM_HIGHKEY - 1] != nullptr;
-            }
-
-            inline auto lock() noexcept -> void {
-                version_lock.lock();
-            }
-
-            inline auto unlock() noexcept -> void {
-                version_lock.unlock();
-            }
-
-            inline auto try_lock() noexcept -> bool {
-                return version_lock.try_lock();
-            }
-
-            inline auto version() const noexcept -> uint64_t {
-                return version_lock.version();
-            }
-
-            inline auto is_locked() const noexcept -> bool {
-                return version_lock.is_locked();
             }
 
             auto insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
@@ -205,11 +131,6 @@ namespace Hill {
                 return reinterpret_cast<T>(value);
             }
 
-            inline auto get_highkey() const noexcept -> hill_key_t * {
-                // InnerNode and LeafNode's memory layouts are similar
-                return get_as<LeafNode *>()->highkey;
-            }
-
             inline auto get_parent() const noexcept -> InnerNode * {
                 return get_as<LeafNode *>()->parent;
             }
@@ -231,11 +152,8 @@ namespace Hill {
          */
         struct InnerNode {
             InnerNode *parent;
-            hill_key_t *highkey;
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             PolymorphicNodePointer children[Constants::iDEGREE];
-            InnerNode *right_link;
-            VersionLock version_lock;
 
             InnerNode() = default;
             // All nodes are on PM, not in heap or stack
@@ -247,13 +165,10 @@ namespace Hill {
 
             static auto make_inner() -> InnerNode * {
                 auto tmp = new InnerNode;
-                tmp->version_lock.reset();
                 for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                     tmp->keys[i] = nullptr;
                     tmp->children[i] = nullptr;
                 }
-                tmp->right_link = nullptr;
-                tmp->highkey = nullptr;
                 tmp->parent = nullptr;
                 tmp->children[Constants::iDEGREE - 1] = nullptr;
                 return tmp;
@@ -261,26 +176,6 @@ namespace Hill {
 
             inline auto is_full() const noexcept -> bool {
                 return keys[Constants::iNUM_HIGHKEY - 1] != nullptr;
-            }
-
-            inline auto lock() noexcept -> void {
-                version_lock.lock();
-            }
-
-            inline auto unlock() noexcept -> void {
-                version_lock.unlock();
-            }
-
-            inline auto try_lock() noexcept -> bool {
-                return version_lock.try_lock();
-            }
-
-            inline auto version() const noexcept -> uint64_t {
-                return version_lock.version();
-            }
-
-            inline auto is_locked() const noexcept -> bool {
-                return version_lock.is_locked();
             }
 
             // this child should be on the right of split_key
@@ -304,7 +199,6 @@ namespace Hill {
                  */
                 root = LeafNode::make_leaf(ptr);
                 logger->commit(tid);
-                debug_logger = DebugLogger::MultithreadLogger::make_logger();
             }
             ~OLFIT() = default;
 
@@ -340,9 +234,6 @@ namespace Hill {
             inline auto enable_agent(Memory::RemoteMemoryAgent *agent_) -> void {
                 agent = agent_;
             }
-            inline auto open_log(const std::string &log_file) -> bool {
-                return debug_logger->open_log(log_file);
-            }
             auto dump() const noexcept -> void;
 
         private:
@@ -350,158 +241,35 @@ namespace Hill {
             Memory::Allocator *alloc;
             WAL::Logger *logger;
             Memory::RemoteMemoryAgent *agent;
-            std::unique_ptr<DebugLogger::MultithreadLogger> debug_logger;
 
             auto traverse_node(const char *k, size_t k_sz) const noexcept -> LeafNode * {
-                std::stringstream ss;
                 if (root.is_leaf()) {
-                    // ss << "Root located " << root.get_as<LeafNode *>();
-                    // debug_logger->log_info(ss.str());
                     return root.get_as<LeafNode *>();
                 }
 
                 PolymorphicNodePointer current = root;
                 PolymorphicNodePointer next = nullptr;
                 InnerNode *inner;
-                auto version = 0UL;
                 while (!current.is_leaf()) {
                     inner = current.get_as<InnerNode *>();
-                    ss << "Traversing inner node " << inner << "(" << inner->parent << "): kids";
-                    for (int i = 0; i < Constants::iDEGREE; i++) {
-                        ss << inner->children[i].value << " ";
-                    }
-                    // ss << "and highkey " << inner->highkey->to_string();
-                    debug_logger->log_info(ss.str());
-                    ss.str("");
-                    version = inner->version_lock.version();
                     next = find_next(inner, k, k_sz);
-
-                    if (inner->version_lock.is_locked()) {
-                        ss << inner << " is locked, retry";
-                        debug_logger->log_info(ss.str());
-                        ss.str("");
-                        continue;
-                    }
-                    
-                    if (inner->version_lock.version() != version) {
-                        ss << inner << " version is not matched , retry";
-                        debug_logger->log_info(ss.str());
-                        ss.str("");
-                        continue;
-                    }
-
                     current = next;
-
-                    // if (inner->version_lock.version() == version && !inner->version_lock.is_locked()) {
-                    //     current = next;
-                    // }
                 }
-                // ss << "Finding " << current.get_as<LeafNode *>() << " with ";
-                // for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                //     if (current.get_as<LeafNode *>()->keys[i]) {
-                //         ss << current.get_as<LeafNode *>()->keys[i]->to_string() << " ";
-                //     }
-                // }
-                // 
-                // ss << "and highkey " << current.get_as<LeafNode *>()->highkey->to_string();
-                // debug_logger->log_info(ss.str());
-                ss << "Located leaf node" << current.value;
-                debug_logger->log_info(ss.str());
                 return current.get_as<LeafNode *>();
             }
 
             // follow the original paper of OLFIT, OT
             auto find_next(InnerNode *current, const char *k, size_t k_sz) const noexcept -> PolymorphicNodePointer {
-                auto result = current->highkey->compare(k, k_sz);
-                if (result == 0) {
-                    int i;
-                    for (i = Constants::iDEGREE - 1; i >= 0; i--) {
-                        if (!current->children[i].is_null()) {
-                            break;
-                        }
-                    }
-                    return current->children[i];
-                } else if (result > 0) {
-                    int i;
-                    for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                        if (current->keys[i] == nullptr || current->keys[i]->compare(k, k_sz) > 0) {
-                            return current->children[i];
-                        }
-                    }
-                    return current->children[i];
-                } else {
-                    if (current->right_link) {
-                        return current->right_link;
-                    } else {
-                        int i;
-                        for (i = Constants::iDEGREE - 1; i >= 0; i--) {
-                            if (!current->children[i].is_null()) {
-                                break;
-                            }
-                        }
-                        return current->children[i];
+                PolymorphicNodePointer ret;
+                hill_key_t *tmp = nullptr;
+                int i;
+                for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                    tmp = current->keys[i];
+                    if (tmp == nullptr || tmp->compare(k, k_sz) > 0) {
+                            return current->children[i];                                
                     }
                 }
-            }
-
-            auto move_right(LeafNode *leaf, const char *k, size_t k_sz) -> LeafNode * {
-                // leaf-hightkey == nullptr is true on start
-                // std::stringstream ss;
-                // ss << "Checking leaf node " << leaf << " with ";
-                // for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                //     if (leaf->keys[i]) {
-                //         ss << leaf->keys[i]->to_string() << " ";
-                //     }
-                // }
-                // ss << "and highkey " << (leaf->highkey ? leaf->highkey->to_string() : " nullptr ");
-                // debug_logger->log_info(ss.str());
-                if (!leaf->right_link) {
-                    return leaf;
-                }
-
-                if (leaf->right_link->keys[0]->compare(k, k_sz) > 0) {
-                    return leaf;
-                }
-                leaf->right_link->lock();
-                leaf->unlock();
-                return move_right(leaf->right_link, k, k_sz);
-            }
-
-            auto update_highkeys(LeafNode *leaf) -> void {
-                // std::stringstream ss;
-                if (!leaf->parent) {
-                    // ss << "Leaf " << leaf << " has no parent";
-                    // debug_logger->log_info(ss.str());
-                    // ss.str("");
-                    return;
-                }
-
-                PolymorphicNodePointer current = leaf;
-                auto parent = leaf->parent;
-
-                do {
-                    int i;
-                    for (i = Constants::iDEGREE - 1; i >= 0; i--) {
-                        if (!parent->children[i].is_null()) {
-                            break;
-                        }
-                    }
-
-                    if (parent->children[i].value != current.value) {
-                        return;
-                    }
-                    
-                    parent->lock();
-                    if (parent == current.get_parent()) {
-                        // ss << "Updating parent " << parent << "\\'s highkey to be " << current.get_highkey()->to_string();
-                        // debug_logger->log_info(ss.str());
-                        // ss.str("");
-                        parent->highkey = current.get_highkey();
-                    }
-                    parent->unlock();
-                    current = parent;
-                    parent = current.get_parent();
-                } while (parent);
+                return current->children[i];
             }
 
             // split an old node and return a new node with keys migrated

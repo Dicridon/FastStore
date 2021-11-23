@@ -52,7 +52,7 @@ auto main(int argc, char *argv[]) -> int {
         std::cout << ">> Logger moved\n";
     }
 
-    auto workload = Workload::generate_simple_string_workload(batch_size, Workload::Enums::Insert);
+    auto workload = Workload::generate_simple_string_workload(batch_size, Workload::Enums::Insert, false);
 
     std::vector<std::thread> threads;
     std::vector<int> tids;
@@ -70,10 +70,6 @@ auto main(int argc, char *argv[]) -> int {
     
     for (int i = 0; i < num_thread; i++) {
         threads.emplace_back([&](int tid, std::vector<Hill::Workload::WorkloadItem *> &load) {
-            if (!olfit->open_log("thread_" + std::to_string(tid) + ".log")) {
-                std::cout << "Thread " << tid << " failed to open log file\n";
-                exit(-1);
-            }
             for (auto &w : load) {
                 if (olfit->insert(tid, w->key.c_str(), w->key.size(), w->key.c_str(), w->key.size()) != Enums::OpStatus::Ok) {
                     std::cout << ">> Insertion should be successful\n";

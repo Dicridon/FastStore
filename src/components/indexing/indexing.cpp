@@ -53,11 +53,6 @@ namespace Hill {
             }
             log->commit(tid);
 
-            // new key is the last one
-            if (i == Constants::iNUM_HIGHKEY - 1 || keys[i + 1] == nullptr) {
-                highkey = keys[i];
-            }
-
             return Enums::OpStatus::Ok;
         }
 
@@ -65,8 +60,7 @@ namespace Hill {
             std::stringstream ss;
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
-            ColorizedString h(std::string(highkey->raw_chars(), highkey->size()), Colors::Cyan);
-            std::cout << ">> Leaf " << c << " reporting with highkey: " << h << " and parent " << parent << "\n";
+            std::cout << ">> Leaf " << c << " reporting with parent " << parent << "\n";
             std::cout << "-->> keys: ";
             for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                 if (keys[i] == nullptr) {
@@ -97,12 +91,6 @@ namespace Hill {
             children[i + 1] = child;
             child.set_parent(this);
 
-            for (int j = Constants::iDEGREE - 1; j >= 0; j--) {
-                if (!children[j].is_null()) {
-                    highkey = children[j].get_highkey();
-                    return Enums::OpStatus::Ok;
-                }
-            }
             return Enums::OpStatus::Ok;
         }
 
@@ -110,8 +98,7 @@ namespace Hill {
             std::stringstream ss;
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
-            ColorizedString h(std::string(highkey->raw_chars(), highkey->size()), Colors::Yellow);
-            std::cout << ">> Inner " << c << " reporting with highkey " << h << " and " << parent << "\n";
+            std::cout << ">> Inner " << c << " reporting and " << parent << "\n";
             std::cout << "-->> keys: ";
 
             for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
@@ -145,48 +132,13 @@ namespace Hill {
         }
 
         auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus {
-            std::stringstream ss;
-            // ss << "Thread " << tid << " start traversing for " << std::string(k, k_sz);
-            // debug_logger->log_info(ss.str());
-            // ss.str("");
-            auto node_ = traverse_node(k, k_sz);
-            ss << "Trying to lock leaf node " << node_;
-            debug_logger->log_info(ss.str());
-            ss.str("");
-            node_->lock();
-            debug_logger->log_info("Locked");
-            auto node = move_right(node_, k, k_sz);
+            auto node = traverse_node(k, k_sz);
 
-            ss << "move right to " << node;
-            debug_logger->log_info(ss.str());
-            ss.str("");
-
-            // ss << "Thread " << tid << " trying writing " << std::string(k, k_sz) << " to node " << node;
-            // debug_logger->log_info(ss.str());
-            // ss.str("");
             if (!node->is_full()) {
-                ss << "Inserting to leaf node " << node;
-                debug_logger->log_info(ss.str());
-                debug_logger->flush();
-                ss.str("");
-                auto ret = node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
-                debug_logger->log_info("Done");
-                debug_logger->flush();                
-                debug_logger->log_info("Updaing highkeys");
-                debug_logger->flush();                
-                update_highkeys(node);
-                debug_logger->log_info("Update finished");
-                debug_logger->flush();                
-                node->unlock();
-                debug_logger->flush();
-                return ret;
+                return node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
             }
 
             auto new_leaf = split_leaf(tid, node, k, k_sz, v, v_sz);
-            ss << "Splitting leaf node " << node << " and got " << new_leaf;
-            debug_logger->log_info(ss.str());
-            debug_logger->flush();
-            ss.str("");
             // root is a leaf
             if (!node->parent) {
                 auto new_root = InnerNode::make_inner();
@@ -194,33 +146,18 @@ namespace Hill {
                 new_root->children[0] = node;
                 new_root->children[1] = new_leaf;
                 node->parent = new_leaf->parent = new_root;
-                new_root->highkey = new_leaf->highkey;
                 root = new_root;
-                ss << "New root created in insert(): " << new_root << " with ";
-                for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                    if (new_root->keys[i]) {
-                        ss << new_root->keys[i]->to_string() << " ";
-                     }
-                }
-                ss << " and highkey " << new_root->highkey->to_string();
-                debug_logger->log_info(ss.str());
-                debug_logger->flush();
-                ss.str("");
-                node->unlock();
                 return Enums::OpStatus::Ok;
             }
 
             auto ret = push_up(new_leaf);
-            node->unlock();
             return ret;
         }
 
         auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode * {
-            debug_logger->flush();
             auto ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
             alloc->allocate(tid, sizeof(LeafNode), ptr);
             auto n = LeafNode::make_leaf(ptr);
-            n->right_link = l->right_link;
             n->parent = l->parent;
             Memory::Util::mfence();
 
@@ -240,27 +177,17 @@ namespace Hill {
                 n->values[k - split] = l->values[k];
                 n->value_sizes[k - split] = l->value_sizes[k];
             }
-            n->highkey = n->keys[Constants::iNUM_HIGHKEY - 1 - split];
-            l->right_link = n;
-
+            
             for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
                 l->keys[k] = nullptr;
                 l->values[k] = nullptr;
                 l->value_sizes[k] = 0;
             }
 
-            // std::stringstream ss;
             if (i < Constants::iNUM_HIGHKEY / 2) {
-                // ss << "Actually write to " << l;
-                // debug_logger->log_info(ss.str());
                 l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
-                // should make sure highkey is changed
-                l->highkey = l->keys[split];
             } else {
-                // ss << "Actually write to " << n;
-                // debug_logger->log_info(ss.str());
                 n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
-                l->highkey = l->keys[split - 1];
             }
 
             // Here node split is done in terms of recovery, because inner nodes are reconstructed from
@@ -271,7 +198,6 @@ namespace Hill {
 
         auto OLFIT::split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *> {
             auto right = InnerNode::make_inner();
-            right->right_link = l->right_link;
             right->parent = l->parent;
 
             auto split_pos = Constants::iDEGREE / 2;
@@ -284,7 +210,6 @@ namespace Hill {
 
             hill_key_t *ret_split_key = const_cast<hill_key_t *>(splitkey);
             if (i == split_pos) {
-                l->highkey = l->children[split_pos].get_highkey();
                 right->children[0] = child;
                 right->children[0].set_parent(right);
                 int k;
@@ -295,7 +220,6 @@ namespace Hill {
                     right->children[k - i + 1].set_parent(right);
                     l->children[k + 1] = nullptr;
                 }
-                right->highkey = right->children[k - i].get_highkey();
             } else {
                 auto real_split_pos = split_pos;
                 int start = 0;
@@ -323,13 +247,10 @@ namespace Hill {
                 }
                 right->children[k - start] = l->children[k];
                 right->children[k - start].set_parent(right);
-                right->highkey = right->children[k - start].get_highkey();
-                l->highkey = l->children[real_split_pos].get_highkey();
                 l->children[k] = nullptr;
                 l->keys[real_split_pos] = nullptr;
                 target->insert(splitkey, child);
             }
-            l->right_link = right;
             return {right, ret_split_key};
         }
 
@@ -337,58 +258,17 @@ namespace Hill {
             InnerNode *inner;
             PolymorphicNodePointer new_node = new_leaf;
             hill_key_t *splitkey = new_leaf->keys[0];
-            std::stringstream ss;
+
             inner = new_leaf->parent;
             while(inner) {
-                ss << "Try to lock inner node in while: " << inner;
-                debug_logger->log_info(ss.str());
-                debug_logger->flush();
-                ss.str("");
-                inner->lock();
-                debug_logger->log_info("Locked");
-                debug_logger->flush();                
-
-                //  ss << "Checking node " << inner << " with rightlinkg being " << inner->right_link;
-                // ss << " ,highkey is " << inner->highkey->to_string() << " and splitkey is " << splitkey->to_string();
-                // debug_logger->log_info(ss.str());
-                // ss.str("");
-                //double check if a split is done
-                auto less = *inner->highkey <= *splitkey;
-                if (less) {
-                    if (inner->right_link) {
-                        // ss << "Moving from " << inner << " to " << inner->right_link;
-                        // debug_logger->log_info(ss.str());
-                        // ss.str("");
-                        auto before = inner;
-                        inner = inner->right_link;
-                        ss << "Try to lock right link " << inner;
-                        debug_logger->log_info(ss.str());
-                        debug_logger->flush();                        
-                        ss.str("");
-                        // inner->lock();
-                        before->unlock();
-                        continue;
-                    }
-                }
-
                 if (!inner->is_full()) {
-                    ss << "Inserting new node " << new_node.value << " to " << inner;
-                    debug_logger->log_info(ss.str());
-                    debug_logger->flush();                    
-                    ss.str("");
                     inner->insert(splitkey, new_node);
                     new_node.set_parent(inner);
-                    inner->unlock();
                     return Enums::OpStatus::Ok;
                 } else {
                     auto split_context = split_inner(inner, splitkey, new_node);
                     new_node = split_context.first;
                     splitkey = split_context.second;
-                    ss << "Splitting inner node " << inner << "(" << inner->parent << ") and got "
-                       << new_node.value << " with lock being " << new_node.get_as<InnerNode *>()->is_locked();
-                    debug_logger->log_info(ss.str());
-                    debug_logger->flush();                    
-                    ss.str("");
                     // root
                     if (!inner->parent) {
                         auto new_root = InnerNode::make_inner();
@@ -397,42 +277,23 @@ namespace Hill {
                         new_node.set_parent(new_root);
                         new_root->children[0] = inner;
                         new_root->children[1] = new_node;
-                        new_root->highkey = new_node.get_highkey();
                         root = new_root;
-                        ss << "New root in push_up created: " << new_root << " with ";
-                        for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
-                            if (new_root->keys[i]) {
-                                ss << new_root->keys[i]->to_string() << " ";
-                            }
-                        }
-                        ss << " and highkey " << new_root->highkey->to_string();
-                        debug_logger->log_info(ss.str());
-                        debug_logger->flush();                        
-                        ss.str("");
-                        inner->unlock();
                         return Enums::OpStatus::Ok;
                     }
                 }
-                auto old = inner;
-                inner = inner->parent;
-                old->unlock();
+ inner = inner->parent;
             }
             return Enums::OpStatus::Ok;
         }
 
         auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t> {
-        RETRY:
             auto leaf = traverse_node(k, k_sz);
-            auto version = leaf->version();
             for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (leaf->keys[i] == nullptr) {
                     return {nullptr, 0};
                 }
                 if (leaf->keys[i]->compare(k, k_sz) == 0) {
-                    if (leaf->version() == version && !leaf->is_locked())
-                        return {leaf->values[i], leaf->value_sizes[i]};
-                    else
-                        goto RETRY;
+                    return {leaf->values[i], leaf->value_sizes[i]};
                 }
             }
             return {nullptr, 0};
