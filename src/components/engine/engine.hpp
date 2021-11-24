@@ -104,6 +104,7 @@ namespace Hill {
             
             ret->sock = 0;
             ret->run = false;
+            ret->tids = 0;
             return ret;
         }
 
@@ -113,7 +114,7 @@ namespace Hill {
         auto launch() noexcept -> bool;
         auto stop() noexcept -> void;
 
-        auto register_thread() -> std::optional<int>;
+        auto register_thread() -> int;
         auto unregister_thread(int tid) -> void;
         /*
          * Established connections are recorded so that one node can find the RDMA connection with a specific node.
@@ -157,6 +158,7 @@ namespace Hill {
         std::string pmem_file;
         byte_ptr_t base;
         bool run;
+        std::atomic_int tids;
 
         int sock;
         std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];

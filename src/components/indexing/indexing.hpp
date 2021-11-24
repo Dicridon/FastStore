@@ -35,6 +35,7 @@ namespace Hill {
                 NoMemory,
                 NeedSplit,
                 RepeatInsert,
+                Unkown,
             };
 
             enum class NodeType : byte_t {
@@ -211,7 +212,7 @@ namespace Hill {
                 if (!a_tid.has_value()) {
                     return nullptr;
                 }
-
+                
                 auto l_tid = logger->register_thread();
                 if (!l_tid.has_value()) {
                     return nullptr;
@@ -231,6 +232,10 @@ namespace Hill {
             // external interfaces use const char * as input
             auto insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus;
             auto search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t>;
+            inline auto get_root() const noexcept -> PolymorphicNodePointer {
+                return root;
+            }
+            
             inline auto enable_agent(Memory::RemoteMemoryAgent *agent_) -> void {
                 agent = agent_;
             }

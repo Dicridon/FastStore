@@ -4,11 +4,80 @@
 
 namespace Hill {
     namespace Store {
+        auto StoreServer::launch(int num_threads) -> bool {
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+            std::cout << ">> Launching server node at " << server->get_addr_uri() << "\n";
+#endif
+            is_launched = server->launch();
+            if (!is_launched) {
+                return false;
+            }
+
+            num_launched_threads = num_threads;
+            int i;
+            for (i = 0; i < num_threads; i++) {
+                std::thread([&](int btid) {
+                    auto atid = server->get_allocator()->register_thread();
+                    if (!atid.has_value()) {
+                        throw std::runtime_error("Failed to register memeory allocator during server launching");
+                    }
+
+                    auto ltid = server->get_logger()->register_thread();
+                    if (!ltid.has_value()) {
+                        throw std::runtime_error("Failed to register memeory allocator during server launching");
+                    }
+
+                    if (atid.value() != ltid.value()) {
+                        throw std::runtime_error("Tids differ in logger and memory allocator");
+                    }
+
+                    auto tid = atid.value();
+
+                    Indexing::OLFIT olfit(atid.value(), server->get_allocator(), server->get_logger());
+                    leaves[btid] = olfit.get_root().get_as<Indexing::LeafNode *>();
+
+                    while (is_launched) {
+                        IncomeMessage *msg;
+                        if (req_queues[btid].pop(msg)) {
+                            switch (msg->input.op) {
+                            case Enums::RPCOperations::Insert:
+                                msg->output.status.store(olfit.insert(tid, msg->input.key, msg->input.key_size,
+                                                                      msg->input.value, msg->input.value_size));
+                                break;
+                            case Enums::RPCOperations::Search: {
+                                auto [v, v_sz] = olfit.search(msg->input.key, msg->input.key_size);
+                                if (v == nullptr) {
+                                    msg->output.status.store(Indexing::Enums::OpStatus::Failed);
+                                    break;
+                                }
+                                msg->output.value = v;
+                                msg->output.value_size = v_sz;
+                                msg->output.status.store(Indexing::Enums::OpStatus::Ok);
+                            }
+                                break;
+                            case Enums::RPCOperations::Update:
+                                [[fallthrough]];
+                                // TODO
+                            case Enums::RPCOperations::Range:
+                                [[fallthrough]];
+                                // TODO
+                            default:
+                                msg->output.status.store(Indexing::Enums::OpStatus::Failed);
+                                break;
+                            }
+                        }
+                    }
+                }, i).detach();
+            }
+            
+            return true;
+        }
+
         auto StoreServer::launch_one_erpc_listen_thread() -> bool {
             if (!is_launched) {
                 return false;
             }
-            
+
             auto sock = Misc::make_async_socket(true, server->get_node()->erpc_listen_port);
             if (sock == -1) {
 #ifdef __HILL__INFO__
@@ -33,58 +102,65 @@ namespace Hill {
                 }
             });
             t.detach();
-                
+
             return true;
         }
-        
+
         auto StoreServer::register_erpc_handler_thread() noexcept -> std::optional<std::thread> {
             if (!is_launched) {
                 return {};
             }
 
             auto tid = server->register_thread();
-            if (!tid.has_value()) {
-                return {};
-            }
-            
+
             return std::thread([&] (int tid) {
-                detail::ServerContext s_ctx;
+                ServerContext s_ctx;
                 s_ctx.thread_id = tid;
-                s_ctx.server = server.get();
-                s_ctx.index = index.get();
+                s_ctx.server = this->server.get();
+                s_ctx.queues = this->req_queues;
+                s_ctx.num_launched_threads = this->num_launched_threads;
 #ifdef __HILL_INFO__
                 std::cout << ">> Creating eRPC for thread " << tid << ", remote id is also << " << tid << "\n";
 #endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
                 session_lock.lock();
-                erpc_sessions.push_back(tid);
+                this->erpc_sessions.push_back(tid);
                 session_lock.unlock();
                 s_ctx.rpc->run_event_loop(10000000);
                 this->server->unregister_thread(tid);
-            }, tid.value());
+            }, tid);
         }
 
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
-            auto ctx = reinterpret_cast<detail::ServerContext *>(context);
+            auto ctx = reinterpret_cast<ServerContext *>(context);
             auto [type, key, value] = parse_request_message(req_handle, context);
-            auto status = ctx->index->insert(ctx->thread_id, key->raw_chars(), key->size(),
-                                             value->raw_chars(), value->size());
+
+            IncomeMessage msg;
+            msg.input.key = key->raw_chars();
+            msg.input.key_size = key->size();
+            msg.output.status = Indexing::Enums::OpStatus::Unkown;
+
+            auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
+            while(!ctx->queues[pos].push(&msg));
+
+            while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+
             auto& resp = req_handle->pre_resp_msgbuf;
-            constexpr auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(detail::Enums::RPCStatus);
+            constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
 
-            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf) = detail::Enums::RPCOperations::Insert;
-            auto offset = sizeof(detail::Enums::RPCOperations);
-            switch(status){
+            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Insert;
+            auto offset = sizeof(Enums::RPCOperations);
+            switch(msg.output.status.load()){
             case Indexing::Enums::OpStatus::Ok:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Ok;
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
                 break;
             case Indexing::Enums::OpStatus::NoMemory:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::NoMemory;
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
                 break;
             default:
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Failed;
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
                 break;
             }
 
@@ -94,67 +170,77 @@ namespace Hill {
         auto StoreServer::update_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             // TODO
         }
-        
+
         auto StoreServer::search_handler(erpc::ReqHandle *req_handle, void *context) -> void {
-            auto ctx = reinterpret_cast<detail::ServerContext *>(context);
+            auto ctx = reinterpret_cast<ServerContext *>(context);
             auto [type, key, value] = parse_request_message(req_handle, context);
-            auto [v, v_sz] = ctx->index->search(key->raw_chars(), key->size());
+            IncomeMessage msg;
+            msg.input.key = key->raw_chars();
+            msg.input.key_size = key->size();
+            msg.input.op = type;
+            msg.output.status = Indexing::Enums::OpStatus::Unkown;
+
+            auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
+            while(!ctx->queues[pos].push(&msg));
+
+            while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+
             auto& resp = req_handle->pre_resp_msgbuf;
-            constexpr auto total_msg_size = sizeof(detail::Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
-                + sizeof(size_t) + sizeof(detail::Enums::RPCStatus);
+            constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
+                + sizeof(size_t) + sizeof(Enums::RPCStatus);
 
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
-            *reinterpret_cast<detail::Enums::RPCOperations *>(resp.buf) = detail::Enums::RPCOperations::Search;
-            
-            auto offset = sizeof(detail::Enums::RPCOperations);
-            if (v == nullptr) {
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Failed;
+            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Search;
+
+            auto offset = sizeof(Enums::RPCOperations);
+            if (msg.output.value == nullptr) {
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
             } else {
-                *reinterpret_cast<detail::Enums::RPCStatus *>(resp.buf + offset) = detail::Enums::RPCStatus::Ok;
-                // offset += sizeof(detail::Enums::RPCStatus);
-                // *reinterpret_cast<size_t *>(resp.buf + offset) = v_sz;
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
+                // offset += sizeof(Enums::RPCStatus);
+                // *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;
                 // offset += sizeof(size_t);
-                // *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = v;
+                // *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
             }
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
-        
+
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             // TODO
         }
-        
+
         auto StoreServer::memory_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             // TODO
         }
 
         auto StoreServer::parse_request_message(const erpc::ReqHandle *req_handle, const void *context)
-            -> std::tuple<detail::Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>
+            -> std::tuple<Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>
         {
-            auto server_ctx = reinterpret_cast<detail::ServerContext *>(const_cast<void *>(context));
+            auto server_ctx = reinterpret_cast<ServerContext *>(const_cast<void *>(context));
             auto requests = req_handle->get_req_msgbuf();
-            
+
             auto buf = requests->buf;
-            auto type = *reinterpret_cast<detail::Enums::RPCOperations *>(buf);
+            auto type = *reinterpret_cast<Enums::RPCOperations *>(buf);
             KVPair::HillString *key = nullptr, *key_or_value = nullptr;
-            buf += sizeof(detail::Enums::RPCOperations);
-            
+            buf += sizeof(Enums::RPCOperations);
+
             switch(type){
-            case detail::Enums::RPCOperations::Insert:
+            case Enums::RPCOperations::Insert:
                 [[fallthrough]];
-            case detail::Enums::RPCOperations::Range:
+            case Enums::RPCOperations::Range:
                 [[fallthrough]];
-            case detail::Enums::RPCOperations::Update:
+            case Enums::RPCOperations::Update:
                 key = reinterpret_cast<hill_key_t *>(buf);
                 buf += key->object_size();
                 key_or_value = reinterpret_cast<hill_value_t *>(buf);
                 break;
-            case detail::Enums::RPCOperations::Search:
+            case Enums::RPCOperations::Search:
                 key = reinterpret_cast<hill_key_t *>(buf);
                 break;
-            case detail::Enums::RPCOperations::CallForMemory:
+            case Enums::RPCOperations::CallForMemory:
                 break;
             default:
-                type = detail::Enums::RPCOperations::Unknown;
+                type = Enums::RPCOperations::Unknown;
                 break;
             }
 
@@ -167,17 +253,14 @@ namespace Hill {
             if (!is_launched) {
                 return {};
             }
-            
+
             auto tid = client->register_thread();
-            if (!tid.has_value()) {
-                return {};
-            }
 
             return std::thread([&](int tid) {
-#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)                
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
                 std::cout << ">> Client thread launched\n";
-#endif                
-                detail::ClientContext c_ctx;
+#endif
+                ClientContext c_ctx;
                 c_ctx.thread_id = tid;
                 c_ctx.client = this->client.get();
 
@@ -185,7 +268,7 @@ namespace Hill {
                 int node_id;
 #ifdef __HILL_INFO__
                 auto start = std::chrono::steady_clock::now();
-#endif                
+#endif
                 for (auto &i : load) {
                     c_ctx.is_done = false;
                     _node_id = check_rpc_connection(tid, i, c_ctx);
@@ -199,7 +282,7 @@ namespace Hill {
                                                          &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
                                                          response_continuation, &node_id);
                     while(!c_ctx.is_done) {
-                        c_ctx.rpcs[node_id]->run_event_loop_once();                        
+                        c_ctx.rpcs[node_id]->run_event_loop_once();
                     }
                 }
                 this->client->unregister_thread(tid);
@@ -221,15 +304,15 @@ namespace Hill {
                               << c_ctx.successful_searches / duration << " KOPS\n";
                 }
 #endif
-            }, tid.value());
+            }, tid);
         }
 
         auto StoreClient::check_rpc_connection(int tid, const Workload::WorkloadItem &item,
-                                               detail::ClientContext &c_ctx) -> std::optional<int>
+                                               ClientContext &c_ctx) -> std::optional<int>
         {
             const auto &meta = this->client->get_cluster_meta();
             auto node_id = meta.filter_node(item.key);
-            
+
             if (c_ctx.rpcs[node_id] != nullptr) {
                 return node_id;
             }
@@ -237,7 +320,7 @@ namespace Hill {
             if (node_id == 0) {
                 return {};
             }
-            
+
 
             if (!client->is_connected(tid, node_id)) {
                 if (!client->connect_server(tid, node_id)) {
@@ -267,7 +350,7 @@ namespace Hill {
             while (!rpc->is_connected(c_ctx.session)) {
                 rpc->run_event_loop_once();
             }
-            
+
             c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
             c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
             shutdown(socket, 0);
@@ -275,28 +358,28 @@ namespace Hill {
         }
 
         auto StoreClient::prepare_request(int node_id, const Workload::WorkloadItem &item,
-                                          detail::ClientContext &c_ctx) -> bool
+                                          ClientContext &c_ctx) -> bool
         {
             auto type = item.type;
-            uint8_t *buf = c_ctx.req_bufs[node_id].buf;            
+            uint8_t *buf = c_ctx.req_bufs[node_id].buf;
             switch(type) {
             case Hill::Workload::Enums::WorkloadType::Update:
 
-                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Update;
+                *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::Update;
                 [[fallthrough]];
             case Hill::Workload::Enums::WorkloadType::Range:
-                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Range;
-                [[fallthrough]];                
+                *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::Range;
+                [[fallthrough]];
             case Hill::Workload::Enums::WorkloadType::Insert:
-                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Insert;
-                buf += sizeof(detail::Enums::RPCOperations);
+                *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::Insert;
+                buf += sizeof(Enums::RPCOperations);
                 KVPair::HillString::make_string(buf, item.key.c_str(), item.key.size());
                 buf += reinterpret_cast<hill_key_t *>(buf)->object_size();
                 KVPair::HillString::make_string(buf, item.key_or_value.c_str(), item.key_or_value.size());
                 break;
             case Hill::Workload::Enums::WorkloadType::Search:
-                *reinterpret_cast<detail::Enums::RPCOperations *>(buf) = detail::Enums::RPCOperations::Search;
-                buf += sizeof(detail::Enums::RPCOperations);
+                *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::Search;
+                buf += sizeof(Enums::RPCOperations);
                 KVPair::HillString::make_string(buf, item.key.c_str(), item.key.size());
                 break;
             default:
@@ -307,36 +390,36 @@ namespace Hill {
 
         auto StoreClient::response_continuation(void *context, void *tag) -> void {
             auto node_id = *reinterpret_cast<int *>(tag);
-            auto ctx = reinterpret_cast<detail::ClientContext *>(context);
+            auto ctx = reinterpret_cast<ClientContext *>(context);
             auto buf = ctx->resp_bufs[node_id].buf;
 
-            auto op = *reinterpret_cast<detail::Enums::RPCOperations *>(buf);
-            buf += sizeof(detail::Enums::RPCOperations);
-            auto status = *reinterpret_cast<detail::Enums::RPCStatus *>(buf);
-            
+            auto op = *reinterpret_cast<Enums::RPCOperations *>(buf);
+            buf += sizeof(Enums::RPCOperations);
+            auto status = *reinterpret_cast<Enums::RPCStatus *>(buf);
+
             switch(op) {
-            case detail::Enums::RPCOperations::Insert: {
-                if (status == detail::Enums::RPCStatus::Ok) {
+            case Enums::RPCOperations::Insert: {
+                if (status == Enums::RPCStatus::Ok) {
                     ++ctx->successful_inserts;
                 }
                 break;
             }
 
-            case detail::Enums::RPCOperations::Search: {
-                if (status == detail::Enums::RPCStatus::Ok) {
+            case Enums::RPCOperations::Search: {
+                if (status == Enums::RPCStatus::Ok) {
                     ++ctx->successful_searches;
                 }
-                break;                
-            }
-                
-            case detail::Enums::RPCOperations::Update: {
                 break;
             }
-                
-            case detail::Enums::RPCOperations::Range: {
-                break;                
+
+            case Enums::RPCOperations::Update: {
+                break;
             }
-                
+
+            case Enums::RPCOperations::Range: {
+                break;
+            }
+
             default:
                 break;
             }
@@ -344,4 +427,3 @@ namespace Hill {
         }
     }
 }
-

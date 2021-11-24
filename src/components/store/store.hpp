@@ -9,15 +9,18 @@
 #include "kv_pair/kv_pair.hpp"
 #include "workload/workload.hpp"
 #include "config/config.hpp"
+#include "city/city.hpp"
+
+#include "boost/lockfree/queue.hpp"
 /*
  * The complete implementation of Hill is here.
  *
- * Hill store consists of an engine, an index, an eRPC processing unit. 
+ * Hill store consists of an engine, an index, an eRPC processing unit.
  * - The engine offers inter-node communication utility
  * - The index manages PM and offers both point query and range query functionality
  * - The eRPC processing unit handles requests from clients
  *
- * In a hill cluster, a monitor runs on a specific machine. All other servers should 
+ * In a hill cluster, a monitor runs on a specific machine. All other servers should
  * launch a Store instance and connect to that monitor. Clients should also connect to
  * this monitor
  */
@@ -26,72 +29,111 @@ namespace Hill {
         using namespace Memory::TypeAliases;
         using namespace KVPair::TypeAliases;
         using namespace WAL::TypeAliases;
-        
-        class StoreServer;
-        class StoreClient;
-        namespace detail {
-            struct ServerContext {
-                int thread_id;
-                Engine *server;
-                Indexing::OLFIT *index;
-                erpc::Rpc<erpc::CTransport> *rpc;
+
+        namespace Constants {
+            static constexpr size_t uMAX_MSG_SIZE = 512;
+            static constexpr int iMSG_QUEUE_CAP = 128;
+
+            // fake constants
+            using tBOOST_QUEUE_CAP = boost::lockfree::capacity<iMSG_QUEUE_CAP>;
+        }
+
+        namespace Enums {
+            // no enum class
+            enum RPCOperations : uint8_t {
+                // for client
+                Insert = Workload::Enums::WorkloadType::Insert,
+                Search = Workload::Enums::WorkloadType::Search,
+                Update = Workload::Enums::WorkloadType::Update,
+                Range = Workload::Enums::WorkloadType::Range,
+
+                // for peer server
+                CallForMemory,
+
+                // guardian
+                Unknown,
             };
 
-            struct ClientContext {
-                int thread_id;
-                std::string server_uri[Cluster::Constants::uMAX_NODE];
-                Client *client;
-                erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
-                erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
-                erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
-                int session;
-                bool is_done;
-                std::atomic_long successful_inserts;
-                std::atomic_long successful_searches;
-
-                ClientContext() {
-                    thread_id = 0;
-                    is_done = false;
-                    for (auto &u : server_uri) {
-                        u = "";
-                    }
-
-                    for (auto &r : rpcs) {
-                        r = nullptr;
-                    }
-
-                    successful_inserts = 0;
-                    successful_searches = 0;
-                }
+            enum RPCStatus : uint8_t {
+                Ok = 0,
+                NoMemory,
+                Failed,
             };
+        }
 
-            namespace Constants {
-                static constexpr size_t uMAX_MSG_SIZE = 512;
+        struct IncomeMessage {
+            struct {
+                const char *key;
+                size_t key_size;
+                const char *value;
+                size_t value_size;
+                Enums::RPCOperations op;
+            } input;
+
+            // output
+            struct {
+                std::atomic<Indexing::Enums::OpStatus> status;
+                Memory::PolymorphicPointer value;
+                size_t value_size;
+            } output;
+
+            IncomeMessage() {
+                reset();
             }
             
-            namespace Enums {
-                // no enum class
-                enum RPCOperations : uint8_t {
-                    // for client
-                    Insert = Workload::Enums::WorkloadType::Insert,
-                    Search = Workload::Enums::WorkloadType::Search,
-                    Update = Workload::Enums::WorkloadType::Update,
-                    Range = Workload::Enums::WorkloadType::Range,
+            IncomeMessage(const IncomeMessage &) = delete;
+            IncomeMessage(IncomeMessage &&) = delete;
+            auto operator=(const IncomeMessage &) = delete;
+            auto operator=(IncomeMessage &&) = delete;
 
-                    // for peer server
-                    CallForMemory,
-                    
-                    // guardian
-                    Unknown,
-                };
+            auto reset() noexcept -> void {
+                input.key = nullptr;
+                input.key_size = 0;
+                input.value = nullptr;
+                input.value_size = 0;
+                input.op = Enums::RPCOperations::Unknown;
+                
+                output.status = Indexing::Enums::OpStatus::Unkown;
+                output.value = nullptr;
+                output.value_size = 0;
+            }
+        };
 
-                enum RPCStatus : uint8_t {
-                    Ok = 0,
-                    NoMemory,
-                    Failed,
-                };
-            }            
-        }
+        struct ServerContext {
+            int thread_id;
+            Engine *server;
+            boost::lockfree::queue<IncomeMessage *, Constants::tBOOST_QUEUE_CAP> *queues;
+            erpc::Rpc<erpc::CTransport> *rpc;
+            int num_launched_threads;
+        };
+
+        struct ClientContext {
+            int thread_id;
+            std::string server_uri[Cluster::Constants::uMAX_NODE];
+            Client *client;
+            erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
+            erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
+            erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
+            int session;
+            bool is_done;
+            std::atomic_long successful_inserts;
+            std::atomic_long successful_searches;
+
+            ClientContext() {
+                thread_id = 0;
+                is_done = false;
+                for (auto &u : server_uri) {
+                    u = "";
+                }
+
+                for (auto &r : rpcs) {
+                    r = nullptr;
+                }
+
+                successful_inserts = 0;
+                successful_searches = 0;
+            }
+        };
 
         /*
          * StoreServer handles all erpc calls
@@ -113,8 +155,8 @@ namespace Hill {
          *    | RPCOperations::Scan | hill_key_t start | hill_key_t end |
          *
          * 5. CallForMemory
-         *    |           first byte         | 
-         *    | RPCOperations::CallForMemory | 
+         *    |           first byte         |
+         *    | RPCOperations::CallForMemory |
          *
          * responses are in one of following formats
          * 1. Insert:
@@ -130,12 +172,12 @@ namespace Hill {
          *    | RPCOperations::Update |    RPCStatus   |
          *
          * 4. Scan
-         *    |      first byte     | 
-         *    | RPCOperations::Scan | 
+         *    |      first byte     |
+         *    | RPCOperations::Scan |
          *
          * 5. CallForMemory
-         *    |           first byte         | 
-         *    | RPCOperations::CallForMemory | 
+         *    |           first byte         |
+         *    | RPCOperations::CallForMemory |
          *
          */
         class StoreServer {
@@ -152,29 +194,23 @@ namespace Hill {
             {
                 auto ret = std::make_unique<StoreServer>();
                 ret->server = Engine::make_engine(config);
-                ret->index = Indexing::OLFIT::make_olfit(ret->server->get_allocator(), ret->server->get_logger());
                 ret->cache = &ReadCache::Cache::make_cache(new byte_t[cache_cap]);
 #ifdef __HILL_INFO__
                 std::cout << ">> Starting nexus for server at " << ret->server->get_rpc_uri() << "\n";
-#endif                
+#endif
                 ret->nexus = new erpc::Nexus(ret->server->get_rpc_uri(), 0, 0);
-                ret->nexus->register_req_func(detail::Enums::RPCOperations::Insert, insert_handler);
-                ret->nexus->register_req_func(detail::Enums::RPCOperations::Search, search_handler);
-                ret->nexus->register_req_func(detail::Enums::RPCOperations::Update, update_handler);
-                ret->nexus->register_req_func(detail::Enums::RPCOperations::Range, range_handler);
-                ret->nexus->register_req_func(detail::Enums::RPCOperations::CallForMemory, memory_handler);
+                ret->nexus->register_req_func(Enums::RPCOperations::Insert, insert_handler);
+                ret->nexus->register_req_func(Enums::RPCOperations::Search, search_handler);
+                ret->nexus->register_req_func(Enums::RPCOperations::Update, update_handler);
+                ret->nexus->register_req_func(Enums::RPCOperations::Range, range_handler);
+                ret->nexus->register_req_func(Enums::RPCOperations::CallForMemory, memory_handler);
                 ret->erpc_session_cursor = 0;
-                
+
                 ret->is_launched = false;
                 return ret;
             }
 
-            inline auto launch() -> bool {
-#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                std::cout << ">> Launching server node at " << server->get_addr_uri() << "\n";
-#endif
-                return is_launched = server->launch();
-            }
+            auto launch(int num_threads) -> bool;
 
             inline auto stop() -> void {
                 server->stop();
@@ -184,30 +220,33 @@ namespace Hill {
             auto launch_one_erpc_listen_thread() -> bool;
             /*
              * If a thread is successfully registered, a background thread would be launched handling
-             * income eRPC requests. 
+             * income eRPC requests.
              */
             auto register_erpc_handler_thread() noexcept -> std::optional<std::thread>;
 
         private:
+
             // server represents all servers that are not a monitor
             std::unique_ptr<Engine> server;
-            std::unique_ptr<Indexing::OLFIT> index;
+            Indexing::LeafNode *leaves[Memory::Constants::iTHREAD_LIST_NUM];
+            boost::lockfree::queue<IncomeMessage *, Constants::tBOOST_QUEUE_CAP> req_queues[Memory::Constants::iTHREAD_LIST_NUM];
             ReadCache::Cache *cache;
             erpc::Nexus *nexus;
             bool is_launched;
+            int num_launched_threads;
 
             std::mutex session_lock;
             std::vector<int> erpc_sessions;
             std::atomic_uint erpc_session_cursor;
 
             static auto insert_handler(erpc::ReqHandle *req_handle, void *context) -> void;
-            static auto update_handler(erpc::ReqHandle *req_handle, void *context) -> void;        
+            static auto update_handler(erpc::ReqHandle *req_handle, void *context) -> void;
             static auto search_handler(erpc::ReqHandle *req_handle, void *context) -> void;
             static auto range_handler(erpc::ReqHandle *req_handle, void *context) -> void;
             static auto memory_handler(erpc::ReqHandle *req_handle, void *context) -> void;
 
             static auto parse_request_message(const erpc::ReqHandle *req_handle, const void *context) ->
-                std::tuple<detail::Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>;
+                std::tuple<Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>;
         };
 
         class StoreClient {
@@ -237,16 +276,16 @@ namespace Hill {
                 }
                 return is_launched;
             }
-            
+
             auto register_thread(const Workload::StringWorkload &load) noexcept -> std::optional<std::thread>;
         private:
             std::unique_ptr<Client> client;
             erpc::Nexus *nexus;
             bool is_launched;
 
-            auto check_rpc_connection(int tid, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> std::optional<int>;
-            auto prepare_request(int node_id, const Workload::WorkloadItem &item, detail::ClientContext &c_ctx) -> bool;
-            static auto response_continuation(void *context, void *tag) -> void;            
+            auto check_rpc_connection(int tid, const Workload::WorkloadItem &item, ClientContext &c_ctx) -> std::optional<int>;
+            auto prepare_request(int node_id, const Workload::WorkloadItem &item, ClientContext &c_ctx) -> bool;
+            static auto response_continuation(void *context, void *tag) -> void;
         };
     }
 }

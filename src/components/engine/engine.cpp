@@ -20,7 +20,7 @@ namespace Hill {
             }
         }
 
-        auto [rdma_ctx, status] = rdma_device->open(base, node->available_pm, 12, RDMADevice::get_default_mr_access(),
+        auto [rdma_ctx, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
                                                     *RDMADevice::get_default_qp_init_attr());
         if (!rdma_ctx) {
             std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
@@ -67,25 +67,8 @@ namespace Hill {
         }
     }
 
-    auto Engine::register_thread() -> std::optional<int> {
-        auto l_tid = logger->register_thread();
-        if (!l_tid.has_value()) {
-            return {};
-        }
-
-        auto a_tid = allocator->register_thread();
-        if (!a_tid.has_value()) {
-            return {};
-        }
-
-        if (l_tid.value() != a_tid.value()) {
-            allocator->unregister_thread(a_tid.value());
-            logger->unregister_thread(l_tid.value());
-            return {};
-        }
-
-        auto tid = a_tid.value();
-
+    auto Engine::register_thread() -> int {
+        int tid = tids++;
         std::thread checker([&, tid] {
             while(this->run) {
                 check_rdma_request(tid);
