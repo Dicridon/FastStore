@@ -68,7 +68,7 @@ auto main(int argc, char *argv[]) -> int {
         std::vector<Workload::StringWorkload> search_loads;
 
         auto begin = (1UL << 63) + (1UL << 62);
-        clients.reserve(threads);
+        clients.resize(threads);
         stats.resize(threads);
         
         for (int i = 0; i < threads; i++) {

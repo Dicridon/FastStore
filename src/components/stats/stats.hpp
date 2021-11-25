@@ -118,10 +118,6 @@ namespace Hill {
                 });
 
                 auto partition = copy.size() * (1 - percent / 100);
-                std::cout << "partition is " << partition << "\n";
-                for (auto i = copy.begin(); i < copy.begin() + partition; i++) {
-                    std::cout << *i << "\n";
-                }
                 return std::accumulate(copy.begin(), copy.begin() + partition, 0) / partition;
             }
             
