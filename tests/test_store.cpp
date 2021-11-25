@@ -70,15 +70,14 @@ auto main(int argc, char *argv[]) -> int {
         auto begin = (1UL << 63) + (1UL << 62);
         clients.resize(threads);
         stats.resize(threads);
-        
+
         for (int i = 0; i < threads; i++) {
             insert_loads.emplace_back(Workload::generate_simple_string_workload_with_begin(begin - i * batch, batch, Workload::Enums::WorkloadType::Insert));
-            clients[i] = std::move(client->register_thread(insert_loads[i], stats[i]).value());
+            search_loads.emplace_back(Workload::generate_simple_string_workload_with_begin(begin - i * batch, batch, Workload::Enums::WorkloadType::Search));
         }
 
-        for (auto &t : clients) {
-            if (t.joinable())
-                t.join();
+        for (int i = 0; i < threads; i++) {
+            clients[i] = std::move(client->register_thread(insert_loads[i], stats[i]).value());
         }
 
         std::cout << ">> Reporting inserts: \n";
@@ -93,8 +92,12 @@ auto main(int argc, char *argv[]) -> int {
         }
 
         for (int i = 0; i < threads; i++) {
-            search_loads.emplace_back(Workload::generate_simple_string_workload_with_begin(begin - i * batch, batch, Workload::Enums::WorkloadType::Search));
             clients[i] = std::move(client->register_thread(search_loads[i], stats[i]).value());
+        }
+
+        for (auto &t : clients) {
+            if (t.joinable())
+                t.join();
         }
 
         std::cout << ">> Reporting searches: \n";
