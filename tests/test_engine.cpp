@@ -34,7 +34,6 @@ auto run_client(const std::string &file) -> bool {
     }
     client->connect_monitor();
 
-    uint64_t counter = 0UL;
     while(true) {
 
     }

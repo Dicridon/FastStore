@@ -32,14 +32,15 @@ auto main(int argc, char *argv[]) -> int {
         auto server = StoreServer::make_server(config, 1024 * 1024);
         server->launch(threads);
 
-        if (!server->launch_one_erpc_listen_thread()) {
-            std::cout << "Can't launch erpc listen thread\n";
-            return -1;
-        }
 
         auto _thread = server->register_erpc_handler_thread();
         if (!_thread.has_value()) {
             std::cerr << "Can't start a server thread\n";
+            return -1;
+        }
+
+        if (!server->launch_one_erpc_listen_thread()) {
+            std::cout << "Can't launch erpc listen thread\n";
             return -1;
         }
 

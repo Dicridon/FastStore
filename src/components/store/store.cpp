@@ -69,7 +69,7 @@ namespace Hill {
                     }
                 }, i).detach();
             }
-            
+
             return true;
         }
 
@@ -139,6 +139,7 @@ namespace Hill {
             IncomeMessage msg;
             msg.input.key = key->raw_chars();
             msg.input.key_size = key->size();
+            msg.input.op = type;
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
 
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
@@ -168,6 +169,8 @@ namespace Hill {
         }
 
         auto StoreServer::update_handler(erpc::ReqHandle *req_handle, void *context) -> void {
+            UNUSED(req_handle);
+            UNUSED(context);
             // TODO
         }
 
@@ -206,17 +209,21 @@ namespace Hill {
         }
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
+            UNUSED(req_handle);
+            UNUSED(context);
             // TODO
         }
 
         auto StoreServer::memory_handler(erpc::ReqHandle *req_handle, void *context) -> void {
+            UNUSED(req_handle);
+            UNUSED(context);
             // TODO
         }
 
         auto StoreServer::parse_request_message(const erpc::ReqHandle *req_handle, const void *context)
             -> std::tuple<Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>
         {
-            auto server_ctx = reinterpret_cast<ServerContext *>(const_cast<void *>(context));
+            UNUSED(context);
             auto requests = req_handle->get_req_msgbuf();
 
             auto buf = requests->buf;
