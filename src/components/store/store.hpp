@@ -10,6 +10,7 @@
 #include "workload/workload.hpp"
 #include "config/config.hpp"
 #include "city/city.hpp"
+#include "stats/stats.hpp"
 
 #include "boost/lockfree/queue.hpp"
 /*
@@ -277,7 +278,7 @@ namespace Hill {
                 return is_launched;
             }
 
-            auto register_thread(const Workload::StringWorkload &load) noexcept -> std::optional<std::thread>;
+            auto register_thread(const Workload::StringWorkload &load, Stats::SyntheticStats &stats) noexcept -> std::optional<std::thread>;
         private:
             std::unique_ptr<Client> client;
             erpc::Nexus *nexus;

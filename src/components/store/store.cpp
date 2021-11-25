@@ -254,8 +254,8 @@ namespace Hill {
             return {type, key, key_or_value};
         }
 
-        auto StoreClient::register_thread(const Workload::StringWorkload &load) noexcept
-            -> std::optional<std::thread>
+        auto StoreClient::register_thread(const Workload::StringWorkload &load, Stats::SyntheticStats &stats)
+            noexcept -> std::optional<std::thread>
         {
             if (!is_launched) {
                 return {};
@@ -276,9 +276,12 @@ namespace Hill {
 
                 std::optional<int> _node_id;
                 int node_id;
-#ifdef __HILL_INFO__
-                auto start = std::chrono::steady_clock::now();
-#endif
+                stats.reset();
+                size_t counter = 0;
+                std::chrono::time_point<std::chrono::steady_clock> start, end;
+
+                stats.throughputs.timing_now();
+                start = std::chrono::steady_clock::now();
                 for (auto &i : load) {
                     c_ctx.is_done = false;
                     _node_id = check_rpc_connection(tid, i, c_ctx);
@@ -294,26 +297,44 @@ namespace Hill {
                     while(!c_ctx.is_done) {
                         c_ctx.rpcs[node_id]->run_event_loop_once();
                     }
+
+                    if ((++counter) % 1000 == 0) {
+                        end = std::chrono::steady_clock::now();
+                        switch (load[0].type) {
+                        case Workload::Enums::WorkloadType::Insert: {
+                            auto t = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                            stats.latencies.record_insert(t / 1000);
+                        }
+                            break;
+                        case Workload::Enums::WorkloadType::Search: {
+                            auto t = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                            stats.latencies.record_search(t / 1000);
+                        }
+                            break;
+                        case Workload::Enums::WorkloadType::Update:
+                        case Workload::Enums::WorkloadType::Range:
+                        default:
+                            break;
+                        }
+                        start = std::chrono::steady_clock::now();
+                    }
+                }
+                stats.throughputs.timing_stop();
+                switch (load[0].type) {
+                case Workload::Enums::WorkloadType::Insert:
+                    stats.throughputs.num_insert = load.size();
+                    stats.throughputs.suc_insert = c_ctx.successful_inserts;
+                    break;
+                case Workload::Enums::WorkloadType::Search:
+                    stats.throughputs.num_search = load.size();
+                    stats.throughputs.suc_search = c_ctx.successful_searches;
+                    break;
+                case Workload::Enums::WorkloadType::Update:
+                case Workload::Enums::WorkloadType::Range:
+                default:
+                    break;
                 }
                 this->client->unregister_thread(tid);
-#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                std::cout << ">> Job done, reporting stats\n";
-                std::cout << ">> Insert: " << c_ctx.successful_inserts << "/" << load.size() << "\n";
-                std::cout << ">> Search: " << c_ctx.successful_searches << "/" << load.size() << "\n";
-#endif
-#ifdef __HILL_INFO__
-                auto end = std::chrono::steady_clock::now();
-                double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-                if (c_ctx.successful_inserts != 0) {
-                    std::cout << ">> Insert throughput: "
-                              << c_ctx.successful_inserts / duration << " KOPS\n";
-                }
-
-                if (c_ctx.successful_searches != 0) {
-                    std::cout << ">> Search throughput: "
-                              << c_ctx.successful_searches / duration << " KOPS\n";
-                }
-#endif
             }, tid.value());
         }
 
