@@ -11,6 +11,7 @@ auto main(int argc, char *argv[]) -> int {
     parser.add_option<std::string>("--uri", "-u", "127.0.0.1:2333");
     parser.add_option<std::string>("--config", "-c", "config.moni");
     parser.add_option<int>("--size", "-s", 100000);
+    parser.add_option<int>("--multithread", "-m", 1);
     
     if (argc < 2) {
         return -1;
@@ -20,6 +21,7 @@ auto main(int argc, char *argv[]) -> int {
 
     auto type = parser.get_as<std::string>("--type").value();
     auto config = parser.get_as<std::string>("--config").value();
+    auto threads = parser.get_as<int>("--multithread").value();
 
     if (type == "monitor") {
         auto monitor = Monitor::make_monitor(config);
@@ -28,7 +30,7 @@ auto main(int argc, char *argv[]) -> int {
         Misc::pend();
     } else if (type == "server") {
         auto server = StoreServer::make_server(config, 1024 * 1024);
-        server->launch();
+        server->launch(threads);
 
         if (!server->launch_one_erpc_listen_thread()) {
             std::cout << "Can't launch erpc listen thread\n";

@@ -15,4 +15,4 @@ As for `eRPC`, if you can't compile it, please refer to its issues on github. So
 2. "<asio/ts/include.hpp>": no such file or directory. Make sure that `./third_party/asio/include` is added to the include path.
 3. "numa\_node\_of\_cpu": undefined referece. Make sure that `-lnuma` is added **AFTER** `-lerpc` on Linux platforms
 
-
+For `boost`, `hill` currently uses `boost 1.77.0`. Please download `boost_1_77_0.zip` to `third-party` and unzip it to compile.

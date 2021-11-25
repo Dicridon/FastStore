@@ -255,6 +255,9 @@ namespace Hill {
             }
 
             auto tid = client->register_thread();
+            if (!tid.has_value()) {
+                return {};
+            }
 
             return std::thread([&](int tid) {
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
@@ -304,7 +307,7 @@ namespace Hill {
                               << c_ctx.successful_searches / duration << " KOPS\n";
                 }
 #endif
-            }, tid);
+            }, tid.value());
         }
 
         auto StoreClient::check_rpc_connection(int tid, const Workload::WorkloadItem &item,
