@@ -7,6 +7,7 @@ namespace Hill {
         auto StoreServer::launch(int num_threads) -> bool {
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
             std::cout << ">> Launching server node at " << server->get_addr_uri() << "\n";
+            std::cout << ">> B+ Tree degree is " << Indexing::Constants::iDEGREE << "\n";
 #endif
             is_launched = server->launch();
             if (!is_launched) {

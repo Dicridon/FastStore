@@ -85,6 +85,7 @@ namespace Hill {
                     std::cout << ">> " << mapped_size / 1024 / 1024 / 1024.0 << "GB pmem is mapped\n";
                 }
             }
+
             ret->logger = WAL::Logger::make_unique_logger(ret->base);
             // regions are the data part
             offset += sizeof(WAL::LogRegions);
