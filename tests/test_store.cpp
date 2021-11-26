@@ -88,19 +88,21 @@ auto main(int argc, char *argv[]) -> int {
         std::cout << ">> Reporting inserts: \n";
         for (int i = 0; i < threads; i++) {
             std::cout << "[[ Thread " << i << "]]:\n";
-            std::cout << "insertions: "
+            std::cout << "---->> insertions: "
                       << stats[i].throughputs.suc_insert << "/" << stats[i].throughputs.num_insert
                       << "\n";
-            std::cout << "searches: "
+            std::cout << "---->> searches: "
                       << stats[i].throughputs.suc_search << "/" << stats[i].throughputs.num_search
                       << "\n";
-            std::cout << "throughput: " << stats[i].throughputs.insert_throughput() << " Ops/second, "
+            std::cout << "---->> throughput: " << stats[i].throughputs.insert_throughput() << " Ops/second, "
                       << "average latency: " << stats[i].latencies.insert_avg_latency() << "us, "
                       << "p90: " << stats[i].latencies.insert_p90_latency() << "us, "
                       << "p99: " << stats[i].latencies.insert_p99_latency() << "us, "
                       << "p999: " << stats[i].latencies.insert_p999_latency() << "us"
                       << "\n";
         }
+
+        std::cout << std::endl;
 
         for (int i = 0; i < threads; i++) {
             clients[i] = std::move(client->register_thread(search_loads[i], stats[i]).value());
@@ -114,13 +116,13 @@ auto main(int argc, char *argv[]) -> int {
         std::cout << ">> Reporting searches: \n";
         for (int i = 0; i < threads; i++) {
             std::cout << "[[ Thread " << i << "]]:\n";
-            std::cout << "insertions: "
+            std::cout << "---->> insertions: "
                       << stats[i].throughputs.suc_insert << "/" << stats[i].throughputs.num_insert
                       << "\n";
-            std::cout << "searches: "
+            std::cout << "---->> searches: "
                       << stats[i].throughputs.suc_search << "/" << stats[i].throughputs.num_search
                       << "\n";
-            std::cout << "throughput: " << stats[i].throughputs.search_throughput() << " Ops/second, "
+            std::cout << "---->> throughput: " << stats[i].throughputs.search_throughput() << " Ops/second, "
                       << "average latency: " << stats[i].latencies.search_avg_latency() << "us, "
                       << "p90: " << stats[i].latencies.search_p90_latency() << "us, "
                       << "p99: " << stats[i].latencies.search_p99_latency() << "us, "

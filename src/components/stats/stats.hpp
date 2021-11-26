@@ -7,6 +7,7 @@
 #include <functional>
 #include <numeric>
 #include <iostream>
+#include <cmath>
 
 namespace Hill {
     namespace Stats {
@@ -117,7 +118,7 @@ namespace Hill {
                     return a > b;
                 });
 
-                auto partition = copy.size() * (1 - percent / 100);
+                auto partition = ceil(copy.size() * (1 - percent / 100));
                 return std::accumulate(copy.begin(), copy.begin() + partition, 0) / partition;
             }
             
