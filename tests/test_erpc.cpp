@@ -62,7 +62,6 @@ auto client() -> void {
         ctx.rpc->run_event_loop_once();
     }
 
-    uint64_t counter = 0;
     std::vector<std::string> workload;
     uint64_t start = (1UL << 63) + (1UL << 62);
     for (auto i = 0UL; i < 1000000; i++) {

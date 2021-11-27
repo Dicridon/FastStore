@@ -14,10 +14,12 @@ namespace Hill {
                 return false;
             }
 
+            std::mutex tid_lock;
             num_launched_threads = num_threads;
             int i;
             for (i = 0; i < num_threads; i++) {
                 std::thread([&](int btid) {
+                    tid_lock.lock();
                     auto atid = server->get_allocator()->register_thread();
                     if (!atid.has_value()) {
                         throw std::runtime_error("Failed to register memeory allocator during server launching");
@@ -27,6 +29,7 @@ namespace Hill {
                     if (!ltid.has_value()) {
                         throw std::runtime_error("Failed to register memeory allocator during server launching");
                     }
+                    tid_lock.unlock();                    
 
                     if (atid.value() != ltid.value()) {
                         throw std::runtime_error("Tids differ in logger and memory allocator");
