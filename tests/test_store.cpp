@@ -39,10 +39,16 @@ auto main(int argc, char *argv[]) -> int {
         auto server = StoreServer::make_server(config, 1024 * 1024);
         server->launch(threads);
 
-        auto _thread = server->register_erpc_handler_thread();
-        if (!_thread.has_value()) {
-            std::cerr << "Can't start a server thread\n";
-            return -1;
+        std::vector<std::thread> handler_threads;
+        handler_threads.resize(threads);
+
+        for (int i = 0; i < threads; i++) {
+            auto _thread = server->register_erpc_handler_thread();
+            if (!_thread.has_value()) {
+                std::cerr << "Can't start a server thread\n";
+                return -1;
+            }
+            handler_threads[i] = std::move(_thread.value());
         }
 
         if (!server->launch_one_erpc_listen_thread()) {
@@ -50,12 +56,13 @@ auto main(int argc, char *argv[]) -> int {
             return -1;
         }
 
-        auto thread = std::move(_thread.value());
-        if (thread.joinable()) {
-            thread.join();
-        } else {
-            std::cerr << "Can't join server thread\n";
-            return -1;
+        for (auto &t : handler_threads) {
+            if (t.joinable()) {
+                t.join();
+            } else {
+                std::cerr << "Can't join server thread\n";
+                return -1;
+            }
         }
     } else {
         auto batch = parser.get_as<int>("--size").value();

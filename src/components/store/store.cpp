@@ -33,10 +33,12 @@ namespace Hill {
                     }
 
                     auto tid = atid.value();
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+            std::cout << ">> Launching background thread " << i << "\n";
+#endif
 
                     Indexing::OLFIT olfit(atid.value(), server->get_allocator(), server->get_logger());
                     leaves[btid] = olfit.get_root().get_as<Indexing::LeafNode *>();
-
                     while (is_launched) {
                         IncomeMessage *msg;
                         if (req_queues[btid].pop(msg)) {
@@ -121,7 +123,7 @@ namespace Hill {
                 s_ctx.queues = this->req_queues;
                 s_ctx.num_launched_threads = this->num_launched_threads;
 #ifdef __HILL_INFO__
-                std::cout << ">> Creating eRPC for thread " << tid << ", remote id is also << " << tid << "\n";
+                std::cout << ">> Creating eRPC for thread " << tid << ", remote id is also " << tid << "\n";
 #endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
