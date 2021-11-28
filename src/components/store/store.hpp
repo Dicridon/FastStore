@@ -237,6 +237,8 @@ namespace Hill {
             int num_launched_threads;
 
             std::mutex session_lock;
+            std::mutex tid_lock;
+            
             std::vector<int> erpc_sessions;
             std::atomic_uint erpc_session_cursor;
 

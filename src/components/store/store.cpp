@@ -29,7 +29,7 @@ namespace Hill {
                     if (!ltid.has_value()) {
                         throw std::runtime_error("Failed to register memeory allocator during server launching");
                     }
-                    tid_lock.unlock();                    
+                    tid_lock.unlock();
 
                     if (atid.value() != ltid.value()) {
                         throw std::runtime_error("Tids differ in logger and memory allocator");
@@ -37,7 +37,7 @@ namespace Hill {
 
                     auto tid = atid.value();
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-            std::cout << ">> Launching background thread " << i << "\n";
+            std::cout << ">> Launching background thread " << btid << "\n";
 #endif
 
                     Indexing::OLFIT olfit(atid.value(), server->get_allocator(), server->get_logger());
