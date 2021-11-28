@@ -81,7 +81,7 @@ namespace Hill {
             IncomeMessage() {
                 reset();
             }
-            
+
             IncomeMessage(const IncomeMessage &) = delete;
             IncomeMessage(IncomeMessage &&) = delete;
             auto operator=(const IncomeMessage &) = delete;
@@ -93,7 +93,7 @@ namespace Hill {
                 input.value = nullptr;
                 input.value_size = 0;
                 input.op = Enums::RPCOperations::Unknown;
-                
+
                 output.status = Indexing::Enums::OpStatus::Unkown;
                 output.value = nullptr;
                 output.value_size = 0;
@@ -238,7 +238,7 @@ namespace Hill {
 
             std::mutex session_lock;
             std::mutex tid_lock;
-            
+
             std::vector<int> erpc_sessions;
             std::atomic_uint erpc_session_cursor;
 

@@ -14,7 +14,6 @@ namespace Hill {
                 return false;
             }
 
-            std::mutex tid_lock;
             num_launched_threads = num_threads;
             int i;
             for (i = 0; i < num_threads; i++) {
