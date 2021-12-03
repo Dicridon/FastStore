@@ -145,7 +145,7 @@ namespace Hill {
             template<typename T, typename = std::enable_if_t<std::is_pointer_v<T>>>
             static auto make_polymorphic_pointer(const T &t) -> PolymorphicPointer {
                 PolymorphicPointer ret;
-                ret.ptr.local = t;
+                ret.ptr.local = reinterpret_cast<byte_ptr_t>(t);
                 return ret;
             }
 

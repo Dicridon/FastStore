@@ -66,7 +66,7 @@ namespace Hill {
                             case Enums::RPCOperations::Range:
                                 [[fallthrough]];
                                 // TODO
-                            default:
+ default:
                                 msg->output.status.store(Indexing::Enums::OpStatus::Failed);
                                 break;
                             }
@@ -121,6 +121,7 @@ namespace Hill {
             return std::thread([&] (int tid) {
                 ServerContext s_ctx;
                 s_ctx.thread_id = tid;
+                s_ctx.node_id = this->server->get_node()->node_id;
                 s_ctx.server = this->server.get();
                 s_ctx.queues = this->req_queues;
                 s_ctx.num_launched_threads = this->num_launched_threads;
@@ -205,10 +206,15 @@ namespace Hill {
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
             } else {
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
-                // offset += sizeof(Enums::RPCStatus);
-                // *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;
-                // offset += sizeof(size_t);
-                // *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
+                offset += sizeof(Enums::RPCStatus);
+                *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;
+                offset += sizeof(size_t);
+                if (msg.output.value.is_remote()) {
+                    *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
+                } else {
+                    auto poly = Memory::PolymorphicPointer::make_polymorphic_pointer(Memory::RemotePointer::make_remote_pointer(ctx->node_id, msg.output.value.local_ptr()));
+                    *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = poly;
+                }
             }
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
@@ -288,6 +294,14 @@ namespace Hill {
                 stats.throughputs.timing_now();
                 start = std::chrono::steady_clock::now();
                 for (auto &i : load) {
+
+                    if (i.type == Workload::Enums::Search) {
+                        auto ret = c_ctx.cache.get(i.key);
+                        if (ret != nullptr) {
+                            goto sample;
+                        }
+                    }
+                    
                     c_ctx.is_done = false;
                     _node_id = check_rpc_connection(tid, i, c_ctx);
                     if (!_node_id.has_value()) {
@@ -302,7 +316,7 @@ namespace Hill {
                     while(!c_ctx.is_done) {
                         c_ctx.rpcs[node_id]->run_event_loop_once();
                     }
-
+                sample:
                     if ((++counter) % 1000 == 0) {
                         end = std::chrono::steady_clock::now();
                         switch (load[0].type) {
@@ -357,7 +371,6 @@ namespace Hill {
                 return {};
             }
 
-
             if (!client->is_connected(tid, node_id)) {
                 if (!client->connect_server(tid, node_id)) {
                     std::cerr << "Client can not connect to server " << node_id << "\n";
@@ -398,9 +411,9 @@ namespace Hill {
         {
             auto type = item.type;
             uint8_t *buf = c_ctx.req_bufs[node_id].buf;
+            c_ctx.requesting_key = &item.key;
             switch(type) {
             case Hill::Workload::Enums::WorkloadType::Update:
-
                 *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::Update;
                 [[fallthrough]];
             case Hill::Workload::Enums::WorkloadType::Range:
@@ -428,10 +441,15 @@ namespace Hill {
             auto node_id = *reinterpret_cast<int *>(tag);
             auto ctx = reinterpret_cast<ClientContext *>(context);
             auto buf = ctx->resp_bufs[node_id].buf;
+            auto key = *ctx->requesting_key;
 
             auto op = *reinterpret_cast<Enums::RPCOperations *>(buf);
             buf += sizeof(Enums::RPCOperations);
             auto status = *reinterpret_cast<Enums::RPCStatus *>(buf);
+            buf += sizeof(Enums::RPCStatus);
+            auto size = *reinterpret_cast<size_t *>(buf);
+            buf += sizeof(size_t);
+            auto poly = *reinterpret_cast<Memory::PolymorphicPointer *>(buf);
 
             switch(op) {
             case Enums::RPCOperations::Insert: {
@@ -444,6 +462,7 @@ namespace Hill {
             case Enums::RPCOperations::Search: {
                 if (status == Enums::RPCStatus::Ok) {
                     ++ctx->successful_searches;
+                    ctx->cache.insert(key, poly, size);
                 }
                 break;
             }

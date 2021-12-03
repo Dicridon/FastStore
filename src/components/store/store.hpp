@@ -102,6 +102,7 @@ namespace Hill {
 
         struct ServerContext {
             int thread_id;
+            int node_id;
             Engine *server;
             boost::lockfree::queue<IncomeMessage *, Constants::tBOOST_QUEUE_CAP> *queues;
             erpc::Rpc<erpc::CTransport> *rpc;
@@ -119,8 +120,10 @@ namespace Hill {
             bool is_done;
             std::atomic_long successful_inserts;
             std::atomic_long successful_searches;
+            const std::string *requesting_key;
+            ReadCache::Cache cache;
 
-            ClientContext() {
+            ClientContext() : thread_id(0), is_done(false), cache(ReadCache::Constants::uCACHE_SIZE){
                 thread_id = 0;
                 is_done = false;
                 for (auto &u : server_uri) {
@@ -190,12 +193,11 @@ namespace Hill {
             auto operator=(const StoreServer &) -> StoreServer & = delete;
             auto operator=(StoreServer &&) -> StoreServer & = delete;
 
-            static auto make_server(const std::string &config, size_t cache_cap)
+            static auto make_server(const std::string &config)
                 -> std::unique_ptr<StoreServer>
             {
                 auto ret = std::make_unique<StoreServer>();
                 ret->server = Engine::make_engine(config);
-                ret->cache = &ReadCache::Cache::make_cache(new byte_t[cache_cap]);
 #ifdef __HILL_INFO__
                 std::cout << ">> Starting nexus for server at " << ret->server->get_rpc_uri() << "\n";
 #endif
@@ -231,7 +233,6 @@ namespace Hill {
             std::unique_ptr<Engine> server;
             Indexing::LeafNode *leaves[Memory::Constants::iTHREAD_LIST_NUM];
             boost::lockfree::queue<IncomeMessage *, Constants::tBOOST_QUEUE_CAP> req_queues[Memory::Constants::iTHREAD_LIST_NUM];
-            ReadCache::Cache *cache;
             erpc::Nexus *nexus;
             bool is_launched;
             int num_launched_threads;

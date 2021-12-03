@@ -7,6 +7,9 @@
 #include "config/config.hpp"
 
 #include <unordered_map>
+#include <list>
+#include <chrono>
+using namespace std::literals;
 
 namespace Hill {
     namespace ReadCache {
@@ -21,67 +24,54 @@ namespace Hill {
         }
         
         struct CacheItem {
-            // these two lengths are for fast remote access
-            uint64_t key_length : 16;
-            uint64_t value_length : 16;
-            uint64_t fingerprint : 32;
-            const KVPair::HillString *key_ptr;
+            std::string key;
             PolymorphicPointer value_ptr;
+            size_t value_size;
+            std::chrono::time_point<std::chrono::steady_clock> expire;
+            
+            CacheItem() = default;
+            CacheItem(const std::string &k, const PolymorphicPointer &ptr, size_t sz) : key(k), value_ptr(ptr), value_size(sz) {
+                expire = std::chrono::steady_clock::now() + 2s;
+            };
+            ~CacheItem() = default;
+            CacheItem(const CacheItem &) = default;
+            CacheItem(CacheItem &&)= default;
+            auto operator=(const CacheItem &) -> CacheItem & = default;
+            auto operator=(CacheItem &&) -> CacheItem & = default;
+            
+
+            static auto make_cache_item(const std::string &key, const PolymorphicPointer &ptr, size_t sz)
+                -> std::unique_ptr<CacheItem>
+            {
+                return std::make_unique<CacheItem>(key, ptr, sz);
+            }
         };
 
-        /*
-         * ReadCache is designed for sharing hot data among nodes, so its structure is plain array
-         * and is constructued on a given memory region for RDMA access
-         *
-         * Though HillString tracks string size, but it's kept in PM, we copy this size in this 
-         * cache so that we do not need to access PM multiple times. More importantly, remote nodes
-         * are able to fetch keys and values with one single RDMA read instead of first reading 
-         * lengths then contents
-         */
-        struct Cache {
-            // flexible array
-            CacheItem items[1];
-            static constexpr std::hash<std::string> hasher{};
-            
+        class Cache {
+        public:
+            Cache(size_t cache_cap) : load(0), capacity(cache_cap) {};
             Cache() = default;
             ~Cache() = default;
-            Cache(const Cache &) = delete;
-            Cache(Cache &&) = delete;
-            auto operator=(const Cache &) = delete;
-            auto operator=(Cache &&) = delete;
+            Cache(const Cache &) = default;
+            Cache(Cache &&)= default;
+            auto operator=(const Cache &) -> Cache & = default;
+            auto operator=(Cache &&) -> Cache & = default;
 
-            static auto make_cache(const byte_ptr_t &region) -> Cache & {
-                auto tmp = reinterpret_cast<Cache *>(region);
+            auto get(const std::string &key) -> const CacheItem *;
+            auto insert(const std::string &key, const PolymorphicPointer &value, size_t sz) -> void;
 
-                for (size_t i = 0; i < Constants::uCACHE_SIZE; i++) {
-                    memset(&tmp->items[i], 0, sizeof(CacheItem));
+            auto show() const noexcept -> void {
+                for (const auto &i : list) {
+                    std::cout << "key: " << i->key << ", value; " << (void *)i->value_ptr.raw_ptr() << ", size: " << i->value_size << "\n";
                 }
-                return *tmp;
-            };
-
-            auto get(const std::string &in) const noexcept -> PolymorphicPointer {
-                auto full = hasher(in);
-                auto fingerprint = full & 0x00000000ffffffff;
-                auto hash = full % Constants::uCACHE_SIZE;
-                auto &item = items[hash];
-                if (item.fingerprint == fingerprint) {
-                    if (in.compare(0, in.size(), item.key_ptr->raw_chars(), 0, item.key_length) == 0) {
-                        return item.value_ptr;
-                    }
-                }
-
-                return nullptr;
             }
 
-            auto fill(size_t pos, uint64_t full, const KVPair::HillString *key, const PolymorphicPointer &value,
-                      const uint16_t value_size) noexcept -> void {
-                auto &item = items[pos];
-                item.fingerprint = full;
-                item.key_ptr = key;
-                item.key_length = key->size();
-                item.value_ptr = value;
-                item.value_length = value_size;
-            }
+        private:
+            std::unordered_map<std::string, std::list<std::unique_ptr<CacheItem>>::iterator> map;
+            std::list<std::unique_ptr<CacheItem>> list;
+
+            size_t load;
+            const size_t capacity;
         };
     }
 }

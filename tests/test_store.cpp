@@ -36,7 +36,7 @@ auto main(int argc, char *argv[]) -> int {
         monitor->launch();
         Misc::pend();
     } else if (type == "server") {
-        auto server = StoreServer::make_server(config, 1024 * 1024);
+        auto server = StoreServer::make_server(config);
         server->launch(threads);
 
         std::vector<std::thread> handler_threads;
