@@ -32,7 +32,7 @@ namespace Hill {
             static constexpr size_t uPAGE_SIZE = 16 * 1024UL;
             static constexpr uint64_t uPAGE_MASK = 0xffffffffffffc000UL;
             static constexpr Page * pTHREAD_LIST_AVAILABLE = nullptr;
-            static constexpr int iTHREAD_LIST_NUM = 64;
+            static constexpr int iTHREAD_LIST_NUM = 128;
             static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
             static constexpr size_t uPREALLOCATION = 1;
 #endif

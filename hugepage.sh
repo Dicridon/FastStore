@@ -1,3 +1,3 @@
 #!/bin/bash
-echo 512 > /proc/sys/vm/nr_hugepages
+echo 4096 > /proc/sys/vm/nr_hugepages
 grep Hugepage /proc/meminfo -i

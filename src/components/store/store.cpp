@@ -221,7 +221,7 @@ namespace Hill {
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             UNUSED(req_handle);
-            UNUSED(context);
+              UNUSED(context);
             // TODO
         }
 
@@ -310,6 +310,8 @@ namespace Hill {
 
                     node_id = _node_id.value();
                     prepare_request(node_id, i, c_ctx);
+
+                    // cache is updated in the response_continuation
                     c_ctx.rpcs[node_id]->enqueue_request(c_ctx.session, i.type,
                                                          &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
                                                          response_continuation, &node_id);
