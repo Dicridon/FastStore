@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <fstream>
+#include <regex>
+
 namespace Hill {
     namespace Workload {
         namespace Enums {
@@ -61,7 +64,9 @@ namespace Hill {
 
         auto generate_simple_string_workload(size_t batch_size, const Enums::WorkloadType &t, bool reverse = false) -> StringWorkload;
         auto generate_simple_string_workload_with_begin(size_t begin, size_t batch_size, const Enums::WorkloadType &t, bool reverse = false) -> StringWorkload;
-        
+
+        // dispatching one ycsb workload to different threads by round robin
+        auto read_ycsb_workload(const std::string &filename, size_t num_thread = 1) -> std::vector<StringWorkload>;
     }
 }
 #endif

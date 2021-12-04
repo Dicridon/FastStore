@@ -28,5 +28,52 @@ namespace Hill {
 
             return ret;
         }
+
+        auto read_ycsb_workload(const std::string &filename, size_t num_thread)
+            -> std::vector<StringWorkload>
+        {
+            std::vector<StringWorkload> ret;
+            ret.resize(num_thread);
+
+            std::ifstream file(filename);
+            if (!file.is_open()) {
+                throw std::runtime_error("Can't open file " + filename);
+            }
+
+            std::string buf;
+            std::regex ycsb_pattern("([[:upper:]]+)\\suser(\\d+)");
+            std::smatch load;
+
+            size_t counter = 0;
+            std::string op;
+            std::string key;
+            std::string value;
+            WorkloadItem item;
+            
+            while(std::getline(file, buf)) {
+                if (!std::regex_search(buf, load, ycsb_pattern)) {
+                    continue;
+                }
+
+                op = load[1].str();
+                key = load[2].str();
+                if (op == "INSERT") {
+                    item = WorkloadItem::make_workload_item(Enums::WorkloadType::Insert, key, key);
+                } else if (op == "READ") {
+                    item = WorkloadItem::make_workload_item(Enums::WorkloadType::Search, key);
+                } else if (op == "UPDATE") {
+                    item = WorkloadItem::make_workload_item(Enums::WorkloadType::Update, key);
+                } else if (op == "DELETE") {
+                    continue;
+                } else if (op == "RANGE") {
+                    // TODO
+                    continue;
+                } else {
+                    continue;
+                }
+                ret[(counter++) % num_thread].push_back(std::move(item));
+            }
+            return ret;
+        }
     }
 }
