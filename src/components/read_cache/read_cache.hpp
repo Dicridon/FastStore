@@ -19,16 +19,16 @@ namespace Hill {
 #ifdef __HILL_DEBUG__
             constexpr size_t uCACHE_SIZE = 100UL;
 #else
-            constexpr size_t uCACHE_SIZE = 1000UL;
+            constexpr size_t uCACHE_SIZE = 1000000UL;
 #endif
         }
-        
+
         struct CacheItem {
             std::string key;
             PolymorphicPointer value_ptr;
             size_t value_size;
             std::chrono::time_point<std::chrono::steady_clock> expire;
-            
+
             CacheItem() = default;
             CacheItem(const std::string &k, const PolymorphicPointer &ptr, size_t sz) : key(k), value_ptr(ptr), value_size(sz) {
                 expire = std::chrono::steady_clock::now() + 2s;
@@ -38,7 +38,7 @@ namespace Hill {
             CacheItem(CacheItem &&)= default;
             auto operator=(const CacheItem &) -> CacheItem & = default;
             auto operator=(CacheItem &&) -> CacheItem & = default;
-            
+
 
             static auto make_cache_item(const std::string &key, const PolymorphicPointer &ptr, size_t sz)
                 -> std::unique_ptr<CacheItem>
@@ -49,7 +49,7 @@ namespace Hill {
 
         class Cache {
         public:
-            Cache(size_t cache_cap) : load(0), capacity(cache_cap) {};
+            Cache(size_t cache_cap) : load(0), capacity(cache_cap), hit(0), accessed(0) {};
             Cache() = default;
             ~Cache() = default;
             Cache(const Cache &) = default;
@@ -60,10 +60,8 @@ namespace Hill {
             auto get(const std::string &key) -> const CacheItem *;
             auto insert(const std::string &key, const PolymorphicPointer &value, size_t sz) -> void;
 
-            auto show() const noexcept -> void {
-                for (const auto &i : list) {
-                    std::cout << "key: " << i->key << ", value; " << (void *)i->value_ptr.raw_ptr() << ", size: " << i->value_size << "\n";
-                }
+            inline auto hit_ratio() const noexcept -> double {
+                return double(hit) / accessed;
             }
 
         private:
@@ -72,6 +70,9 @@ namespace Hill {
 
             size_t load;
             const size_t capacity;
+
+            uint64_t hit;
+            uint64_t accessed;
         };
     }
 }

@@ -6,19 +6,23 @@ namespace Hill {
             auto time = std::chrono::steady_clock::now();
             auto ret = map.find(key);
             if (ret == map.end()) {
+                ++accessed;
                 return nullptr;
             }
 
             if (time > (*ret->second)->expire) {
                 auto iter = ret->second;
                 list.erase(iter);
-                map.erase(key);                
+                map.erase(key);
                 --load;
+                ++accessed;
                 return nullptr;
             }
 
             list.splice(list.begin(), list, ret->second);
             ret->second = list.begin();
+            ++accessed;
+            ++hit;
             return (*ret->second).get();
         }
 

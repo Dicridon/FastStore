@@ -118,8 +118,8 @@ namespace Hill {
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
             int session;
             bool is_done;
-            std::atomic_long successful_inserts;
-            std::atomic_long successful_searches;
+            uint64_t successful_inserts;
+            uint64_t successful_searches;
             const std::string *requesting_key;
             ReadCache::Cache cache;
 

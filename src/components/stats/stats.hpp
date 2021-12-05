@@ -151,6 +151,7 @@ namespace Hill {
         struct SyntheticStats {
             ThroughputStats throughputs;
             LatencyStats latencies;
+            double cache_hit_ratio;
             auto reset() -> void {
                 throughputs.reset();
                 latencies.reset();

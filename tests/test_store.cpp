@@ -190,6 +190,7 @@ auto run_simple_workload(const std::string &config, int threads, int batch) -> v
                   << "p99: " << stats[i].latencies.search_p99_latency() << "us, "
                   << "p999: " << stats[i].latencies.search_p999_latency() << "us"
                   << "\n";
+        std::cout << "---->> cache hit ratio " << stats[i].cache_hit_ratio << "\n";
     }
 }
 

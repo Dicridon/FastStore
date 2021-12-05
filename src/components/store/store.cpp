@@ -66,7 +66,7 @@ namespace Hill {
                             case Enums::RPCOperations::Range:
                                 [[fallthrough]];
                                 // TODO
- default:
+                            default:
                                 msg->output.status.store(Indexing::Enums::OpStatus::Failed);
                                 break;
                             }
@@ -355,6 +355,7 @@ namespace Hill {
                 default:
                     break;
                 }
+                stats.cache_hit_ratio = c_ctx.cache.hit_ratio();
                 this->client->unregister_thread(tid);
             }, tid.value());
         }

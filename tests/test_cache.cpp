@@ -18,7 +18,6 @@ int main() {
         cache.insert(std::to_string(i), poly, i);
     }
 
-    cache.show();
     auto i = cache.get("5");
     std::cout << i->key << "\n";
     sleep(2);
