@@ -60,8 +60,10 @@ auto run_ycsb_workload(const std::string &config, int threads, const std::string
     auto load_phase = "hill_load_workload" + ycsb_type + "_data";
     auto run_phase = "hill_run_workload" + ycsb_type + "_data";
 
+    std::cout << ">> Loading workload from workload file\n";
     auto loads = Workload::read_ycsb_workload(load_phase, threads);
     auto runs = Workload::read_ycsb_workload(run_phase, threads);
+    std::cout << ">> Loaded and start testing\n";
     
     clients.resize(threads);
     stats.resize(threads);

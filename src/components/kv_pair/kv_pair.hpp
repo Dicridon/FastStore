@@ -42,14 +42,10 @@ namespace Hill {
             auto compare(const char *rhs, size_t r_sz) const noexcept -> int {
                 auto chars = raw_chars();
                 auto bound = std::min(size(), r_sz);
-                if (auto ret = strncmp(chars, rhs, bound); ret == 0) {
-                    return size() - r_sz;
+                if (auto ret = strncmp(chars, rhs, bound); ret != 0) {
+                    return ret;
                 } else {
-                    if (size() == r_sz)
-                        return ret;
-                    else {
-                        return size() - r_sz;
-                    }
+                    return size() - r_sz;
                 }
             }
 
@@ -71,7 +67,6 @@ namespace Hill {
             }
 
             auto operator<(const HillString &rhs) const noexcept -> bool {
-
                 for (size_t i = 0; i < std::min(header.length, rhs.header.length); i++) {
                     if (content[i] > rhs.content[i]) {
                         return false;

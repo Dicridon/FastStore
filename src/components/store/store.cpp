@@ -294,10 +294,10 @@ namespace Hill {
                 stats.throughputs.timing_now();
                 start = std::chrono::steady_clock::now();
                 for (auto &i : load) {
-
                     if (i.type == Workload::Enums::Search) {
                         auto ret = c_ctx.cache.get(i.key);
                         if (ret != nullptr) {
+                            ++c_ctx.successful_searches;
                             goto sample;
                         }
                     }
