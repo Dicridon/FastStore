@@ -51,6 +51,7 @@ namespace Hill {
                 Update,
                 Delete,
                 NodeSplit,
+                RemoteMemory,
                 Unknown,
             };
         }

@@ -42,12 +42,19 @@ namespace Hill {
                     Indexing::OLFIT olfit(atid.value(), server->get_allocator(), server->get_logger());
                     leaves[btid] = olfit.get_root().get_as<Indexing::LeafNode *>();
                     while (is_launched) {
+
                         IncomeMessage *msg;
                         if (req_queues[btid].pop(msg)) {
                             switch (msg->input.op) {
-                            case Enums::RPCOperations::Insert:
+                            case Enums::RPCOperations::Insert: {
                                 msg->output.status.store(olfit.insert(tid, msg->input.key, msg->input.key_size,
                                                                       msg->input.value, msg->input.value_size));
+
+                                // update here is not atomic but it's ok,
+                                // because we just send temporal values to other servers and get_consumed is atomic
+                                // so we wouldn't have INCORRECT values
+                                server->get_node()->available_pm = server->get_node()->total_pm - server->get_allocator()->get_consumed();
+                            }
                                 break;
                             case Enums::RPCOperations::Search: {
                                 auto [v, v_sz] = olfit.search(msg->input.key, msg->input.key_size);
@@ -133,13 +140,96 @@ namespace Hill {
                 session_lock.lock();
                 this->erpc_sessions.push_back(tid);
                 session_lock.unlock();
+                s_ctx.nexus = this->nexus;
                 s_ctx.rpc->run_event_loop(10000000);
                 this->server->unregister_thread(tid);
             }, tid);
         }
 
+        auto StoreServer::check_available_mem(ServerContext &s_ctx, int tid) -> Memory::RemotePointer {
+            size_t max = 0;
+            size_t node_id;
+            const auto &meta = s_ctx.server->get_node()->cluster_status;
+            for (size_t i = 0; i < meta.cluster.node_num; i++) {
+                if (max < meta.cluster.nodes[i].available_pm) {
+                    max = meta.cluster.nodes[i].available_pm;
+                    node_id = i;
+                }
+            }
+
+            if (s_ctx.erpc_sessions[node_id] == 0) {
+                if (!s_ctx.server->connect_server(tid, node_id)) {
+                    std::cerr << ">> Error: can't connect remote server " << node_id << " for more memory\n";
+                    return nullptr;
+                }
+
+                if (!establish_erpc(s_ctx, tid, node_id)) {
+                    std::cerr << ">> Error: can't connect remote server " << node_id << "'s rpc\n";
+                    return nullptr;
+                }
+            }
+
+            auto buf = s_ctx.req_bufs[node_id].buf;
+            s_ctx.is_done = false;
+            *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::CallForMemory;
+            s_ctx.rpcs[node_id]->enqueue_request(s_ctx.erpc_sessions[node_id], Enums::RPCOperations::CallForMemory,
+                                                 &s_ctx.req_bufs[node_id], &s_ctx.resp_bufs[node_id],
+                                                 response_continuation, nullptr);
+            while (!s_ctx.is_done) {
+                s_ctx.rpcs[node_id]->run_event_loop_once();
+            }
+
+            auto pbuf = s_ctx.resp_bufs[node_id].buf;
+            auto ptr = *reinterpret_cast<Memory::RemotePointer *>(pbuf);
+            if (ptr.is_nullptr()) {
+                throw std::runtime_error("Remote memory is also depleted");
+            }
+
+            return ptr;
+        }
+
+        auto StoreServer::establish_erpc(ServerContext &s_ctx, int tid, int node_id) -> bool {
+            if (s_ctx.erpc_sessions[node_id] != 0) {
+                return true;
+            }
+
+            const auto &meta = s_ctx.server->get_node()->cluster_status;
+#ifdef __HILL_INFO__
+            std::cout << ">> Creating eRPC for thread " << tid << "\n";
+            std::cout << ">> Connecting to listen port: " << meta.cluster.nodes[node_id].erpc_listen_port << "\n";
+#endif
+            auto socket = Misc::socket_connect(false,
+                                               meta.cluster.nodes[node_id].erpc_listen_port,
+                                               meta.cluster.nodes[node_id].addr.to_string().c_str());
+#ifdef __HILL_INFO__
+            std::cout << ">> Connected\n";
+#endif
+            auto remote_id = 0;
+            read(socket, &remote_id, sizeof(remote_id));
+            s_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(s_ctx.nexus, reinterpret_cast<void *>(&s_ctx),
+                                                                  s_ctx.thread_id, RPCWrapper::ghost_sm_handler);
+            auto &node = meta.cluster.nodes[node_id];
+            auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
+            auto rpc = s_ctx.rpcs[node_id];
+            s_ctx.erpc_sessions[node_id] = rpc->create_session(server_uri, remote_id);
+            while (!rpc->is_connected(s_ctx.erpc_sessions[node_id])) {
+                rpc->run_event_loop_once();
+            }
+
+            s_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
+            s_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
+            shutdown(socket, 0);
+            return true;
+        }
+
+        auto StoreServer::response_continuation(void *context, void *tag) -> void {
+            auto ctx = reinterpret_cast<ServerContext *>(context);
+            ctx->is_done = true;
+        }
+
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
+            auto server = ctx->server;
             auto [type, key, value] = parse_request_message(req_handle, context);
 
             IncomeMessage msg;
@@ -147,6 +237,14 @@ namespace Hill {
             msg.input.key_size = key->size();
             msg.input.op = type;
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
+
+            if (server->get_allocator()->get_consumed() >= 0.8 * server->get_node()->total_pm &&
+                !server->get_agent()->available(ctx->thread_id)) {
+
+                // a log should be used here, but for simiplicity, I omit it.
+                auto ptr = check_available_mem(*ctx, ctx->thread_id);
+                ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
+            }
 
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
             while(!ctx->queues[pos].push(&msg));
@@ -163,8 +261,13 @@ namespace Hill {
             case Indexing::Enums::OpStatus::Ok:
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
                 break;
-            case Indexing::Enums::OpStatus::NoMemory:
+            case Indexing::Enums::OpStatus::NoMemory: {
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
+
+                // agent's memory is available but not sufficient;
+                auto ptr = check_available_mem(*ctx, ctx->thread_id);
+                ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
+            }
                 break;
             default:
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
@@ -312,7 +415,7 @@ namespace Hill {
                     prepare_request(node_id, i, c_ctx);
 
                     // cache is updated in the response_continuation
-                    c_ctx.rpcs[node_id]->enqueue_request(c_ctx.session, i.type,
+                    c_ctx.rpcs[node_id]->enqueue_request(c_ctx.erpc_sessions[node_id], i.type,
                                                          &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
                                                          response_continuation, &node_id);
                     while(!c_ctx.is_done) {
@@ -398,8 +501,8 @@ namespace Hill {
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
             auto rpc = c_ctx.rpcs[node_id];
-            c_ctx.session = rpc->create_session(server_uri, remote_id);
-            while (!rpc->is_connected(c_ctx.session)) {
+            c_ctx.erpc_sessions[node_id] = rpc->create_session(server_uri, remote_id);
+            while (!rpc->is_connected(c_ctx.erpc_sessions[node_id])) {
                 rpc->run_event_loop_once();
             }
 

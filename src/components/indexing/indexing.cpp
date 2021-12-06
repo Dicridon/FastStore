@@ -44,12 +44,16 @@ namespace Hill {
                 value_sizes[i] = total;
             } else {
                 agent->allocate(tid, total, ptr);
+                if (ptr == nullptr) {
+                    return Enums::OpStatus::NoMemory;
+                }
                 values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(ptr);
                 value_sizes[i] = total;
-                auto &connection = agent->get_peer_connection(values[i].remote_ptr().get_node());
+                auto &connection = agent->get_peer_connection(tid, values[i].remote_ptr().get_node());
                 auto buf = std::make_unique<byte_t[]>(total);
                 auto &t = KVPair::HillString::make_string(buf.get(), v, v_sz);
                 connection->post_write(t.raw_bytes(), total);
+                connection->poll_completion_once();
             }
             log->commit(tid);
 

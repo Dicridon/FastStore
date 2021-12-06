@@ -91,10 +91,7 @@ namespace Hill {
             offset += sizeof(WAL::LogRegions);
             ret->allocator = Memory::Allocator::make_allocator(ret->base + offset, ret->node->available_pm);
             offset += sizeof(Memory::Allocator);
-            for (int i = 0; i < Memory::Constants::iTHREAD_LIST_NUM; i++) {
-                ret->agents[i] = Memory::RemoteMemoryAgent::make_agent(ret->base + offset,
-                                                                       &ret->peer_connections[i]);
-            }
+            ret->agent = Memory::RemoteMemoryAgent::make_agent(ret->base + offset, &ret->peer_connections[0]);
 
             auto [rdma_device, status] = RDMADevice::make_rdma(ret->rdma_dev_name, ret->ib_port, ret->gid_idx);
             if (status != Status::Ok) {
@@ -102,6 +99,12 @@ namespace Hill {
             }
             
             ret->rdma_device = std::move(rdma_device);
+
+            for (auto &t : ret->peer_connections) {
+                for (auto &c : t) {
+                    c = nullptr;
+                }
+            }
             
             ret->sock = 0;
             ret->run = false;
@@ -123,7 +126,7 @@ namespace Hill {
         auto check_rdma_request(int tid) noexcept -> int;
         auto connect_server(int tid, int node_id) -> bool;
 
-        inline auto get_node() const noexcept -> const Cluster::Node * {
+        inline auto get_node() noexcept -> Cluster::Node * {
             return node.get();
         }
 
@@ -133,6 +136,10 @@ namespace Hill {
 
         inline auto get_allocator() noexcept -> Memory::Allocator * {
             return allocator;
+        }
+
+        inline auto get_agent() noexcept -> Memory::RemoteMemoryAgent * {
+            return agent;
         }
 
         inline auto get_rpc_uri() const noexcept -> const std::string & {
@@ -164,7 +171,7 @@ namespace Hill {
         int sock;
         std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
         std::vector<std::unique_ptr<RDMAContext>> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
-        Memory::RemoteMemoryAgent *agents[Memory::Constants::iTHREAD_LIST_NUM];
+        Memory::RemoteMemoryAgent *agent;
 
         auto parse_ib(const std::string &config) noexcept -> bool;
         auto parse_pmem(const std::string &config) noexcept -> bool;

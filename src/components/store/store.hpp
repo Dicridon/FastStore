@@ -99,14 +99,34 @@ namespace Hill {
                 output.value_size = 0;
             }
         };
-
+        class StoreServer;
         struct ServerContext {
+            StoreServer *self;
+            
             int thread_id;
             int node_id;
             Engine *server;
             boost::lockfree::queue<IncomeMessage *, Constants::tBOOST_QUEUE_CAP> *queues;
             erpc::Rpc<erpc::CTransport> *rpc;
             int num_launched_threads;
+            erpc::Nexus *nexus;
+            
+            int erpc_sessions[Cluster::Constants::uMAX_NODE];
+            erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
+            erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
+            erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
+
+            bool is_done;
+
+            ServerContext() : thread_id(0), node_id(0), queues(nullptr) {
+                for (auto &r : rpcs) {
+                    r = nullptr;
+                }
+
+                for (auto &s : erpc_sessions) {
+                    s = 0;
+                }
+            }
         };
 
         struct ClientContext {
@@ -116,7 +136,7 @@ namespace Hill {
             erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
-            int session;
+            int erpc_sessions[Cluster::Constants::uMAX_NODE];
             bool is_done;
             uint64_t successful_inserts;
             uint64_t successful_searches;
@@ -132,6 +152,10 @@ namespace Hill {
 
                 for (auto &r : rpcs) {
                     r = nullptr;
+                }
+
+                for (auto &s : erpc_sessions) {
+                    s = 0;
                 }
 
                 successful_inserts = 0;
@@ -226,7 +250,9 @@ namespace Hill {
              * income eRPC requests.
              */
             auto register_erpc_handler_thread() noexcept -> std::optional<std::thread>;
-
+            static auto check_available_mem(ServerContext &s_ctx, int tid) -> Memory::RemotePointer;
+            static auto establish_erpc(ServerContext &s_ctx, int tid, int node_id) -> bool;
+            static auto response_continuation(void *context, void *tag) -> void;
         private:
 
             // server represents all servers that are not a monitor

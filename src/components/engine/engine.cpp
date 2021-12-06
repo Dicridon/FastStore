@@ -1,5 +1,46 @@
 #include "engine.hpp"
 namespace Hill {
+    auto Engine::launch() noexcept -> bool {
+        sock = Misc::make_async_socket(true, node->port);
+        if (sock == -1) {
+            return false;
+        }
+
+        return run = node->launch();
+    }
+
+    auto Engine::stop() noexcept -> void {
+        run = false;
+        node->stop();
+        for (auto &_p : peer_connections) {
+            for (auto &p : _p)
+                p.reset(nullptr);
+        }
+
+        for (auto &_c : client_connections) {
+            for (auto &c : _c)
+                c.reset(nullptr);
+        }
+    }
+
+    auto Engine::register_thread() -> int {
+        int tid = tids++;
+        std::thread checker([&, tid] {
+            while(this->run) {
+                check_rdma_request(tid);
+                sleep(1);
+            }
+        });
+        checker.detach();
+
+        return tid;
+    }
+
+    auto Engine::unregister_thread(int tid) -> void {
+        logger->unregister_thread(tid);
+        allocator->unregister_thread(tid);
+    }
+    
     auto Engine::check_rdma_request(int tid) noexcept -> int {
         auto socket = Misc::accept_blocking(sock);
 
@@ -44,45 +85,38 @@ namespace Hill {
         return 0;
     }
 
-    auto Engine::launch() noexcept -> bool {
-        sock = Misc::make_async_socket(true, node->port);
-        if (sock == -1) {
+    auto Engine::connect_server(int tid, int node_id) -> bool {
+        if (node_id <= 0 || size_t(node_id) > Cluster::Constants::uMAX_NODE) {
             return false;
         }
 
-        return run = node->launch();
-    }
-
-    auto Engine::stop() noexcept -> void {
-        run = false;
-        node->stop();
-        for (auto &_p : peer_connections) {
-            for (auto &p : _p)
-                p.reset(nullptr);
+        if (peer_connections[tid][node_id] != nullptr) {
+            return true;
+        }
+        
+        auto [rdma, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
+                                                *RDMADevice::get_default_qp_init_attr());
+        if (!rdma) {
+            std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";
+            return false;
         }
 
-        for (auto &_c : client_connections) {
-            for (auto &c : _c)
-                c.reset(nullptr);
+        auto addr = node->cluster_status.cluster.nodes[node_id].addr;
+        auto port = node->cluster_status.cluster.nodes[node_id].port;
+
+        auto socket = Misc::socket_connect(false, port, addr.to_string().c_str());
+        if (socket == -1) {
+            return false;
         }
-    }
 
-    auto Engine::register_thread() -> int {
-        int tid = tids++;
-        std::thread checker([&, tid] {
-            while(this->run) {
-                check_rdma_request(tid);
-                sleep(1);
-            }
-        });
-        checker.detach();
+        write(socket, &node->node_id, sizeof(node->node_id));
+        if (rdma->default_connect(socket) != 0) {
+            return false;
+        }
 
-        return tid;
-    }
-
-    auto Engine::unregister_thread(int tid) -> void {
-        logger->unregister_thread(tid);
-        allocator->unregister_thread(tid);
+        peer_connections[tid][node_id] = std::move(rdma);
+        shutdown(socket, 0);
+        return true;
     }
 
     auto Engine::dump() const noexcept -> void {

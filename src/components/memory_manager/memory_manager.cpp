@@ -60,6 +60,7 @@ namespace Hill {
             if (page)  {
                 page->allocate(size, ptr);
                 if (ptr != nullptr) {
+                    header.consumed += size;
                     return;
                 }
             }
@@ -118,6 +119,7 @@ namespace Hill {
             Util::mfence();
                 
             header.thread_busy_pages[id]->allocate(size, ptr);
+            header.consumed += size;
         }
 
         auto Allocator::register_thread() noexcept -> std::optional<int> {

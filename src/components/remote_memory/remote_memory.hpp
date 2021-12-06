@@ -227,6 +227,10 @@ namespace Hill {
                 meta = snap;
             }
 
+            auto available() const noexcept -> bool {
+                return meta.cursor < Constants::uREMOTE_REGION_SIZE;
+            }
+            
             auto free(byte_ptr_t &ptr) noexcept -> void {
                 UNUSED(ptr);
                 --meta.counter;
@@ -266,22 +270,33 @@ namespace Hill {
                 return tmp;
             }
 
-            auto apply_more(int tid) -> bool;
+            auto add_region(int tid, const RemotePointer &ptr) -> bool {
+                if (++cursors[tid] < Constants::uREMOTE_REGIONS) {
+                    allocators[tid][++cursors[tid]].set_base(ptr);
+                    return true;
+                }
+                return false;
+            }
 
             inline auto allocate(int tid, size_t size, byte_ptr_t &ptr) -> void {
                 allocators[tid][cursors[tid]].allocate(size, ptr);
             }
 
-            auto free(int tid, byte_ptr_t &ptr) {
+            inline auto available(int tid) const noexcept -> bool {
+                return allocators[tid][cursors[tid]].available();
+            }
+
+            inline auto free(int tid, byte_ptr_t &ptr) {
                 allocators[tid][cursors[tid]].free(ptr);
             }
 
-            auto get_peer_connection(int node_id) -> std::unique_ptr<RDMAContext> & {
-                return (*peer_connections)[node_id];
+            inline auto get_peer_connection(int tid, int node_id) -> std::unique_ptr<RDMAContext> & {
+                return peer_connections[tid][node_id];
             }
+
         private:
             RemoteAllocator allocators[Constants::iTHREAD_LIST_NUM][Constants::uREMOTE_REGIONS];
-            int cursors[Constants::iTHREAD_LIST_NUM];
+            size_t cursors[Constants::iTHREAD_LIST_NUM];
             // a reference to the engine's peer connections
             std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> *peer_connections;
         };

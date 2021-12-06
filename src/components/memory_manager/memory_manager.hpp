@@ -1,9 +1,12 @@
 #ifndef __HILL__MEMORY_MANAGER__MEMORY_MANAGER__
 #define __HILL__MEMORY_MANAGER__MEMORY_MANAGER__
+#include "config/config.hpp"
+
 #include <optional>
 #include <cstring>
 #include <mutex>
-#include "config/config.hpp"
+#include <atomic>
+
 
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
 #include <iostream>
@@ -206,6 +209,7 @@ namespace Hill {
                     allocator->header.to_be_freed[i] = nullptr;
                     allocator->header.in_use[i] = false;
                 }
+                allocator->header.consumed = 0;
                 return allocator;
             }
 
@@ -251,6 +255,9 @@ namespace Hill {
             auto free(int id, byte_ptr_t &ptr) -> void;
 
             auto recover() -> Enums::AllocatorRecoveryStatus;
+            inline auto get_consumed() const noexcept -> uint64_t {
+                return header.consumed.load();
+            }
         private:
             struct AllocatorHeader {
                 uint64_t magic;
@@ -270,6 +277,7 @@ namespace Hill {
                 Page *to_be_freed[Constants::iTHREAD_LIST_NUM];
                 Page *thread_busy_pages[Constants::iTHREAD_LIST_NUM];
                 bool in_use[Constants::iTHREAD_LIST_NUM];
+                std::atomic_uint64_t consumed;
             } header;
 
             auto recover_global_free_list() -> void {
