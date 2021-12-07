@@ -3,6 +3,7 @@
 #include "cmd_parser/cmd_parser.hpp"
 
 #include <cassert>
+#include <chrono>
 using namespace Hill;
 using namespace Hill::Indexing;
 using namespace CmdParser;
@@ -60,7 +61,7 @@ auto main(int argc, char *argv[]) -> int {
     auto load = Workload::read_ycsb_workload("2M_load_" + type + "_debug.data");
     auto run = Workload::read_ycsb_workload("2M_run_" + type + "_debug.data");
     std::cout << "Done\n";
-    
+
     for (const auto &l : load[0]) {
         if(olfit->insert(tid, l.key.c_str(), l.key.size(), l.key.c_str(), l.key.size()) != Enums::OpStatus::Ok) {
             std::cout << "Error inserting " << l.key << "\n";

@@ -64,6 +64,14 @@ namespace Hill {
                 return double(hit) / accessed;
             }
 
+            auto dump() const noexcept -> void {
+                std::cout << "Cache is\n";
+                for (const auto &i : list) {
+                    std::cout << i->key << " ";
+                }
+                std::cout << "\n";
+            }
+
         private:
             std::unordered_map<std::string, std::list<std::unique_ptr<CacheItem>>::iterator> map;
             std::list<std::unique_ptr<CacheItem>> list;

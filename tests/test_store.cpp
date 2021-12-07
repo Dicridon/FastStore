@@ -64,7 +64,7 @@ auto run_ycsb_workload(const std::string &config, int threads, const std::string
     auto loads = Workload::read_ycsb_workload(load_phase, threads);
     auto runs = Workload::read_ycsb_workload(run_phase, threads);
     std::cout << ">> Loaded and start testing\n";
-    
+
     clients.resize(threads);
     stats.resize(threads);
 
@@ -117,7 +117,7 @@ auto run_ycsb_workload(const std::string &config, int threads, const std::string
                   << "p99: " << stats[i].latencies.search_p99_latency() << "us, "
                   << "p999: " << stats[i].latencies.search_p999_latency() << "us"
                   << "\n";
-        std::cout << "---->> cache hit ratio " << stats[i].cache_hit_ratio << "\n";        
+        std::cout << "---->> cache hit ratio " << stats[i].cache_hit_ratio << "\n";
     }
 }
 

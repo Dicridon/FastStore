@@ -5,24 +5,44 @@
 #include <fstream>
 #include <unordered_map>
 
+#include <random>
+
 using namespace Hill;
 using namespace Hill::ReadCache;
-int main() {
+int main(int argc, char *argv[]) {
+    CmdParser::Parser parser;
 
-    const char *t = "I";
-    std::cout << t << "\n";
-    Cache cache(5);
-    int holder[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
-    for (int i = 0; i < 10; i++) {
-        auto poly = PolymorphicPointer::make_polymorphic_pointer(&holder[i]);
-        cache.insert(std::to_string(i), poly, i);
+    parser.add_option<size_t>("--capacity", "-c", 100);
+    parser.add_option<size_t>("--batch", "-b", 100);
+    parser.parse(argc, argv);
+
+    auto cap = parser.get_as<size_t>("--capacity").value();
+    auto batch = parser.get_as<size_t>("--batch").value();
+    
+    std::vector<std::string> workload;
+    for (size_t i = 0; i < batch; i++) {
+        workload.emplace_back(std::to_string(i));
     }
 
-    auto i = cache.get("5");
-    std::cout << i->key << "\n";
-    sleep(2);
-    i = cache.get("5");
-    if (i != nullptr) {
-        std::cout << "Cache is not timely updated\n";
+    Cache cache(cap);
+
+    std::default_random_engine generator;
+    std::uniform_int_distribution<size_t> dist(0, batch - 1);
+
+    for (size_t i = 0; i < cap; i++) {
+        cache.insert(std::to_string(i), nullptr, 0);
     }
+
+    for (size_t i = 0; i < batch; i++) {
+        auto key = std::to_string(dist(generator));
+        std::cout << "getting " << key << "\n";
+        cache.dump();
+        if (cache.get(key) == nullptr) {
+            cache.insert(key, nullptr, 0);
+        }
+        cache.dump();
+        std::cout << "----------------------------\n";
+    }
+
+    std::cout << "cache hit ratio: " << cache.hit_ratio() << "\n";
 }
