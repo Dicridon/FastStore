@@ -189,15 +189,15 @@ namespace Hill {
          * responses are in one of following formats
          * 1. Insert:
          *    |       first byte      |  following bytes
-         *    | RPCOperations::Insert |    RPCStatus   |
+         *    | RPCOperations::Insert |    RPCStatus   | PolymorphicPointer
          *
          * 2. Search:
          *    |       first byte      |  following bytes
-         *    | RPCOperations::Search |    RPCStatus   | size_t size |  PolymorphicPointer
+         *    | RPCOperations::Search |    RPCStatus   | PolymorphicPointer | size_t size
          *
          * 3. Update:
          *    |       first byte      |  following bytes
-         *    | RPCOperations::Update |    RPCStatus   |
+         *    | RPCOperations::Update |    RPCStatus   | PolymorphicPointer
          *
          * 4. Scan
          *    |      first byte     |

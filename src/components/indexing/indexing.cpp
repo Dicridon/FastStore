@@ -1,9 +1,13 @@
 #include "indexing.hpp"
 namespace Hill {
     namespace Indexing {
-        auto LeafNode::insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent, const char *k, size_t k_sz, const char *v, size_t v_sz) -> Enums::OpStatus {
+        auto LeafNode::insert(int tid, WAL::Logger *log, Memory::Allocator *alloc,
+                              Memory::RemoteMemoryAgent *agent, const char *k, size_t k_sz,
+                              const char *v, size_t v_sz)
+            -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>
+        {
             if (is_full()) {
-                return Enums::OpStatus::NeedSplit;
+                return {Enums::OpStatus::NeedSplit, nullptr};
             }
 
             int i = 0;
@@ -18,7 +22,7 @@ namespace Hill {
                 }
 
                 if (c == 0) {
-                    return Enums::OpStatus::RepeatInsert;
+                    return {Enums::OpStatus::RepeatInsert, nullptr};
                 }
             }
 
@@ -45,7 +49,7 @@ namespace Hill {
             } else {
                 agent->allocate(tid, total, ptr);
                 if (ptr == nullptr) {
-                    return Enums::OpStatus::NoMemory;
+                    return {Enums::OpStatus::NoMemory, nullptr};
                 }
                 values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(ptr);
                 value_sizes[i] = total;
@@ -57,7 +61,7 @@ namespace Hill {
             }
             log->commit(tid);
 
-            return Enums::OpStatus::Ok;
+            return {Enums::OpStatus::Ok, values[i]};
         }
 
         auto LeafNode::dump() const noexcept -> void {
@@ -135,14 +139,16 @@ namespace Hill {
             }
         }
 
-        auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz) noexcept -> Enums::OpStatus {
+        auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
+            noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>
+        {
             auto node = traverse_node(k, k_sz);
 
             if (!node->is_full()) {
                 return node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
             }
 
-            auto new_leaf = split_leaf(tid, node, k, k_sz, v, v_sz);
+            auto [new_leaf, value] = split_leaf(tid, node, k, k_sz, v, v_sz);
             // root is a leaf
             if (!node->parent) {
                 auto new_root = InnerNode::make_inner();
@@ -151,14 +157,15 @@ namespace Hill {
                 new_root->children[1] = new_leaf;
                 node->parent = new_leaf->parent = new_root;
                 root = new_root;
-                return Enums::OpStatus::Ok;
+                return {Enums::OpStatus::Ok, value};
             }
 
             auto ret = push_up(new_leaf);
-            return ret;
+            return {ret, value};
         }
 
-        auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz) -> LeafNode * {
+        auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz)
+            -> std::pair<LeafNode *, Memory::PolymorphicPointer> {
             auto ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
             alloc->allocate(tid, sizeof(LeafNode), ptr);
             auto n = LeafNode::make_leaf(ptr);
@@ -188,16 +195,17 @@ namespace Hill {
                 l->value_sizes[k] = 0;
             }
 
+            Memory::PolymorphicPointer ret_ptr;
             if (i < Constants::iNUM_HIGHKEY / 2) {
-                l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
+                ret_ptr = l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz).second;
             } else {
-                n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
+                ret_ptr = n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz).second;
             }
 
             // Here node split is done in terms of recovery, because inner nodes are reconstructed from
             // leaf nodes, thus though new node is not added to ancestors, split is still finished.
             logger->commit(tid);
-            return n;
+             return {n, ret_ptr};
         }
 
         auto OLFIT::split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *> {

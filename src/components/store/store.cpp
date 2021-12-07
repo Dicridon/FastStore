@@ -47,8 +47,10 @@ namespace Hill {
                         if (req_queues[btid].pop(msg)) {
                             switch (msg->input.op) {
                             case Enums::RPCOperations::Insert: {
-                                msg->output.status.store(olfit.insert(tid, msg->input.key, msg->input.key_size,
-                                                                      msg->input.value, msg->input.value_size));
+                                auto [status, value_ptr] = olfit.insert(tid, msg->input.key, msg->input.key_size,
+                                                                        msg->input.value, msg->input.value_size);
+                                msg->output.value = value_ptr;
+                                msg->output.status.store(status);
 
                                 // update here is not atomic but it's ok,
                                 // because we just send temporal values to other servers and get_consumed is atomic
@@ -252,7 +254,7 @@ namespace Hill {
             while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
 
             auto& resp = req_handle->pre_resp_msgbuf;
-            constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus);
+            constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus) + sizeof(Memory::PolymorphicPointer);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
 
             *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Insert;
@@ -273,6 +275,9 @@ namespace Hill {
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
                 break;
             }
+
+            offset += sizeof(Enums::RPCStatus);
+            *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
 
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
@@ -309,15 +314,17 @@ namespace Hill {
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
             } else {
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
+                
                 offset += sizeof(Enums::RPCStatus);
-                *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;
-                offset += sizeof(size_t);
                 if (msg.output.value.is_remote()) {
                     *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
                 } else {
                     auto poly = Memory::PolymorphicPointer::make_polymorphic_pointer(Memory::RemotePointer::make_remote_pointer(ctx->node_id, msg.output.value.local_ptr()));
                     *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = poly;
                 }
+                
+                offset += sizeof(Memory::PolymorphicPointer);
+                *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;                
             }
             ctx->rpc->enqueue_response(req_handle, &resp);
         }
@@ -553,14 +560,15 @@ namespace Hill {
             buf += sizeof(Enums::RPCOperations);
             auto status = *reinterpret_cast<Enums::RPCStatus *>(buf);
             buf += sizeof(Enums::RPCStatus);
-            auto size = *reinterpret_cast<size_t *>(buf);
-            buf += sizeof(size_t);
             auto poly = *reinterpret_cast<Memory::PolymorphicPointer *>(buf);
+            buf += sizeof(Memory::PolymorphicPointer);
+            auto size = *reinterpret_cast<size_t *>(buf);
 
             switch(op) {
             case Enums::RPCOperations::Insert: {
                 if (status == Enums::RPCStatus::Ok) {
                     ++ctx->successful_inserts;
+                    ctx->cache.insert(key, poly, size);                    
                 }
                 break;
             }

@@ -63,7 +63,7 @@ auto main(int argc, char *argv[]) -> int {
     std::cout << "Done\n";
 
     for (const auto &l : load[0]) {
-        if(olfit->insert(tid, l.key.c_str(), l.key.size(), l.key.c_str(), l.key.size()) != Enums::OpStatus::Ok) {
+        if(auto [s, _] = olfit->insert(tid, l.key.c_str(), l.key.size(), l.key.c_str(), l.key.size()); s != Enums::OpStatus::Ok) {
             std::cout << "Error inserting " << l.key << "\n";
             return -1;
         }
