@@ -176,7 +176,7 @@ namespace Hill {
             *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::CallForMemory;
             s_ctx.rpcs[node_id]->enqueue_request(s_ctx.erpc_sessions[node_id], Enums::RPCOperations::CallForMemory,
                                                  &s_ctx.req_bufs[node_id], &s_ctx.resp_bufs[node_id],
-                                                 response_continuation, nullptr);
+                                                 response_continuation, &node_id);
             while (!s_ctx.is_done) {
                 s_ctx.rpcs[node_id]->run_event_loop_once();
             }
@@ -225,8 +225,17 @@ namespace Hill {
         }
 
         auto StoreServer::response_continuation(void *context, void *tag) -> void {
+            auto node_id = *reinterpret_cast<int *>(tag);
             auto ctx = reinterpret_cast<ServerContext *>(context);
-            ctx->is_done = true;
+            auto buf = ctx->resp_bufs[node_id].buf;
+
+            auto op = *reinterpret_cast<Enums::RPCOperations *>(buf);
+            buf += sizeof(Enums::RPCOperations);
+            auto status = *reinterpret_cast<Enums::RPCStatus *>(buf);
+            buf += sizeof(Enums::RPCStatus);
+            auto ptr = *reinterpret_cast<Memory::RemotePointer *>(buf);
+
+            ctx->server->get_agent()->add_region(ctx->thread_id, ptr);
         }
 
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
@@ -253,7 +262,7 @@ namespace Hill {
 
             while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
 
-            auto& resp = req_handle->pre_resp_msgbuf;
+            auto &resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus) + sizeof(Memory::PolymorphicPointer);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
 
@@ -338,7 +347,32 @@ namespace Hill {
         auto StoreServer::memory_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             UNUSED(req_handle);
             UNUSED(context);
-            // TODO
+            auto ctx = reinterpret_cast<ServerContext *>(context);
+            auto tid = ctx->thread_id;
+            auto allocator = ctx->server->get_allocator();
+            auto logger = ctx->server->get_logger();
+            auto ptr = logger->make_log(tid, WAL::Enums::Ops::RemoteMemory);
+            
+            allocator->allocate_for_remote(ptr);
+
+            auto &resp = req_handle->pre_resp_msgbuf;
+            constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus) + sizeof(Memory::RemotePointer);
+
+            ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::CallForMemory;
+            auto offset = sizeof(Enums::RPCOperations);
+
+            if (ptr) {
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
+            } else {
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
+            }
+            offset += sizeof(Enums::RPCStatus);
+            
+            *reinterpret_cast<Memory::RemotePointer *>(resp.buf + offset) = Memory::RemotePointer::make_remote_pointer(ctx->node_id, ptr);
+            
+            ctx->rpc->enqueue_response(req_handle, &resp);
+            logger->commit(tid);
         }
 
         auto StoreServer::parse_request_message(const erpc::ReqHandle *req_handle, const void *context)

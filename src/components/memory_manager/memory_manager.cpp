@@ -122,6 +122,23 @@ namespace Hill {
             header.consumed += size;
         }
 
+        auto Allocator::allocate_for_remote(byte_ptr_t &ptr) -> void {
+            {
+                std::scoped_lock<std::mutex> _(allocator_global_lock);
+                auto remote_pages = (Constants::uREMOTE_REGION_SIZE / Constants::uPAGE_SIZE);
+                auto to_be_used = header.cursor + remote_pages;
+                auto remain = header.base + (header.total_size / Constants::uPAGE_SIZE) - 1;
+
+                if (remain < to_be_used) {
+                    ptr = nullptr;
+                    return;
+                } else {
+                    ptr = reinterpret_cast<byte_ptr_t>(header.cursor);
+                    header.cursor += remote_pages;
+                }
+            }
+        }
+
         auto Allocator::register_thread() noexcept -> std::optional<int> {
             std::scoped_lock<std::mutex> _(allocator_global_lock);
             for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {

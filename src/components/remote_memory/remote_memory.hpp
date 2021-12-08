@@ -13,7 +13,6 @@ namespace Hill {
             static constexpr uint64_t uREMOTE_POINTER_BITS_MASK = 0xc000000000000000UL;
             static constexpr uint64_t uREMOTE_POINTER_BITS = 0x2UL;
             static constexpr uint64_t uREMOTE_REGIONS = 32;
-            static constexpr uint64_t uREMOTE_REGION_SIZE = 1UL << 30;
         }
 
         namespace Enums {

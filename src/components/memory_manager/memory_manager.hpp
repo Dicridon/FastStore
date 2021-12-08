@@ -31,6 +31,7 @@ namespace Hill {
             static constexpr int iTHREAD_LIST_NUM = 8;
             static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
             static constexpr size_t uPREALLOCATION = 1;
+            static constexpr uint64_t uREMOTE_REGION_SIZE = 1UL << 30;
 #else
             static constexpr size_t uPAGE_SIZE = 16 * 1024UL;
             static constexpr uint64_t uPAGE_MASK = 0xffffffffffffc000UL;
@@ -38,6 +39,7 @@ namespace Hill {
             static constexpr int iTHREAD_LIST_NUM = 128;
             static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
             static constexpr size_t uPREALLOCATION = 1;
+            static constexpr uint64_t uREMOTE_REGION_SIZE = 1UL << 30;
 #endif
         }
 
@@ -219,7 +221,7 @@ namespace Hill {
                 switch(allocator->recover()){
                 case Enums::AllocatorRecoveryStatus::Ok:
                     for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
-                        allocator->header.in_use[i] = false;                    
+                        allocator->header.in_use[i] = false;
                     }
                     return allocator;
                 case Enums::AllocatorRecoveryStatus::Corrupted:
@@ -252,6 +254,7 @@ namespace Hill {
             auto unregister_thread(int id) noexcept -> void;
 
             auto allocate(int id, size_t size, byte_ptr_t &ptr) -> void;
+            auto allocate_for_remote(byte_ptr_t &ptr) -> void;
             auto free(int id, byte_ptr_t &ptr) -> void;
 
             auto recover() -> Enums::AllocatorRecoveryStatus;
@@ -262,7 +265,7 @@ namespace Hill {
             struct AllocatorHeader {
                 uint64_t magic;
                 size_t total_size;
- Page *freelist;              // only for page reuse
+                Page *freelist;              // only for page reuse
                 Page *base;
                 Page *cursor;
                 Page *thread_free_lists[Constants::iTHREAD_LIST_NUM]; // avoid memory leaks
