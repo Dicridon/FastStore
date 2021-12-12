@@ -7,6 +7,7 @@
 #include "misc/misc.hpp"
 #include "coloring/coloring.hpp"
 #include "debug_logger/debug_logger.hpp"
+#include "city/city.hpp"
 
 #include <vector>
 #include <atomic>
@@ -22,7 +23,7 @@ namespace Hill {
             static constexpr int iDEGREE = 3;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
 #else
-            static constexpr int iDEGREE = 64;
+            static constexpr int iDEGREE = 16;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
 #endif
         }
@@ -48,6 +49,7 @@ namespace Hill {
         struct InnerNode;
         struct LeafNode {
             InnerNode *parent;
+            uint64_t fingerprints[Constants::iNUM_HIGHKEY];
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             Memory::PolymorphicPointer values[Constants::iNUM_HIGHKEY];
             size_t value_sizes[Constants::iNUM_HIGHKEY];
@@ -66,6 +68,7 @@ namespace Hill {
                     tmp->keys[i] = nullptr;
                     tmp->values[i] = nullptr;
                     tmp->value_sizes[i] = 0;
+                    tmp->fingerprints[i] = 0;
                 }
                 tmp->parent = nullptr;
                 return tmp;

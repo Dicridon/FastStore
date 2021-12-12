@@ -62,19 +62,28 @@ auto main(int argc, char *argv[]) -> int {
     auto run = Workload::read_ycsb_workload("2M_run_" + type + "_debug.data");
     std::cout << "Done\n";
 
+
+    auto start = std::chrono::steady_clock::now();
     for (const auto &l : load[0]) {
         if(auto [s, _] = olfit->insert(tid, l.key.c_str(), l.key.size(), l.key.c_str(), l.key.size()); s != Enums::OpStatus::Ok) {
             std::cout << "Error inserting " << l.key << "\n";
             return -1;
         }
     }
-    
+    auto end = std::chrono::steady_clock::now();
+    double period = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Insertion throughput " << 2000000 / period * 1000 << "\n";
+
+    start = std::chrono::steady_clock::now();
     for (const auto &l : run[0]) {
         if(auto [v, _] = olfit->search(l.key.c_str(), l.key.size()); v == nullptr) {
             std::cout << "Error searching " << l.key << "\n";
             return -1;
         }
     }
+    end = std::chrono::steady_clock::now();
+    period = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Search throughput " << 2000000 / period * 1000 << "\n";
 
     /*
     auto workload = Workload::generate_simple_string_workload_with_begin(8, 4, Workload::Enums::Insert);

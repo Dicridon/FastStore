@@ -27,6 +27,7 @@ namespace Hill {
             }
 
             for (int j = Constants::iNUM_HIGHKEY - 1; j > i; j--) {
+                fingerprints[j] = fingerprints[j - 1];
                 keys[j] = keys[j - 1];
                 values[j] = values[j - 1];
                 value_sizes[j] = value_sizes[j - 1];
@@ -34,6 +35,8 @@ namespace Hill {
 
             auto ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
             alloc->allocate(tid, sizeof(KVPair::HillStringHeader) + k_sz, ptr);
+            auto fp = CityHash64(k, k_sz);
+            fingerprints[i] = fp;
             keys[i] = &KVPair::HillString::make_string(ptr, k, k_sz);
             log->commit(tid);
 
@@ -184,12 +187,14 @@ namespace Hill {
                 split -= 1;
             }
             for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
+                n->fingerprints[k - split] = l->fingerprints[k];
                 n->keys[k - split] = l->keys[k];
                 n->values[k - split] = l->values[k];
                 n->value_sizes[k - split] = l->value_sizes[k];
             }
-            
+
             for (int k = split; k < Constants::iNUM_HIGHKEY; k++) {
+                l->fingerprints[k] = 0;
                 l->keys[k] = nullptr;
                 l->values[k] = nullptr;
                 l->value_sizes[k] = 0;
@@ -300,10 +305,16 @@ namespace Hill {
 
         auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t> {
             auto leaf = traverse_node(k, k_sz);
+            auto fp = CityHash64(k, k_sz);
             for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (leaf->keys[i] == nullptr) {
                     return {nullptr, 0};
                 }
+
+                if (leaf->fingerprints[i] != fp) {
+                    continue;
+                }
+
                 if (leaf->keys[i]->compare(k, k_sz) == 0) {
                     return {leaf->values[i], leaf->value_sizes[i]};
                 }
