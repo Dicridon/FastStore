@@ -78,7 +78,7 @@ namespace Hill {
             return {};
         }
 
-        return atoi(verpc_port.str().c_str());
+        return atoi(verpc_port[1].str().c_str());
     }
     
     auto ConfigReader::read_erpc_listen_port(const std::string &content) -> std::optional<int> {
