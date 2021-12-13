@@ -195,20 +195,6 @@ namespace Hill {
 
             auto content = _content.value();
 
-            std::regex rmonitor("^monitor:\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::regex raddr("^addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-
-            std::smatch vmonitor, vaddr, vrpc_uri;
-            if (!std::regex_search(content, vmonitor, rmonitor)) {
-                std::cerr << ">> Error: invalid or unspecified monitor address\n";
-                return nullptr;
-            }
-
-            if (!std::regex_search(content, vaddr, raddr)) {
-                std::cerr << ">> Error: invalid or unspecified IP address\n";
-                return nullptr;
-            }
-
             auto ret = std::make_unique<Client>();
             ret->monitor_addr = Cluster::IPV4Addr::make_ipv4_addr(ConfigReader::read_monitor_addr(content).value()).value();
             ret->monitor_port = ConfigReader::read_monitor_port(content).value();
