@@ -145,14 +145,8 @@ namespace Hill {
             return false;
         }
         auto content = content_.value();
-        std::regex rpmem_file("^pmem_file:\\s+(\\S+)");
-
-        std::smatch vpmem_file;
-        if (!std::regex_search(content, vpmem_file, rpmem_file)) {
-            std::cerr << ">> Error: invalid or unspecified pmem file\n";
-            return false;
-        }
-        pmem_file = vpmem_file[1];
+        
+        pmem_file = ConfigReader::read_pmem_file(content).value();
         return true;
     }
 

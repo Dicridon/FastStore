@@ -378,9 +378,9 @@ namespace Hill {
 
             auto content = content_.value();
 
-            std::regex rnode_num("^node_num:\\s*(\\d+)");
-            std::regex rranges("^range:\\s*((\\S+),\\s*(\\d+))");
-            std::regex raddr("^addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+            std::regex rnode_num("node_num:\\s*(\\d+)");
+            std::regex rranges("range:\\s*((\\S+),\\s*(\\d+))");
+            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
 
             std::smatch vnode_num, vranges, vaddr;
             if (!std::regex_search(content, vnode_num, rnode_num)) {
