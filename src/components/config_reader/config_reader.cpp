@@ -137,7 +137,7 @@ namespace Hill {
             return {};
         }
 
-        return vdev_name.str();
+        return vdev_name[1].str();
     }
     
     auto ConfigReader::read_ib_port(const std::string &content) -> std::optional<int> {
