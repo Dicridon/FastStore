@@ -228,61 +228,17 @@ namespace Hill {
 
             auto content = _content.value();
 
-            std::regex rnode_id("node_id:\\s*(\\d+)");
-            std::regex rtotal_pm("total_pm:\\s*(\\d+)");
-            std::regex ravailable_pm("available_pm:\\s*(\\d+)");
-            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::regex rerpc_port("erpc_port:\\s*(\\d+)");
-            std::regex rerpc_listen_port("erpc_listen_port:\\s*(\\d+)");
-            std::regex rmonitor("monitor:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-
-            std::smatch vnode_id, vtotal_pm, vaddr, verpc_port, verpc_listen_port, vavailable_pm, vmonitor;
-            if (!std::regex_search(content, vnode_id, rnode_id)) {
-                std::cerr << ">> Error: invalid or unspecified node id\n";
-                return false;
-            }
-
-            if (!std::regex_search(content, vtotal_pm, rtotal_pm)) {
-                std::cerr << ">> Error: invalid or unspecified total PM\n";
-                return false;
-            }
-
-            if (!std::regex_search(content, vavailable_pm, ravailable_pm)) {
-                std::cerr << ">> Error: invalid or unspecified available PM\n";
-                return false;
-            }
-
-            if (!std::regex_search(content, vaddr, raddr)) {
-                std::cerr << ">> Error: invalid or unspecified IP address\n";
-                return false;
-            }
-
-            if (!std::regex_search(content, verpc_port, rerpc_port)) {
-                std::cerr << ">> Error: invalid or unspecified RPC port\n";
-                return false;
-            }
-            
-            if (!std::regex_search(content, verpc_listen_port, rerpc_listen_port)) {
-                std::cerr << ">> Error: invalid or unspecified RPC listen port\n";
-                return false;
-            }
-
-            if (!std::regex_search(content, vmonitor, rmonitor)) {
-                std::cerr << ">> Error: invalid or unspecified monitor\n";
-                return false;
-            }
-
-            node_id = atoi(vnode_id[1].str().c_str());
-            total_pm = atoll(vtotal_pm[1].str().c_str());
-            available_pm = atoll(vavailable_pm[1].str().c_str());
+            node_id = ConfigReader::read_node_id(content).value();
+            total_pm = ConfigReader::read_total_pm(content).value();
+            available_pm = ConfigReader::read_available_pm(content).value();
             // impossible be invalid
-            addr = IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
-            port = atoi(vaddr[2].str().c_str());
-            erpc_port = atoi(verpc_port[1].str().c_str());
-            erpc_listen_port = atoi(verpc_listen_port[1].str().c_str());
+            addr = IPV4Addr::make_ipv4_addr(ConfigReader::read_ip_addr(content).value()).value();
+            port = ConfigReader::read_ip_port(content).value();
+            erpc_port = ConfigReader::read_erpc_port(content).value();
+            erpc_listen_port = ConfigReader::read_erpc_listen_port(content).value();
             rpc_uri = addr.to_string() + ":" + std::to_string(erpc_port);
-            monitor_addr = IPV4Addr::make_ipv4_addr(vmonitor[1].str()).value();
-            monitor_port = atoi(vmonitor[2].str().c_str());
+            monitor_addr = IPV4Addr::make_ipv4_addr(ConfigReader::read_monitor_addr(content).value()).value();
+            monitor_port = ConfigReader::read_monitor_port(content).value();
 
             return true;
         }
@@ -422,9 +378,9 @@ namespace Hill {
 
             auto content = content_.value();
 
-            std::regex rnode_num("node_num:\\s*(\\d+)");
-            std::regex rranges("range: ((\\S+),\\s*(\\d+))");
-            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+            std::regex rnode_num("^node_num:\\s*(\\d+)");
+            std::regex rranges("^range:\\s*((\\S+),\\s*(\\d+))");
+            std::regex raddr("^addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
 
             std::smatch vnode_num, vranges, vaddr;
             if (!std::regex_search(content, vnode_num, rnode_num)) {

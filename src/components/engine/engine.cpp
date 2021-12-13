@@ -132,29 +132,10 @@ namespace Hill {
             return false;
         }
         auto content = content_.value();
-        std::regex rdev_name("dev_name:\\s+(\\S+)");
-        std::regex rib_port("ib_port:\\s+(\\d+)");
-        std::regex rgid_idx("gid_idx:\\s+(\\d+)");
 
-        std::smatch vdev_name, vib_port, vgid_idx;
-        if (!std::regex_search(content, vdev_name, rdev_name)) {
-            std::cerr << ">> Error: invalid or unspecified ib device name\n";
-            return false;
-        }
-
-        if (!std::regex_search(content, vib_port, rib_port)) {
-            std::cerr << ">> Error: invalid or unspecified IB port\n";
-            return false;
-        }
-
-        if (!std::regex_search(content, vgid_idx, rgid_idx)) {
-            std::cerr << ">> Error: invalid or unspecified GID index\n";
-            return false;
-        }
-
-        rdma_dev_name = vdev_name[1];
-        ib_port = atoi(vib_port[1].str().c_str());
-        gid_idx = atoi(vgid_idx[1].str().c_str());
+        rdma_dev_name = ConfigReader::read_ib_dev_name(content).value();
+        ib_port = ConfigReader::read_ib_port(content).value();
+        gid_idx = ConfigReader::read_gid_idx(content).value();
         return true;
     }
 
@@ -164,7 +145,7 @@ namespace Hill {
             return false;
         }
         auto content = content_.value();
-        std::regex rpmem_file("pmem_file:\\s+(\\S+)");
+        std::regex rpmem_file("^pmem_file:\\s+(\\S+)");
 
         std::smatch vpmem_file;
         if (!std::regex_search(content, vpmem_file, rpmem_file)) {
@@ -286,29 +267,10 @@ namespace Hill {
             return false;
         }
         auto content = content_.value();
-        std::regex rdev_name("dev_name:\\s+(\\S+)");
-        std::regex rib_port("ib_port:\\s+(\\d+)");
-        std::regex rgid_idx("gid_idx:\\s+(\\d+)");
 
-        std::smatch vdev_name, vib_port, vgid_idx;
-        if (!std::regex_search(content, vdev_name, rdev_name)) {
-            std::cerr << ">> Error: invalid or unspecified ib device name\n";
-            return -1;
-        }
-
-        if (!std::regex_search(content, vib_port, rib_port)) {
-            std::cerr << ">> Error: invalid or unspecified IB port\n";
-            return -1;
-        }
-
-        if (!std::regex_search(content, vgid_idx, rgid_idx)) {
-            std::cerr << ">> Error: invalid or unspecified GID index\n";
-            return -1;
-        }
-
-        rdma_dev_name = vdev_name[1];
-        ib_port = atoi(vib_port[1].str().c_str());
-        gid_idx = atoi(vgid_idx[1].str().c_str());
+        rdma_dev_name = ConfigReader::read_ib_dev_name(content).value();
+        ib_port = ConfigReader::read_ib_port(content).value();
+        gid_idx = ConfigReader::read_gid_idx(content).value();
         return true;
     }
 }

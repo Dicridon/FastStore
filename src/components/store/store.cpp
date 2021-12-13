@@ -42,7 +42,6 @@ namespace Hill {
                     Indexing::OLFIT olfit(atid.value(), server->get_allocator(), server->get_logger());
                     leaves[btid] = olfit.get_root().get_as<Indexing::LeafNode *>();
                     while (is_launched) {
-
                         IncomeMessage *msg;
                         if (req_queues[btid].pop(msg)) {
                             switch (msg->input.op) {
@@ -75,6 +74,9 @@ namespace Hill {
                             case Enums::RPCOperations::Range:
                                 [[fallthrough]];
                                 // TODO
+                            case Enums::RPCOperations::CallForMemory:
+                                olfit.enable_agent(msg->input.agent);
+                                msg->output.status.store(Indexing::Enums::OpStatus::Ok);
                             default:
                                 msg->output.status.store(Indexing::Enums::OpStatus::Failed);
                                 break;
@@ -146,6 +148,10 @@ namespace Hill {
                 s_ctx.rpc->run_event_loop(10000000);
                 this->server->unregister_thread(tid);
             }, tid);
+        }
+
+        auto StoreServer::use_agent() noexcept -> void {
+
         }
 
         auto StoreServer::check_available_mem(ServerContext &s_ctx, int tid) -> Memory::RemotePointer {
@@ -247,7 +253,9 @@ namespace Hill {
             msg.input.key = key->raw_chars();
             msg.input.key_size = key->size();
             msg.input.op = type;
+        retry:
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
+            auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
 
             if (server->get_allocator()->get_consumed() >= 0.8 * server->get_node()->total_pm &&
                 !server->get_agent()->available(ctx->thread_id)) {
@@ -255,9 +263,14 @@ namespace Hill {
                 // a log should be used here, but for simiplicity, I omit it.
                 auto ptr = check_available_mem(*ctx, ctx->thread_id);
                 ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
+                msg.input.op = Enums::RPCOperations::CallForMemory;
+                msg.input.agent = ctx->self->server->get_agent();
+                while(!ctx->queues[pos].push(&msg));
+
+                while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+                msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
             }
 
-            auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
             while(!ctx->queues[pos].push(&msg));
 
             while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
@@ -272,13 +285,11 @@ namespace Hill {
             case Indexing::Enums::OpStatus::Ok:
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
                 break;
-            case Indexing::Enums::OpStatus::NoMemory: {
+            case Indexing::Enums::OpStatus::NoMemory:
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
-
                 // agent's memory is available but not sufficient;
-                auto ptr = check_available_mem(*ctx, ctx->thread_id);
-                ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
-            }
+                ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
+                goto retry;
                 break;
             default:
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;

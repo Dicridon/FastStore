@@ -3,6 +3,7 @@
 #include "memory_manager/memory_manager.hpp"
 #include "misc/misc.hpp"
 #include "config/config.hpp"
+#include "config_reader/config_reader.hpp"
 
 #include <sstream>
 #include <memory>

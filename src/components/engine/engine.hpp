@@ -6,6 +6,7 @@
 #include "cluster/cluster.hpp"
 #include "rdma/rdma.hpp"
 #include "misc/misc.hpp"
+#include "config_reader/config_reader.hpp"
 
 #include <shared_mutex>
 #include <atomic>
@@ -194,9 +195,9 @@ namespace Hill {
 
             auto content = _content.value();
 
-            std::regex rmonitor("monitor:\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::regex raddr("addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
-            std::regex rrpc_uri("rpc_uri:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}:\\d+)");
+            std::regex rmonitor("^monitor:\\s+(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+            std::regex raddr("^addr:\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}):(\\d+)");
+
             std::smatch vmonitor, vaddr, vrpc_uri;
             if (!std::regex_search(content, vmonitor, rmonitor)) {
                 std::cerr << ">> Error: invalid or unspecified monitor address\n";
@@ -208,17 +209,12 @@ namespace Hill {
                 return nullptr;
             }
 
-            if (!std::regex_search(content, vrpc_uri, rrpc_uri)) {
-                std::cerr << ">> Error: invalid or unspecified uri\n";
-                return nullptr;
-            }
-
             auto ret = std::make_unique<Client>();
-            ret->monitor_addr = Cluster::IPV4Addr::make_ipv4_addr(vmonitor[1]).value();
-            ret->monitor_port = atoi(vmonitor[2].str().c_str());
-            ret->addr = Cluster::IPV4Addr::make_ipv4_addr(vaddr[1].str()).value();
-            ret->port = atoi(vaddr[2].str().c_str());
-            ret->rpc_uri = vrpc_uri[1].str();
+            ret->monitor_addr = Cluster::IPV4Addr::make_ipv4_addr(ConfigReader::read_monitor_addr(content).value()).value();
+            ret->monitor_port = ConfigReader::read_monitor_port(content).value();
+            ret->addr = Cluster::IPV4Addr::make_ipv4_addr(ConfigReader::read_ip_addr(content).value()).value();
+            ret->port = ConfigReader::read_ip_port(content).value();
+            ret->rpc_uri = ConfigReader::read_rpc_uri(content).value();
             ret->run = false;
             ret->parse_ib(config);
 

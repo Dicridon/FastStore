@@ -207,6 +207,30 @@
       "-Ithird-party/eRPC/third_party/asio/include",
       "-DERPC_INFINIBAND=true",
       "-DROCE=true",
+      "./src/components/city/city.cpp",
+      "./obj/city_city.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "file": "./src/components/city/city.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O0",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
       "./src/components/wal/wal.cpp",
       "./obj/wal_wal.o",
       "-c",
@@ -447,6 +471,30 @@
       "-Ithird-party/eRPC/third_party/asio/include",
       "-DERPC_INFINIBAND=true",
       "-DROCE=true",
+      "./src/components/config_reader/config_reader.cpp",
+      "./obj/config_reader_config_reader.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "file": "./src/components/config_reader/config_reader.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O0",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
       "./src/components/workload/workload.cpp",
       "./obj/workload_workload.o",
       "-c",
@@ -646,6 +694,30 @@
     ],
     "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
     "file": "./tests/test_wal.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O0",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/test_stats.cpp",
+      "./obj/test_stats.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "file": "./tests/test_stats.cpp"
   },
   {
     "arguments": [

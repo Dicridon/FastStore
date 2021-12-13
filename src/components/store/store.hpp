@@ -69,6 +69,7 @@ namespace Hill {
                 const char *value;
                 size_t value_size;
                 Enums::RPCOperations op;
+                Memory::RemoteMemoryAgent *agent;
             } input;
 
             // output
@@ -250,6 +251,7 @@ namespace Hill {
              * income eRPC requests.
              */
             auto register_erpc_handler_thread() noexcept -> std::optional<std::thread>;
+            auto use_agent() noexcept -> void;
             static auto check_available_mem(ServerContext &s_ctx, int tid) -> Memory::RemotePointer;
             static auto establish_erpc(ServerContext &s_ctx, int tid, int node_id) -> bool;
             static auto response_continuation(void *context, void *tag) -> void;

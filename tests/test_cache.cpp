@@ -1,5 +1,6 @@
 #include "cmd_parser/cmd_parser.hpp"
 #include "read_cache/read_cache.hpp"
+#include "workload/workload.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -14,35 +15,26 @@ int main(int argc, char *argv[]) {
 
     parser.add_option<size_t>("--capacity", "-c", 100);
     parser.add_option<size_t>("--batch", "-b", 100);
+    parser.add_option<std::string>("--ycsb", "-y", "C");
     parser.parse(argc, argv);
 
-    auto cap = parser.get_as<size_t>("--capacity").value();
-    auto batch = parser.get_as<size_t>("--batch").value();
-    
-    std::vector<std::string> workload;
-    for (size_t i = 0; i < batch; i++) {
-        workload.emplace_back(std::to_string(i));
-    }
 
-    Cache cache(cap);
+    auto load_type = parser.get_as<std::string>("--ycsb").value();
+    Cache cache(1000000);
+    // auto load = Workload::read_ycsb_workload("2M_load_" + load_type + "_debug.data");
+    auto run = Workload::read_ycsb_workload("2M_run_" + load_type + "_debug.data");
 
-    std::default_random_engine generator;
-    std::uniform_int_distribution<size_t> dist(0, batch - 1);
-
-    for (size_t i = 0; i < cap; i++) {
-        cache.insert(std::to_string(i), nullptr, 0);
-    }
-
-    for (size_t i = 0; i < batch; i++) {
-        auto key = std::to_string(dist(generator));
-        std::cout << "getting " << key << "\n";
-        cache.dump();
-        if (cache.get(key) == nullptr) {
-            cache.insert(key, nullptr, 0);
+    for (const auto &r : run[0]) {
+        if (cache.get(r.key) == nullptr) {
+            cache.insert(r.key, nullptr, 0);
         }
-        cache.dump();
-        std::cout << "----------------------------\n";
+    }
+    
+    for (const auto &r : run[0]) {
+        if (cache.get(r.key) == nullptr) {
+            cache.insert(r.key, nullptr, 0);
+        }
     }
 
-    std::cout << "cache hit ratio: " << cache.hit_ratio() << "\n";
+    std::cout << "Hit ratio: " << cache.hit_ratio() << "\n";
 }
