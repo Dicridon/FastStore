@@ -134,7 +134,7 @@ namespace Hill {
             int thread_id;
             std::string server_uri[Cluster::Constants::uMAX_NODE];
             Client *client;
-            erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
+            erpc::Rpc<erpc::CTransport> *rpc;
             erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
             int erpc_sessions[Cluster::Constants::uMAX_NODE];
@@ -151,9 +151,7 @@ namespace Hill {
                     u = "";
                 }
 
-                for (auto &r : rpcs) {
-                    r = nullptr;
-                }
+                rpc = nullptr;
 
                 for (auto &s : erpc_sessions) {
                     s = 0;
@@ -309,7 +307,8 @@ namespace Hill {
                 return is_launched;
             }
 
-            auto register_thread(const Workload::StringWorkload &load, Stats::SyntheticStats &stats) noexcept -> std::optional<std::thread>;
+            auto register_thread(const Workload::StringWorkload &load, Stats::SyntheticStats &stats) noexcept
+                -> std::optional<std::thread>;
         private:
             std::unique_ptr<Client> client;
             erpc::Nexus *nexus;

@@ -445,7 +445,9 @@ namespace Hill {
                 stats.reset();
                 size_t counter = 0;
                 std::chrono::time_point<std::chrono::steady_clock> start, end;
-
+                c_ctx.rpc = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
+                                                            tid, RPCWrapper::ghost_sm_handler);
+                
                 stats.throughputs.timing_now();
                 start = std::chrono::steady_clock::now();
                 for (auto &i : load) {
@@ -467,11 +469,11 @@ namespace Hill {
                     prepare_request(node_id, i, c_ctx);
 
                     // cache is updated in the response_continuation
-                    c_ctx.rpcs[node_id]->enqueue_request(c_ctx.erpc_sessions[node_id], i.type,
-                                                         &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
-                                                         response_continuation, &node_id);
+                    c_ctx.rpc->enqueue_request(c_ctx.erpc_sessions[node_id], i.type,
+                                               &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
+                                               response_continuation, &node_id);
                     while(!c_ctx.is_done) {
-                        c_ctx.rpcs[node_id]->run_event_loop_once();
+                        c_ctx.rpc->run_event_loop_once();
                     }
                 sample:
                     if ((++counter) % 1000 == 0) {
@@ -521,7 +523,7 @@ namespace Hill {
             const auto &meta = this->client->get_cluster_meta();
             auto node_id = meta.filter_node(item.key);
 
-            if (c_ctx.rpcs[node_id] != nullptr) {
+            if (c_ctx.erpc_sessions[node_id] != 0) {
                 return node_id;
             }
 
@@ -549,11 +551,10 @@ namespace Hill {
 #endif
             auto remote_id = 0;
             read(socket, &remote_id, sizeof(remote_id));
-            c_ctx.rpcs[node_id] = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
-                                                                  tid, RPCWrapper::ghost_sm_handler);
+            
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
-            auto rpc = c_ctx.rpcs[node_id];
+            auto rpc = c_ctx.rpc;
             c_ctx.erpc_sessions[node_id] = rpc->create_session(server_uri, remote_id);
             while (!rpc->is_connected(c_ctx.erpc_sessions[node_id])) {
                 rpc->run_event_loop_once();
