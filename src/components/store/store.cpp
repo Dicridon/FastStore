@@ -538,7 +538,8 @@ namespace Hill {
 
 #ifdef __HILL_INFO__
             std::cout << ">> Creating eRPC for thread " << tid << "\n";
-            std::cout << ">> Connecting to listen port: " << meta.cluster.nodes[node_id].erpc_listen_port << "\n";
+            std::cout << ">> Connecting to node " << node_id << " at listen port: "
+                      << meta.cluster.nodes[node_id].erpc_listen_port << "\n";
 #endif
             auto socket = Misc::socket_connect(false,
                                                meta.cluster.nodes[node_id].erpc_listen_port,
