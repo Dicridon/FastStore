@@ -120,7 +120,7 @@ namespace Hill {
 
             ServerContext() : thread_id(0), node_id(0), queues(nullptr) {
                 for (auto &s : erpc_sessions) {
-                    s = 0;
+                    s = -1;
                 }
             }
         };
@@ -149,7 +149,7 @@ namespace Hill {
                 rpc = nullptr;
 
                 for (auto &s : erpc_sessions) {
-                    s = 0;
+                    s = -1;
                 }
 
                 successful_inserts = 0;

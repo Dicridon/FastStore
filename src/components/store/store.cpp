@@ -197,7 +197,7 @@ namespace Hill {
         }
 
         auto StoreServer::establish_erpc(ServerContext &s_ctx, int tid, int node_id) -> bool {
-            if (s_ctx.erpc_sessions[node_id] != 0) {
+            if (s_ctx.erpc_sessions[node_id] != -1) {
                 return true;
             }
 
@@ -522,7 +522,7 @@ namespace Hill {
             const auto &meta = this->client->get_cluster_meta();
             auto node_id = meta.filter_node(item.key);
 
-            if (c_ctx.erpc_sessions[node_id] != 0) {
+            if (c_ctx.erpc_sessions[node_id] != -1) {
                 return node_id;
             }
 
