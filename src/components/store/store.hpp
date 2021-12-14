@@ -113,17 +113,12 @@ namespace Hill {
             erpc::Nexus *nexus;
             
             int erpc_sessions[Cluster::Constants::uMAX_NODE];
-            erpc::Rpc<erpc::CTransport> *rpcs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
 
             bool is_done;
 
             ServerContext() : thread_id(0), node_id(0), queues(nullptr) {
-                for (auto &r : rpcs) {
-                    r = nullptr;
-                }
-
                 for (auto &s : erpc_sessions) {
                     s = 0;
                 }
