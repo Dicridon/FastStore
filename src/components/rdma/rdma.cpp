@@ -140,7 +140,7 @@ namespace Hill {
             return {Status::Ok, 0};
         }
 
-        auto RDMAContext::post_send_helper(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len,
+        auto RDMAContext::post_send_helper(const byte_ptr_t &ptr, const uint8_t *msg, size_t msg_len,
                                            enum ibv_wr_opcode opcode, size_t local_offset) -> StatusPair
         {
             auto remote_offset = reinterpret_cast<uint64_t>(ptr) - remote.addr;
@@ -173,7 +173,7 @@ namespace Hill {
             return post_send_helper(msg, msg_len, IBV_WR_RDMA_WRITE, local_offset, remote_offset);
         }
 
-        auto RDMAContext::post_write(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, size_t local_offset)
+        auto RDMAContext::post_write(const byte_ptr_t &ptr, const uint8_t *msg, size_t msg_len, size_t local_offset)
             -> StatusPair
         {
             return post_send_helper(ptr, msg, msg_len, IBV_WR_RDMA_WRITE, local_offset);

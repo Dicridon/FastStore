@@ -58,8 +58,10 @@ namespace Hill {
                 value_sizes[i] = total;
                 auto &connection = agent->get_peer_connection(tid, values[i].remote_ptr().get_node());
                 auto buf = std::make_unique<byte_t[]>(total);
+
+                Memory::RemotePointer rp(ptr);
                 auto &t = KVPair::HillString::make_string(buf.get(), v, v_sz);
-                connection->post_write(t.raw_bytes(), total);
+                connection->post_write(rp.get_as<byte_ptr_t>(), t.raw_bytes(), total);
                 connection->poll_completion_once();
             }
             log->commit(tid);
@@ -298,28 +300,116 @@ namespace Hill {
                         return Enums::OpStatus::Ok;
                     }
                 }
- inner = inner->parent;
+                inner = inner->parent;
             }
             return Enums::OpStatus::Ok;
         }
 
         auto OLFIT::search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t> {
-            auto leaf = traverse_node(k, k_sz);
-            auto fp = CityHash64(k, k_sz);
-            for (int i = 0; i < Constants::iDEGREE; i++) {
-                if (leaf->keys[i] == nullptr) {
-                    return {nullptr, 0};
-                }
-
-                if (leaf->fingerprints[i] != fp) {
-                    continue;
-                }
-
-                if (leaf->keys[i]->compare(k, k_sz) == 0) {
-                    return {leaf->values[i], leaf->value_sizes[i]};
-                }
+            auto [leaf, i] = get_pos_of(k, k_sz);
+            if (i == -1) {
+                return {nullptr, 0};
+            }
+            if (leaf->keys[i]->compare(k, k_sz) == 0) {
+                return {leaf->values[i], leaf->value_sizes[i]};
             }
             return {nullptr, 0};
+        }
+
+        auto OLFIT::update(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
+            noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>
+        {
+            auto [leaf, i] = get_pos_of(k, k_sz);
+            if (i == -1) {
+                return {Enums::OpStatus::Failed, nullptr};
+            }
+
+            auto ptr = logger->make_log(tid, WAL::Enums::Ops::Update);
+            auto total = sizeof(KVPair::HillStringHeader) + v_sz;
+            if (!agent) {
+                alloc->allocate(tid, total, ptr);
+                if (ptr == nullptr) {
+                    return {Enums::OpStatus::NoMemory, nullptr};
+                }
+
+                KVPair::HillString::make_string(ptr, v, v_sz);
+                auto old = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                old = leaf->values[i].get_as<byte_ptr_t>();
+                leaf->values[i] = ptr;
+                leaf->value_sizes[i] = v_sz;
+                alloc->free(tid, old);
+
+                logger->commit(tid);
+            } else {
+                agent->allocate(tid, v_sz, ptr);
+                if (ptr == nullptr) {
+                    return {Enums::OpStatus::NoMemory, nullptr};
+                }
+
+                KVPair::HillString::make_string(ptr, v, v_sz);
+                auto old = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                old = leaf->values[i].remote_ptr().raw_ptr();
+
+                auto &connection = agent->get_peer_connection(tid, leaf->values[i].remote_ptr().get_node());
+                auto buf = std::make_unique<byte_t[]>(total);
+                auto &t = KVPair::HillString::make_string(buf.get(), v, v_sz);
+
+                Memory::RemotePointer rp(ptr);
+                connection->post_write(rp.get_as<byte_ptr_t>(), t.raw_bytes(), total);
+                connection->poll_completion_once();
+
+                auto r = leaf->values[i];
+                leaf->values[i] = ptr;
+                leaf->value_sizes[i] = v_sz;
+
+                if (r.is_local()) {
+                    alloc->free(tid, old);
+                } else {
+                    auto remote = r.remote_ptr();
+                    agent->free(tid, remote);
+                }
+
+                logger->commit(tid);
+            }
+            logger->commit(tid);
+            return {Enums::OpStatus::Ok, leaf->values[i]};
+        }
+
+        auto OLFIT::remove(int tid, const char *k, size_t k_sz) noexcept -> Enums::OpStatus {
+            auto [leaf, i] = get_pos_of(k, k_sz);
+            if (i == -1) {
+                return Enums::OpStatus::Failed;
+            }
+
+            if (leaf->values[i].is_remote()) {
+                auto ptr = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                ptr = reinterpret_cast<byte_ptr_t>(leaf->keys[i]);
+                // we only need to remember the key here because leaf node is a natural log recording both key and value
+                leaf->keys[i]->invalidate();
+
+                auto &connection = agent->get_peer_connection(tid, leaf->values[i].remote_ptr().get_node());
+                KVPair::HillStringHeader buf {
+                    .valid = 0,
+                    .length = 0,
+                };
+
+                connection->post_write(leaf->values[i].get_as<byte_ptr_t>(),
+                                       reinterpret_cast<uint8_t *>(&buf),
+                                       sizeof(KVPair::HillStringHeader));
+                connection->poll_completion_once();
+                leaf->keys[i]->invalidate();
+                alloc->free(tid, ptr);
+            } else {
+                auto ptr = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                ptr = reinterpret_cast<byte_ptr_t>(leaf->keys[i]);
+                auto vp = reinterpret_cast<byte_ptr_t>(leaf->values[i].local_ptr());
+                leaf->values[i].get_as<KVPair::HillString *>()->invalidate();
+                leaf->keys[i]->invalidate();
+                alloc->free(tid, vp);
+                alloc->free(tid, ptr);
+            }
+            logger->commit(tid);
+            return Enums::OpStatus::Ok;
         }
 
         auto OLFIT::dump() const noexcept -> void {

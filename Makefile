@@ -387,6 +387,6 @@ $(TEST_REMOTE_POINTER): $(OBJ_TEST_REMOTE_POINTER) $(OBJ_REMOTE_MEMORY_REMOTE_ME
 
 
 .PHONY: clean
-clean: 
+clean:
 	rm ./target/*
 	rm ./obj/*.o

@@ -94,7 +94,7 @@ namespace Hill {
             
             auto post_send_helper(const uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode, size_t local_offset,
                                   size_t remote_offset) -> StatusPair;
-            auto post_send_helper(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode,
+            auto post_send_helper(const byte_ptr_t &ptr, const uint8_t *msg, size_t msg_len, enum ibv_wr_opcode opcode,
                                   size_t local_offset) -> StatusPair;
 
 
@@ -134,7 +134,7 @@ namespace Hill {
 
             auto post_write(const uint8_t *msg, size_t msg_len, size_t local_offset = 0, size_t remote_offset = 0)
                 -> StatusPair;
-            auto post_write(const byte_ptr_t &ptr, uint8_t *msg, size_t msg_len, size_t local_offset = 0)
+            auto post_write(const byte_ptr_t &ptr, const uint8_t *msg, size_t msg_len, size_t local_offset = 0)
                 -> StatusPair;
 
             auto post_recv_to(size_t msg_len, size_t offset = 0) -> StatusPair;

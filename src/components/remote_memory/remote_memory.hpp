@@ -63,6 +63,7 @@ namespace Hill {
             
             RemotePointer() = default;
             RemotePointer(std::nullptr_t nu) : ptr(nu) {};
+            RemotePointer(byte_ptr_t &p) : ptr(p) {};
             
             ~RemotePointer() = default;
             RemotePointer(const RemotePointer &) = default;
@@ -230,7 +231,7 @@ namespace Hill {
                 return meta.cursor < Constants::uREMOTE_REGION_SIZE;
             }
             
-            auto free(byte_ptr_t &ptr) noexcept -> void {
+            auto free(RemotePointer &ptr) noexcept -> void {
                 UNUSED(ptr);
                 --meta.counter;
             }
@@ -285,7 +286,7 @@ namespace Hill {
                 return allocators[tid][cursors[tid]].available();
             }
 
-            inline auto free(int tid, byte_ptr_t &ptr) {
+            inline auto free(int tid, RemotePointer &ptr) {
                 allocators[tid][cursors[tid]].free(ptr);
             }
 

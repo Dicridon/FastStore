@@ -237,6 +237,11 @@ namespace Hill {
             auto insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
                 noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>;
             auto search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t>;
+            auto update(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
+                noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>;
+            auto remove(int tid, const char *k, size_t k_sz) noexcept -> Enums::OpStatus;
+            auto scan(const char *k, size_t num) -> std::vector<Memory::PolymorphicPointer>;
+            
             inline auto get_root() const noexcept -> PolymorphicNodePointer {
                 return root;
             }
@@ -266,6 +271,26 @@ namespace Hill {
                     current = next;
                 }
                 return current.get_as<LeafNode *>();
+            }
+
+            auto get_pos_of(const char *k, size_t k_sz) const noexcept -> std::pair<LeafNode *, int> {
+                auto leaf = traverse_node(k, k_sz);
+                auto fp = CityHash64(k, k_sz);
+                int i = 0;
+                for (i = 0; i < Constants::iDEGREE; i++) {
+                    if (leaf->keys[i] == nullptr) {
+                        return {leaf, -1};
+                    }
+
+                    if (leaf->fingerprints[i] != fp) {
+                        continue;
+                    }
+
+                    if (leaf->keys[i]->compare(k, k_sz) == 0) {
+                        return {leaf, i};
+                    }
+                }
+                return {nullptr, -1};
             }
 
             // follow the original paper of OLFIT, OT
