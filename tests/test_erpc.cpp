@@ -29,8 +29,8 @@ auto server_handler(erpc::ReqHandle *req_handle, void *context) -> void {
 };
 
 
-auto server() -> void {
-    auto nexus = new erpc::Nexus("127.0.0.1:31850", 0, 0);
+auto server(const std::string &uri) -> void {
+    auto nexus = new erpc::Nexus(uri, 0, 0);
     nexus->register_req_func(0, server_handler);    
     ServerContext ctx;
     ctx.rpc = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&ctx),
@@ -48,8 +48,8 @@ auto res_cont(void *context, [[maybe_unused]]void *tag) {
 };
 
 
-auto client() -> void {
-    auto nexus = new erpc::Nexus("127.0.0.1:31850", 0, 0);
+auto client(const std::string &uri) -> void {
+    auto nexus = new erpc::Nexus(uri, 0, 0);
     ClientContext ctx;
     ctx.done = false;
     ctx.rpc = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&ctx),
@@ -87,12 +87,15 @@ auto client() -> void {
 auto main(int argc, char *argv[]) -> int {
     CmdParser::Parser parser;
     parser.add_switch("--server", "-s", true);
+    parser.add_option<std::string>("--uri", "-u", "127.0.0.1:31850-");
     parser.parse(argc, argv);
+
+    auto uri = parser.get_as<std::string>("--uri").value();
 
     auto is_server = parser.get_as<bool>("--server");
     if (is_server.value()) {
-        server();
+        server(uri);
     } else {
-        client();
+        client(uri);
     }
 }
