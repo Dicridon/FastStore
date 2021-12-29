@@ -21,6 +21,7 @@ namespace Hill {
 #else
             constexpr size_t uCACHE_SIZE = 1000000UL;
 #endif
+            constexpr auto tLEASE = 2s;
         }
 
         struct CacheItem {
@@ -31,7 +32,7 @@ namespace Hill {
 
             CacheItem() = default;
             CacheItem(const std::string &k, const PolymorphicPointer &ptr, size_t sz) : key(k), value_ptr(ptr), value_size(sz) {
-                expire = std::chrono::steady_clock::now() + 2s;
+                expire = std::chrono::steady_clock::now() + Constants::tLEASE;
             };
             ~CacheItem() = default;
             CacheItem(const CacheItem &) = default;
@@ -59,6 +60,7 @@ namespace Hill {
 
             auto get(const std::string &key) -> const CacheItem *;
             auto insert(const std::string &key, const PolymorphicPointer &value, size_t sz) -> void;
+            auto expire(const std::string &key) -> void;
 
             inline auto hit_ratio() const noexcept -> double {
                 return double(hit) / accessed;

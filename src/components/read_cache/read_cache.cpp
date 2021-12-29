@@ -39,5 +39,14 @@ namespace Hill {
             map.insert({key, list.begin()});
             ++load;
         }
+
+        auto Cache::expire(const std::string &key) -> void {
+            auto ret = map.find(key);
+            if (ret == map.end()) {
+                return;                
+            }
+
+            (*ret->second)->expire += Constants::tLEASE;
+        }
     }
 }

@@ -12,10 +12,8 @@
 namespace Hill {
     namespace Stats {
         struct ThroughputStats {
-            uint64_t num_insert;
-            uint64_t suc_insert;
-            uint64_t num_search;
-            uint64_t suc_search;
+            uint64_t num_ops;
+            uint64_t suc_ops;
             std::chrono::time_point<std::chrono::steady_clock> start;
             std::chrono::time_point<std::chrono::steady_clock> end;
 
@@ -26,63 +24,38 @@ namespace Hill {
             auto operator=(const ThroughputStats &) -> ThroughputStats & = default;
             auto operator=(ThroughputStats &&) -> ThroughputStats & = default;
 
-            auto reset() -> void {
-                num_insert = suc_insert = num_search = suc_search = 0;
-            }
-
-            inline auto inc_insert() noexcept -> void {
-                ++num_insert;
-            }
-
-            inline auto inc_suc_insert() noexcept -> void {
-                ++suc_insert;
-            }
-
-            inline auto inc_search() noexcept -> void {
-                ++num_search;
-            }
-
-            inline auto inc_suc_search() noexcept -> void {
-                ++suc_search;
-            }
-
-            inline auto timing_now() noexcept -> void {
+            auto inline timing_now() noexcept -> void {
                 start = std::chrono::steady_clock::now();
             }
 
-            inline auto timing_stop() noexcept -> void {
+            auto inline timing_stop() noexcept -> void {
                 end = std::chrono::steady_clock::now();
             }
-
-            inline auto insert_throughput() noexcept -> double {
-                double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-                return num_insert / duration * 1000;
+            
+            auto reset() -> void {
+                num_ops = suc_ops = 0;
             }
 
-            inline auto suc_insert_throughput() noexcept -> double {
-                double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-                return suc_insert / duration * 1000;
+            auto inline inc_ops() -> void {
+                ++num_ops;
             }
 
-            inline auto search_throughput() noexcept -> double {
-                double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-                return num_search / duration * 1000;
+            auto inline inc_suc_ops() -> void {
+                ++suc_ops;
             }
 
-            inline auto suc_search_throughput() noexcept -> double {
+            inline auto throughput() noexcept -> double {
                 double duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-                return suc_search / duration * 1000;
+                return suc_ops / duration * 1000;
             }
         };
 
         struct LatencyStats {
-            std::vector<double> insert_latencies;
-            std::vector<double> search_latencies;
+            std::vector<double> latencies;
 
             LatencyStats() = default;
             LatencyStats(size_t cap) {
-                insert_latencies.reserve(cap);
-                search_latencies.reserve(cap);
+                latencies.reserve(cap);
             }
             LatencyStats(const LatencyStats &) = default;
             LatencyStats(LatencyStats &&) = default;
@@ -91,26 +64,16 @@ namespace Hill {
             auto operator=(LatencyStats &&) -> LatencyStats & = default;
 
             auto reset() -> void {
-                insert_latencies.clear();
-                search_latencies.clear();
+                latencies.clear();
             }
             
-            inline auto record_insert(double lat) -> void {
-                insert_latencies.push_back(lat);
+            inline auto record(double lat) -> void {
+                latencies.push_back(lat);
             }
 
-            inline auto record_search(double lat) -> void {
-                search_latencies.push_back(lat);
+            inline auto avg_latency() const noexcept -> double {
+                return std::accumulate(latencies.cbegin(), latencies.cend(), 0) / latencies.size();
             }
-
-            inline auto insert_avg_latency() const noexcept -> double {
-                return std::accumulate(insert_latencies.cbegin(), insert_latencies.cend(), 0) / insert_latencies.size();
-            }
-
-            inline auto search_avg_latency() const noexcept -> double {
-                return std::accumulate(search_latencies.cbegin(), search_latencies.cend(), 0) / search_latencies.size();
-            }
-            
 
             inline auto percentile(const std::vector<double> &vector, double percent) const noexcept -> double {
                 std::vector<double> copy(vector.cbegin(), vector.cend());
@@ -122,29 +85,16 @@ namespace Hill {
                 return std::accumulate(copy.begin(), copy.begin() + partition, 0) / partition;
             }
             
-            
-            inline auto insert_p90_latency() const noexcept -> double {
-                return percentile(insert_latencies, 90);
+            inline auto p90_latency() const noexcept -> double {
+                return percentile(latencies, 90);
             }
 
-            inline auto insert_p99_latency() const noexcept -> double {
-                return percentile(insert_latencies, 99);
+            inline auto p99_latency() const noexcept -> double {
+                return percentile(latencies, 99);
             }
             
-            inline auto insert_p999_latency() const noexcept -> double {
-                return percentile(insert_latencies, 99.9);
-            }
-
-            inline auto search_p90_latency() const noexcept -> double {
-                return percentile(search_latencies, 90);
-            }
-
-            inline auto search_p99_latency() const noexcept -> double {
-                return percentile(search_latencies, 99);
-            }
-            
-            inline auto search_p999_latency() const noexcept -> double {
-                return percentile(search_latencies, 99.9);
+            inline auto p999_latency() const noexcept -> double {
+                return percentile(latencies, 99.9);
             }
         };
 

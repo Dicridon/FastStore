@@ -81,14 +81,11 @@ auto run_ycsb_workload(const std::string &config, int threads, const std::string
     std::cout << ">> Reporting in load phase: \n";
     for (int i = 0; i < threads; i++) {
         std::cout << "[[ Thread " << i << "]]:\n";
-        std::cout << "---->> insertions: "
-                  << stats[i].throughputs.suc_insert << "/" << stats[i].throughputs.num_insert
-                  << "\n";
-        std::cout << "---->> throughput: " << stats[i].throughputs.insert_throughput() << " Ops/second, "
-                  << "average latency: " << stats[i].latencies.insert_avg_latency() << "us, "
-                  << "p90: " << stats[i].latencies.insert_p90_latency() << "us, "
-                  << "p99: " << stats[i].latencies.insert_p99_latency() << "us, "
-                  << "p999: " << stats[i].latencies.insert_p999_latency() << "us"
+        std::cout << "---->> throughput: " << stats[i].throughputs.throughput() << " Ops/second, "
+                  << "average latency: " << stats[i].latencies.avg_latency() << "us, "
+                  << "p90: " << stats[i].latencies.p90_latency() << "us, "
+                  << "p99: " << stats[i].latencies.p99_latency() << "us, "
+                  << "p999: " << stats[i].latencies.p999_latency() << "us"
                   << "\n";
     }
 
@@ -106,17 +103,11 @@ auto run_ycsb_workload(const std::string &config, int threads, const std::string
     std::cout << ">> Reporting in run phase: \n";
     for (int i = 0; i < threads; i++) {
         std::cout << "[[ Thread " << i << "]]:\n";
-        std::cout << "---->> insertions: "
-                  << stats[i].throughputs.suc_insert << "/" << stats[i].throughputs.num_insert
-                  << "\n";
-        std::cout << "---->> searches: "
-                  << stats[i].throughputs.suc_search << "/" << stats[i].throughputs.num_search
-                  << "\n";
-        std::cout << "---->> throughput: " << stats[i].throughputs.search_throughput() << " Ops/second, "
-                  << "average latency: " << stats[i].latencies.search_avg_latency() << "us, "
-                  << "p90: " << stats[i].latencies.search_p90_latency() << "us, "
-                  << "p99: " << stats[i].latencies.search_p99_latency() << "us, "
-                  << "p999: " << stats[i].latencies.search_p999_latency() << "us"
+        std::cout << "---->> throughput: " << stats[i].throughputs.throughput() << " Ops/second, "
+                  << "average latency: " << stats[i].latencies.avg_latency() << "us, "
+                  << "p90: " << stats[i].latencies.p90_latency() << "us, "
+                  << "p99: " << stats[i].latencies.p99_latency() << "us, "
+                  << "p999: " << stats[i].latencies.p999_latency() << "us"
                   << "\n";
         std::cout << "---->> cache hit ratio " << stats[i].cache_hit_ratio << "\n";
     }
@@ -152,17 +143,11 @@ auto run_simple_workload(const std::string &config, int threads, int batch) -> v
     std::cout << ">> Reporting inserts: \n";
     for (int i = 0; i < threads; i++) {
         std::cout << "[[ Thread " << i << "]]:\n";
-        std::cout << "---->> insertions: "
-                  << stats[i].throughputs.suc_insert << "/" << stats[i].throughputs.num_insert
-                  << "\n";
-        std::cout << "---->> searches: "
-                  << stats[i].throughputs.suc_search << "/" << stats[i].throughputs.num_search
-                  << "\n";
-        std::cout << "---->> throughput: " << stats[i].throughputs.insert_throughput() << " Ops/second, "
-                  << "average latency: " << stats[i].latencies.insert_avg_latency() << "us, "
-                  << "p90: " << stats[i].latencies.insert_p90_latency() << "us, "
-                  << "p99: " << stats[i].latencies.insert_p99_latency() << "us, "
-                  << "p999: " << stats[i].latencies.insert_p999_latency() << "us"
+        std::cout << "---->> throughput: " << stats[i].throughputs.throughput() << " Ops/second, "
+                  << "average latency: " << stats[i].latencies.avg_latency() << "us, "
+                  << "p90: " << stats[i].latencies.p90_latency() << "us, "
+                  << "p99: " << stats[i].latencies.p99_latency() << "us, "
+                  << "p999: " << stats[i].latencies.p999_latency() << "us"
                   << "\n";
     }
 
@@ -180,17 +165,11 @@ auto run_simple_workload(const std::string &config, int threads, int batch) -> v
     std::cout << ">> Reporting searches: \n";
     for (int i = 0; i < threads; i++) {
         std::cout << "[[ Thread " << i << "]]:\n";
-        std::cout << "---->> insertions: "
-                  << stats[i].throughputs.suc_insert << "/" << stats[i].throughputs.num_insert
-                  << "\n";
-        std::cout << "---->> searches: "
-                  << stats[i].throughputs.suc_search << "/" << stats[i].throughputs.num_search
-                  << "\n";
-        std::cout << "---->> throughput: " << stats[i].throughputs.search_throughput() << " Ops/second, "
-                  << "average latency: " << stats[i].latencies.search_avg_latency() << "us, "
-                  << "p90: " << stats[i].latencies.search_p90_latency() << "us, "
-                  << "p99: " << stats[i].latencies.search_p99_latency() << "us, "
-                  << "p999: " << stats[i].latencies.search_p999_latency() << "us"
+        std::cout << "---->> throughput: " << stats[i].throughputs.throughput() << " Ops/second, "
+                  << "average latency: " << stats[i].latencies.avg_latency() << "us, "
+                  << "p90: " << stats[i].latencies.p90_latency() << "us, "
+                  << "p99: " << stats[i].latencies.p99_latency() << "us, "
+                  << "p999: " << stats[i].latencies.p999_latency() << "us"
                   << "\n";
         std::cout << "---->> cache hit ratio " << stats[i].cache_hit_ratio << "\n";
     }

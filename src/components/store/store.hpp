@@ -134,11 +134,16 @@ namespace Hill {
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
             int erpc_sessions[Cluster::Constants::uMAX_NODE];
             bool is_done;
-            uint64_t successful_inserts;
-            uint64_t successful_searches;
+            Stats::SyntheticStats stats;
             const std::string *requesting_key;
             ReadCache::Cache cache;
-
+            uint64_t num_insert;
+            uint64_t suc_insert;
+            uint64_t num_search;
+            uint64_t suc_search;
+            uint64_t num_update;
+            uint64_t suc_update;
+            
             ClientContext() : thread_id(0), is_done(false), cache(ReadCache::Constants::uCACHE_SIZE){
                 thread_id = 0;
                 is_done = false;
@@ -151,9 +156,8 @@ namespace Hill {
                 for (auto &s : erpc_sessions) {
                     s = -1;
                 }
-
-                successful_inserts = 0;
-                successful_searches = 0;
+                
+                num_insert = suc_insert = num_search = suc_search = num_update = suc_update = 0;
             }
         };
 
