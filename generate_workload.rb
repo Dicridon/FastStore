@@ -104,11 +104,11 @@ def get_workloads(ycsb_dir, records, ops)
       puts ">> Generating load workload #{t.upcase}"
       data, = Open3.capture3 "./bin/ycsb.sh load basic #{params}"
       puts ">> Extracting"
-      extract_data(data, "third-party/ycsb-0.17.0/workloads/ycsb_load_#{t}.data")
+      extract_data(data, "./workloads/ycsb_load_#{t}.data")
       puts ">> Generating run workload #{t.upcase}"
       data, = Open3.capture3 "./bin/ycsb.sh run basic #{params}"
       puts ">> Extracting"
-      extract_data(data, "third-party/ycsb-0.17.0/workloads/ycsb_run_#{t}.data")
+      extract_data(data, "./workloads/ycsb_run_#{t}.data")
     end
   end
 end
