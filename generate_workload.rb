@@ -99,15 +99,18 @@ end
 
 def get_workloads(ycsb_dir, records, ops)
   Dir.chdir(ycsb_dir) do
-    # %w[a b c d e f].each do |t|
-    %w[a].each do |t|
+    %w[a b c d e f].each do |t|
       params = YCSB.new.send("workload#{t}", records, ops)
+      puts ">> Generating load workload #{t.upcase}"
       data, = Open3.capture3 "./bin/ycsb.sh load basic #{params}"
+      puts ">> Extracting"
       extract_data(data, "ycsb_load_#{t}.data")
+      puts ">> Generating run workload #{t.upcase}"
       data, = Open3.capture3 "./bin/ycsb.sh run basic #{params}"
+      puts ">> Extracting"
       extract_data(data, "ycsb_run_#{t}.data")
     end
   end
 end
 
-get_workloads('third-party/ycsb-0.17.0', 10, 10)
+get_workloads('third-party/ycsb-0.17.0/workloads', 10, 10)
