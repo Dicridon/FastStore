@@ -49,7 +49,7 @@ namespace Hill {
                                            const std::string &key_or_value) -> WorkloadItem
             {
                 if (type == Enums::WorkloadType::Search) {
-                    throw std::invalid_argument("WorkloadItem should be search");
+                    throw std::invalid_argument("WorkloadItem should not be search");
                 }
                 
                 WorkloadItem item;

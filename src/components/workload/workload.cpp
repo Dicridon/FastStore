@@ -62,7 +62,7 @@ namespace Hill {
                 } else if (op == "READ") {
                     item = WorkloadItem::make_workload_item(Enums::WorkloadType::Search, key);
                 } else if (op == "UPDATE") {
-                    item = WorkloadItem::make_workload_item(Enums::WorkloadType::Update, key);
+                    item = WorkloadItem::make_workload_item(Enums::WorkloadType::Update, key, key);
                 } else if (op == "DELETE") {
                     continue;
                 } else if (op == "RANGE") {
