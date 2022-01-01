@@ -23,7 +23,7 @@ namespace Hill {
             static constexpr int iDEGREE = 3;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
 #else
-            static constexpr int iDEGREE = 3;
+            static constexpr int iDEGREE = 16;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
 #endif
         }

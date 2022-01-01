@@ -9,7 +9,6 @@ namespace Hill {
          */
         std::mutex allocator_global_lock;
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
-            std::cout << this << " allocating\n";
             auto unavailable = header.header_cursor + sizeof(RecordHeader) + size > header.record_cursor;
             if (unavailable) {
                 ptr = nullptr;
@@ -182,13 +181,12 @@ namespace Hill {
             header.to_be_freed[id] = page;
             Util::mfence();
             if (--page->header.valid == 0) {
-                std::cout << "reclaiming " << page << "\n";
                 page->reset_cursor();
-                // if (header.thread_busy_pages[id] == page) {
-                //     header.to_be_freed[id] = nullptr;
-                //     return;
-                // }
-                // 
+                if (header.thread_busy_pages[id] == page) {
+                    header.to_be_freed[id] = nullptr;
+                    return;
+                }
+
                 page->next = header.thread_free_lists[id];
                 header.thread_free_lists[id] = page;
             }

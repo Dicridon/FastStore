@@ -79,8 +79,9 @@ namespace Hill {
                 if (keys[i] == nullptr) {
                     break;
                 }
-
                 auto ptr = (byte_ptr_t)this;
+                std::cout << "Leaf node " << this << " is in page " << Memory::Page::get_page(ptr) << "\n";
+                ptr = (byte_ptr_t)keys[i];
                 std::cout << ColorizedString(keys[i]->to_string(), Colors::Cyan) << " in page " << Memory::Page::get_page(ptr) << "\n";
             }
             std::cout << "\n";
