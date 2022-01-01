@@ -407,7 +407,7 @@ namespace Hill {
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             UNUSED(req_handle);
-              UNUSED(context);
+            UNUSED(context);
             // TODO
         }
 
@@ -418,7 +418,7 @@ namespace Hill {
             auto tid = ctx->thread_id;
             auto allocator = ctx->server->get_allocator();
             auto logger = ctx->server->get_logger();
-            auto ptr = logger->make_log(tid, WAL::Enums::Ops::RemoteMemory);
+            auto &ptr = logger->make_log(tid, WAL::Enums::Ops::RemoteMemory);
 
             allocator->allocate_for_remote(ptr);
 

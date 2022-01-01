@@ -23,7 +23,7 @@ namespace Hill {
             static constexpr int iDEGREE = 3;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
 #else
-            static constexpr int iDEGREE = 16;
+            static constexpr int iDEGREE = 3;
             static constexpr int iNUM_HIGHKEY = iDEGREE - 1;
 #endif
         }
@@ -194,7 +194,7 @@ namespace Hill {
             OLFIT(int tid, Memory::Allocator *alloc_, WAL::Logger *logger_)
                 : root(nullptr), alloc(alloc_), logger(logger_), agent(nullptr) {
                 // NodeSplit is also for new root node creation
-                auto ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
+                auto &ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
                 // crashing here is ok, because no memory allocation is done;
                 alloc->allocate(tid, sizeof(LeafNode), ptr);
                 /*

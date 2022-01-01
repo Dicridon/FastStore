@@ -33,7 +33,7 @@ namespace Hill {
                 value_sizes[j] = value_sizes[j - 1];
             }
 
-            auto ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
+            auto &ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
             alloc->allocate(tid, sizeof(KVPair::HillStringHeader) + k_sz, ptr);
             auto fp = CityHash64(k, k_sz);
             fingerprints[i] = fp;
@@ -73,15 +73,28 @@ namespace Hill {
             std::stringstream ss;
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
-            std::cout << ">> Leaf " << c << " reporting with parent " << parent << "\n";
-            std::cout << "-->> keys: ";
+            // std::cout << ">> Leaf " << c << " reporting with parent " << parent << "\n";
+            // std::cout << "-->> keys: ";
             for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                 if (keys[i] == nullptr) {
                     break;
                 }
-                std::cout << ColorizedString(keys[i]->to_string(), Colors::Cyan) << " ";
+
+                auto ptr = (byte_ptr_t)this;
+                std::cout << ColorizedString(keys[i]->to_string(), Colors::Cyan) << " in page " << Memory::Page::get_page(ptr) << "\n";
             }
             std::cout << "\n";
+            /*
+            std::cout << "-->> values: ";
+            for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
+                if (values[i].is_nullptr()) {
+                    break;
+                }
+                auto v = uint64_t(values[i].raw_ptr());
+                std::cout << ColorizedString(std::to_string(v), Colors::Cyan) << " ";
+            }
+             std::cout << "\n";
+            */
         }
 
         auto InnerNode::insert(const hill_key_t *split_key, PolymorphicNodePointer child) -> Enums::OpStatus {
@@ -108,6 +121,7 @@ namespace Hill {
         }
 
         auto InnerNode::dump() const noexcept -> void {
+            /*
             std::stringstream ss;
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
@@ -131,7 +145,7 @@ namespace Hill {
                 std::cout << ColorizedString(ss.str(), Colors::Yellow) << " ";
             }
             std::cout << "\n";
-
+            */
             for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (children[i].is_null()) {
                     break;
@@ -171,7 +185,7 @@ namespace Hill {
 
         auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz)
             -> std::pair<LeafNode *, Memory::PolymorphicPointer> {
-            auto ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
+            auto &ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
             alloc->allocate(tid, sizeof(LeafNode), ptr);
             auto n = LeafNode::make_leaf(ptr);
             n->parent = l->parent;
@@ -324,7 +338,7 @@ namespace Hill {
                 return {Enums::OpStatus::Failed, nullptr};
             }
 
-            auto ptr = logger->make_log(tid, WAL::Enums::Ops::Update);
+            auto &ptr = logger->make_log(tid, WAL::Enums::Ops::Update);
             auto total = sizeof(KVPair::HillStringHeader) + v_sz;
             if (!agent) {
                 alloc->allocate(tid, total, ptr);
@@ -333,7 +347,7 @@ namespace Hill {
                 }
 
                 KVPair::HillString::make_string(ptr, v, v_sz);
-                auto old = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                auto &old = logger->make_log(tid, WAL::Enums::Ops::Delete);
                 old = leaf->values[i].get_as<byte_ptr_t>();
                 leaf->values[i] = ptr;
                 leaf->value_sizes[i] = v_sz;
@@ -347,7 +361,7 @@ namespace Hill {
                 }
 
                 KVPair::HillString::make_string(ptr, v, v_sz);
-                auto old = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                auto &old = logger->make_log(tid, WAL::Enums::Ops::Delete);
                 old = leaf->values[i].remote_ptr().raw_ptr();
 
                 auto &connection = agent->get_peer_connection(tid, leaf->values[i].remote_ptr().get_node());
@@ -382,7 +396,7 @@ namespace Hill {
             }
 
             if (leaf->values[i].is_remote()) {
-                auto ptr = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                auto &ptr = logger->make_log(tid, WAL::Enums::Ops::Delete);
                 ptr = reinterpret_cast<byte_ptr_t>(leaf->keys[i]);
                 // we only need to remember the key here because leaf node is a natural log recording both key and value
                 leaf->keys[i]->invalidate();
@@ -400,7 +414,7 @@ namespace Hill {
                 leaf->keys[i]->invalidate();
                 alloc->free(tid, ptr);
             } else {
-                auto ptr = logger->make_log(tid, WAL::Enums::Ops::Delete);
+                auto &ptr = logger->make_log(tid, WAL::Enums::Ops::Delete);
                 ptr = reinterpret_cast<byte_ptr_t>(leaf->keys[i]);
                 auto vp = reinterpret_cast<byte_ptr_t>(leaf->values[i].local_ptr());
                 leaf->values[i].get_as<KVPair::HillString *>()->invalidate();

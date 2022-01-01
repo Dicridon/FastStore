@@ -9,6 +9,7 @@ namespace Hill {
          */
         std::mutex allocator_global_lock;
         auto Page::allocate(size_t size, byte_ptr_t &ptr) noexcept -> void {
+            std::cout << this << " allocating\n";
             auto unavailable = header.header_cursor + sizeof(RecordHeader) + size > header.record_cursor;
             if (unavailable) {
                 ptr = nullptr;
@@ -64,7 +65,7 @@ namespace Hill {
                     return;
                 }
             }
-            
+
             {
                 std::unique_lock l(allocator_global_lock);
                 // busy page has no enough space and no thread-local free pages are available
@@ -72,7 +73,7 @@ namespace Hill {
                     // the 1 is for current page
                     auto to_be_used = header.cursor + Constants::uPREALLOCATION + 1;
                     auto remain = header.base + (header.total_size / Constants::uPAGE_SIZE) - 1;
-                    
+
                     if (to_be_used > remain) {
                         ptr = nullptr;
                         throw std::runtime_error("Insufficient PM\n");
@@ -114,10 +115,10 @@ namespace Hill {
             // on recovery
             header.thread_busy_pages[id] = header.thread_free_lists[id];
             header.thread_free_lists[id] = header.thread_free_lists[id]->next;
-            Util::mfence();                
+            Util::mfence();
             header.thread_busy_pages[id]->next = nullptr;
             Util::mfence();
-                
+
             header.thread_busy_pages[id]->allocate(size, ptr);
             header.consumed += size;
         }
@@ -153,7 +154,7 @@ namespace Hill {
             }
             return {};
         }
-        
+
         auto Allocator::unregister_thread(int id) noexcept -> void {
             if (id < 0 || id > Constants::iTHREAD_LIST_NUM) {
                 return;
@@ -170,23 +171,24 @@ namespace Hill {
             header.thread_busy_pages[id] = nullptr;
             header.in_use[id] = false;
         }
-        
+
         auto Allocator::free(int id, byte_ptr_t &ptr) -> void {
             if (!ptr)
                 return;
-            
+
             // auto page = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(ptr) & Constants::uPAGE_MASK);
             auto page = Page::get_page(ptr);
             // on recovery, should check
             header.to_be_freed[id] = page;
             Util::mfence();
             if (--page->header.valid == 0) {
+                std::cout << "reclaiming " << page << "\n";
                 page->reset_cursor();
-                if (header.thread_busy_pages[id] == page) {
-                    header.to_be_freed[id] = nullptr;                     
-                    return;
-                }
-                
+                // if (header.thread_busy_pages[id] == page) {
+                //     header.to_be_freed[id] = nullptr;
+                //     return;
+                // }
+                // 
                 page->next = header.thread_free_lists[id];
                 header.thread_free_lists[id] = page;
             }
@@ -204,7 +206,7 @@ namespace Hill {
             recover_free_lists();
             // recover_pending_list();
             recover_to_be_freed();
-            
+
             return Enums::AllocatorRecoveryStatus::Ok;
         }
     }
