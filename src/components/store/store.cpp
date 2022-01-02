@@ -510,7 +510,6 @@ namespace Hill {
                     if (i.type == Workload::Enums::Search) {
                         auto ret = c_ctx.cache.get(i.key);
                         if (ret != nullptr) {
-                            ++c_ctx.num_insert;
                             ++c_ctx.suc_search;
                             goto sample;
                         }
