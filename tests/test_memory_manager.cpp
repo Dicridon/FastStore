@@ -21,14 +21,14 @@ int main() {
         return -1;
     }
 
+    auto tid = _id.value();
     byte_ptr_t ptr = nullptr;
-    std::string data("This is some data\n");
-    allocator->allocate(_id.value(), Constants::uPAGE_SIZE - 128, ptr);
-    allocator->allocate(_id.value(), 64, ptr);    
-    memcpy(ptr, data.c_str(), data.size());
+    for (int i = 0; i < 10; i++) {
+        allocator->allocate(tid, 34, ptr);
+        if (i == 0)
+            *(uint64_t *)ptr = 1234554321UL + i;
+        allocator->free(tid, ptr);
+    }
 
-    char buf[128];
-    memcpy(buf, ptr, data.size());
-    allocator->free(_id.value(), ptr);
-    std::cout << "seems works\n";
+    std::cout << *(uint64_t *)ptr << "\n";
 }

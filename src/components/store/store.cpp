@@ -314,6 +314,8 @@ namespace Hill {
             IncomeMessage msg;
             msg.input.key = key->raw_chars();
             msg.input.key_size = key->size();
+            msg.input.value = value->raw_chars();
+            msg.input.value_size = value->size();
             msg.input.op = type;
         retry:
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
@@ -349,7 +351,7 @@ namespace Hill {
                 break;
             case Indexing::Enums::OpStatus::NoMemory:
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
-                // agent's memory is available but not sufficient;
+                // agent's memory is available but not sufficient
                 ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
                 goto retry;
                 break;
