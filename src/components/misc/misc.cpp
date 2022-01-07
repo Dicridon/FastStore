@@ -20,7 +20,7 @@ namespace Hill {
             seraddr.sin_addr.s_addr = INADDR_ANY;
             
             if (bind(sockfd, (struct sockaddr *)&seraddr, sizeof(struct sockaddr)) == -1) {
-                std::cout << ">> Error: " << "can not bind socket\n";
+                std::cout << ">> Error: " << "can not bind socket on port " << socket_port << "\n";
                 exit(-1);
             }
 

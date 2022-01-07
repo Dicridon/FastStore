@@ -40,7 +40,7 @@ namespace Hill {
         logger->unregister_thread(tid);
         allocator->unregister_thread(tid);
     }
-    
+
     auto Engine::check_rdma_request(int tid) noexcept -> int {
         auto socket = Misc::accept_blocking(sock);
 
@@ -93,7 +93,7 @@ namespace Hill {
         if (peer_connections[tid][node_id] != nullptr) {
             return true;
         }
-        
+
         auto [rdma, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
                                                 *RDMADevice::get_default_qp_init_attr());
         if (!rdma) {
@@ -145,9 +145,13 @@ namespace Hill {
             return false;
         }
         auto content = content_.value();
-        
-        pmem_file = ConfigReader::read_pmem_file(content).value();
-        return true;
+
+        if (auto f = ConfigReader::read_pmem_file(content); f.has_value()) {
+            pmem_file = f.value();
+            return true;            
+        } else {
+            return false;
+        }
     }
 
     auto Client::connect_monitor() noexcept -> bool {
@@ -212,7 +216,7 @@ namespace Hill {
         if (bufs[tid][node_id] == nullptr) {
             bufs[tid][node_id] = std::make_unique<byte_t[]>(Constants::uLOCAL_BUF_SIZE);
         }
-        
+
         auto [rdma, status] = rdma_device->open(bufs[tid][node_id].get(), Constants::uLOCAL_BUF_SIZE,
                                                 12, RDMADevice::get_default_mr_access(),
                                                 *RDMADevice::get_default_qp_init_attr());
