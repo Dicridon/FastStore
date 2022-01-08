@@ -304,6 +304,10 @@ namespace Hill {
             *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
 
             ctx->rpc->enqueue_response(req_handle, &resp);
+
+            if (msg.output.status.load() == Indexing::Enums::OpStatus::Failed) {
+                std::cout << "Inserting " << key->to_string() << " failed\n";
+            }
         }
 
         auto StoreServer::update_handler(erpc::ReqHandle *req_handle, void *context) -> void {
@@ -364,6 +368,10 @@ namespace Hill {
             *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
 
             ctx->rpc->enqueue_response(req_handle, &resp);
+
+            if (msg.output.status.load() == Indexing::Enums::OpStatus::Failed) {
+                std::cout << "Updating " << key->to_string() << " failed\n";
+            }
         }
 
         auto StoreServer::search_handler(erpc::ReqHandle *req_handle, void *context) -> void {
@@ -405,6 +413,10 @@ namespace Hill {
                 *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;
             }
             ctx->rpc->enqueue_response(req_handle, &resp);
+
+            if (msg.output.status.load() == Indexing::Enums::OpStatus::Failed) {
+                std::cout << "Searching " << key->to_string() << " failed\n";
+            }
         }
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {

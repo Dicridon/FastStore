@@ -19,9 +19,9 @@ namespace Hill {
 #ifdef __HILL_DEBUG__
             constexpr size_t uCACHE_SIZE = 100UL;
 #else
-            constexpr size_t uCACHE_SIZE = 1000000UL;
+            constexpr size_t uCACHE_SIZE = 5000000UL;
 #endif
-            constexpr auto tLEASE = 2s;
+            constexpr auto tLEASE = 180s;
         }
 
         struct CacheItem {
