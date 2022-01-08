@@ -259,6 +259,14 @@ namespace Hill {
         return server_connections[tid][node_id]->post_read(remote_ptr, msg_len);
     }
 
+    auto Client::poll_completion_once(int tid, int node_id) noexcept -> void {
+        if (node_id <= 0 || size_t(node_id) >= Cluster::Constants::uMAX_NODE) {
+            return;
+        }
+        
+        server_connections[tid][node_id]->poll_one_completion();
+    }
+
     auto Client::parse_ib(const std::string &config) noexcept -> bool {
         auto content_ = Misc::file_as_string(config);
         if (!content_.has_value()) {

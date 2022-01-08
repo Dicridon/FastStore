@@ -221,6 +221,7 @@ namespace Hill {
         }
         auto write_to(int tid, int node_id, const byte_ptr_t &remote_ptr, const byte_ptr_t &msg, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
         auto read_from(int tid, int node_id, const byte_ptr_t &remote_ptr, size_t msg_len) noexcept -> RDMAUtil::StatusPair;
+        auto poll_completion_once(int tid, int node_id) noexcept -> void;
         inline auto rdma_buf_as_char(int tid, int node_id) -> const char * {
             return server_connections[tid][node_id]->get_char_buf();
         }

@@ -680,6 +680,10 @@ namespace Hill {
                     ++ctx->suc_search;
                     ctx->cache.insert(key, poly, size);
                 }
+#ifdef __HILL_FETCH_VALUE__
+                ctx->client->read_from(ctx->thread_id, node_id, poly.get_as<byte_ptr_t>(), size);
+                ctx->client->poll_completion_once(ctx->thread_id, node_id);
+#endif
                 ++ctx->num_search;
                 break;
             }
