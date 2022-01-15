@@ -4,7 +4,7 @@
     "source-suffix": "cpp",
     "flags": {
         "compile": {
-            "opt": "-O0",
+            "opt": "-O2",
             "debug": "-g",
             "warning": "-Wunused-parameter -Wunused-variable -Wunused-private-field -Wunused-const-variable",
             "std": "-std=c++17",

@@ -82,10 +82,10 @@ auto run_ycsb_workload(const std::string &config, int threads, const std::string
     for (int i = 0; i < threads; i++) {
         std::cout << "[[ Thread " << i << "]]:\n";
         std::cout << "---->> throughput: " << stats[i].throughputs.throughput() << " Ops/second, "
-                  << "average latency: " << stats[i].latencies.avg_latency() << "us, "
-                  << "p90: " << stats[i].latencies.p90_latency() << "us, "
-                  << "p99: " << stats[i].latencies.p99_latency() << "us, "
-                  << "p999: " << stats[i].latencies.p999_latency() << "us"
+                  << "average latency: " << stats[i].latencies.avg_latency() << " us, "
+                  << "p90: " << stats[i].latencies.p90_latency() << " us, "
+                  << "p99: " << stats[i].latencies.p99_latency() << " us, "
+                  << "p999: " << stats[i].latencies.p999_latency() << " us"
                   << "\n";
     }
 
@@ -104,10 +104,10 @@ auto run_ycsb_workload(const std::string &config, int threads, const std::string
     for (int i = 0; i < threads; i++) {
         std::cout << "[[ Thread " << i << "]]:\n";
         std::cout << "---->> throughput: " << stats[i].throughputs.throughput() << " Ops/second, "
-                  << "average latency: " << stats[i].latencies.avg_latency() << "us, "
-                  << "p90: " << stats[i].latencies.p90_latency() << "us, "
-                  << "p99: " << stats[i].latencies.p99_latency() << "us, "
-                  << "p999: " << stats[i].latencies.p999_latency() << "us"
+                  << "average latency: " << stats[i].latencies.avg_latency() << " us, "
+                  << "p90: " << stats[i].latencies.p90_latency() << " us, "
+                  << "p99: " << stats[i].latencies.p99_latency() << " us, "
+                  << "p999: " << stats[i].latencies.p999_latency() << " us"
                   << "\n";
         std::cout << "---->> cache hit ratio " << stats[i].cache_hit_ratio << "\n";
     }
