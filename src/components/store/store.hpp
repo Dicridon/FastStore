@@ -34,7 +34,11 @@ namespace Hill {
         namespace Constants {
             static constexpr size_t uMAX_MSG_SIZE = 512;
             static constexpr int iMSG_QUEUE_CAP = 128;
-
+#ifdef __HILL_DEBUG__
+            static constexpr double dNODE_CAPPACITY_LIMIT = 0.1
+#else
+            static constexpr double dNODE_CAPPACITY_LIMIT = 0.8
+#endif                
             // fake constants
             using tBOOST_QUEUE_CAP = boost::lockfree::capacity<iMSG_QUEUE_CAP>;
         }
