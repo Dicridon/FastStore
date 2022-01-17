@@ -83,16 +83,19 @@ namespace Hill {
                     std::cout << ">> Errno is " << errno << ": " << strerror(errno) << "\n";
                     return nullptr;
                 } else {
-                    std::cout << ">> " << mapped_size / 1024 / 1024 / 1024.0 << "GB pmem is mapped\n";
+                    std::cout << ">> " << mapped_size / 1024 / 1024 / 1024.0 << "GB pmem is mapped at "
+                              << reinterpret_cast<void *>(ret->base) << "\n";
                 }
             }
 
             ret->logger = WAL::Logger::make_unique_logger(ret->base);
             // regions are the data part
             offset += sizeof(WAL::LogRegions);
-            ret->allocator = Memory::Allocator::make_allocator(ret->base + offset, ret->node->available_pm);
-            offset += sizeof(Memory::Allocator);
             ret->agent = Memory::RemoteMemoryAgent::make_agent(ret->base + offset, &ret->peer_connections[0]);
+            offset += sizeof(Memory::RemoteMemoryAgent);
+            ret->node->available_pm -= offset;
+            std::cout << ">> " << ret->node->available_pm / 1024 / 1024 / 1024.0 << "GB pmem is available\n";
+            ret->allocator = Memory::Allocator::make_allocator(ret->base + offset, ret->node->available_pm);
 
             auto [rdma_device, status] = RDMADevice::make_rdma(ret->rdma_dev_name, ret->ib_port, ret->gid_idx);
             if (status != Status::Ok) {
