@@ -73,7 +73,7 @@ namespace Hill {
                     auto to_be_used = header.cursor + Constants::uPREALLOCATION + 1;
                     auto remain = header.base + (header.total_size / Constants::uPAGE_SIZE) - 1;
 
-                    if (to_be_used > remain) {
+                    if (to_be_used >= remain) {
                         ptr = nullptr;
                         throw std::runtime_error("Insufficient PM\n");
                     } else {
