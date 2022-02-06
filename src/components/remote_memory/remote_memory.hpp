@@ -228,7 +228,7 @@ namespace Hill {
             }
 
             auto available() const noexcept -> bool {
-                return meta.cursor < Constants::uREMOTE_REGION_SIZE;
+                return !base.is_nullptr() && meta.cursor < Constants::uREMOTE_REGION_SIZE;
             }
             
             auto free(RemotePointer &ptr) noexcept -> void {

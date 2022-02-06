@@ -260,9 +260,10 @@ namespace Hill {
         retry:
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
+            auto allowed = Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm;
+            auto insufficient = server->get_allocator()->get_consumed() >= allowed;
 
-            if (server->get_allocator()->get_consumed() >= Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm &&
-                !server->get_agent()->available(ctx->thread_id)) {
+            if (insufficient && !server->get_agent()->available(ctx->thread_id)) {
 
                 // a log should be used here, but for simiplicity, I omit it.
                 auto ptr = check_available_mem(*ctx, ctx->thread_id);
