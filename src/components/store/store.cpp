@@ -164,7 +164,8 @@ namespace Hill {
             size_t max = 0;
             size_t node_id;
             const auto &meta = s_ctx.server->get_node()->cluster_status;
-            for (size_t i = 0; i < meta.cluster.node_num; i++) {
+            // skip monitor
+            for (size_t i = 1; i <= meta.cluster.node_num; i++) {
                 if (max < meta.cluster.nodes[i].available_pm) {
                     max = meta.cluster.nodes[i].available_pm;
                     node_id = i;
@@ -247,6 +248,7 @@ namespace Hill {
             auto ptr = *reinterpret_cast<Memory::RemotePointer *>(buf);
 
             ctx->server->get_agent()->add_region(ctx->thread_id, ptr);
+            ctx->is_done = true;
         }
 
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
@@ -267,8 +269,14 @@ namespace Hill {
             if (insufficient && !server->get_agent()->available(ctx->thread_id)) {
 
                 // a log should be used here, but for simiplicity, I omit it.
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+                std::cout << ">> Trying to get remote memory...\n";
+#endif
                 auto ptr = check_available_mem(*ctx, ctx->thread_id);
                 ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
+#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
+                std::cout << ">> Got memory from node" << ptr.get_node() << "\n";;
+#endif
                 msg.input.op = Enums::RPCOperations::CallForMemory;
                 msg.input.agent = ctx->self->server->get_agent();
                 while(!ctx->queues[pos].push(&msg));
@@ -428,8 +436,6 @@ namespace Hill {
         }
 
         auto StoreServer::memory_handler(erpc::ReqHandle *req_handle, void *context) -> void {
-            UNUSED(req_handle);
-            UNUSED(context);
             auto ctx = reinterpret_cast<ServerContext *>(context);
             auto tid = ctx->thread_id;
             auto allocator = ctx->server->get_allocator();
