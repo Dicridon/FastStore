@@ -233,7 +233,7 @@ namespace Hill {
                 ret->nexus->register_req_func(Enums::RPCOperations::Update, update_handler);
                 ret->nexus->register_req_func(Enums::RPCOperations::Range, range_handler);
                 ret->nexus->register_req_func(Enums::RPCOperations::CallForMemory, memory_handler);
-                ret->erpc_session_cursor = 0;
+                ret->erpc_id_cursor = 0;
 
                 ret->is_launched = false;
                 return ret;
