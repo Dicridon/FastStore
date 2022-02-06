@@ -112,7 +112,7 @@ namespace Hill {
                     auto socket = Misc::accept_blocking(sock);
 
                     if (socket != -1) {
-                        auto tmp = erpc_sessions[(erpc_session_cursor++) % erpc_sessions.size()];
+                        auto tmp = erpc_ids[(erpc_id_cursor++) % erpc_ids.size()];
                         write(socket, &tmp, sizeof(tmp));
 
                         // check if there are any possible succeeding requests
@@ -137,6 +137,7 @@ namespace Hill {
             return std::thread([&] (int tid) {
                 ServerContext s_ctx;
                 s_ctx.thread_id = tid;
+                s_ctx.self = this;
                 s_ctx.node_id = this->server->get_node()->node_id;
                 s_ctx.server = this->server.get();
                 s_ctx.queues = this->req_queues;
@@ -146,9 +147,9 @@ namespace Hill {
 #endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
-                session_lock.lock();
-                this->erpc_sessions.push_back(tid);
-                session_lock.unlock();
+                rpc_id_lock.lock();
+                this->erpc_ids.push_back(tid);
+                rpc_id_lock.unlock();
                 s_ctx.nexus = this->nexus;
                 s_ctx.rpc->run_event_loop(10000000);
                 this->server->unregister_thread(tid);
@@ -170,7 +171,7 @@ namespace Hill {
                 }
             }
 
-            if (s_ctx.erpc_sessions[node_id] == 0) {
+            if (s_ctx.erpc_sessions[node_id] == -1) {
                 if (!s_ctx.server->connect_server(tid, node_id)) {
                     std::cerr << ">> Error: can't connect remote server " << node_id << " for more memory\n";
                     return nullptr;

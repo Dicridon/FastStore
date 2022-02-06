@@ -266,11 +266,12 @@ namespace Hill {
             bool is_launched;
             int num_launched_threads;
 
-            std::mutex session_lock;
+            std::mutex rpc_id_lock;
             std::mutex tid_lock;
 
-            std::vector<int> erpc_sessions;
-            std::atomic_uint erpc_session_cursor;
+            // available eRPC IDs
+            std::vector<int> erpc_ids;
+            std::atomic_uint erpc_id_cursor;
 
             static auto insert_handler(erpc::ReqHandle *req_handle, void *context) -> void;
             static auto update_handler(erpc::ReqHandle *req_handle, void *context) -> void;
