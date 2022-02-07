@@ -195,7 +195,8 @@ namespace Hill {
             }
 
             auto pbuf = s_ctx.resp_bufs[node_id].buf;
-            auto ptr = *reinterpret_cast<Memory::RemotePointer *>(pbuf);
+            auto offset = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus);
+            auto ptr = *reinterpret_cast<Memory::RemotePointer *>(pbuf + offset);
             if (ptr.is_nullptr()) {
                 throw std::runtime_error("Remote memory is also depleted");
             }
