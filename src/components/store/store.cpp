@@ -284,6 +284,7 @@ namespace Hill {
 
                 while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
                 msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
+                msg.input.op = Enums::RPCOperations::Insert;
             }
 
             while(!ctx->queues[pos].push(&msg));
