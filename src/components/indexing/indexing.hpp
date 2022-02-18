@@ -46,6 +46,7 @@ namespace Hill {
             };
         }
 
+        // these two structure has similar memory layout for runtime polymorphism, change it with caution
         struct InnerNode;
         struct LeafNode {
             InnerNode *parent;
@@ -53,6 +54,7 @@ namespace Hill {
             hill_key_t *keys[Constants::iNUM_HIGHKEY];
             Memory::PolymorphicPointer values[Constants::iNUM_HIGHKEY];
             size_t value_sizes[Constants::iNUM_HIGHKEY];
+            LeafNode *next;
 
             LeafNode() = delete;
             // All nodes are on PM, not in heap or stack
@@ -71,6 +73,7 @@ namespace Hill {
                     tmp->fingerprints[i] = 0;
                 }
                 tmp->parent = nullptr;
+                tmp->next = nullptr;
                 return tmp;
             }
 
@@ -188,6 +191,18 @@ namespace Hill {
             auto dump() const noexcept -> void;
         };
 
+        struct ScanHolder {
+            KVPair::HillString *key;
+            Memory::PolymorphicPointer value_ptr;
+
+            ScanHolder(KVPair::HillString *k, Memory::PolymorphicPointer &p) : key(k), value_ptr(p) {};
+            ~ScanHolder() = default;
+            ScanHolder(const ScanHolder &) = default;
+            ScanHolder(ScanHolder &&) = default;
+            auto operator=(const ScanHolder &) -> ScanHolder& = default;
+            auto operator=(ScanHolder &&) -> ScanHolder& = default;
+        };
+
         class OLFIT {
         public:
             // for convenience of testing
@@ -240,7 +255,7 @@ namespace Hill {
             auto update(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
                 noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>;
             auto remove(int tid, const char *k, size_t k_sz) noexcept -> Enums::OpStatus;
-            auto scan(const char *k, size_t num) -> std::vector<Memory::PolymorphicPointer>;
+            auto scan(const char *k, size_t k_sz, size_t num) -> std::vector<ScanHolder>;
             
             inline auto get_root() const noexcept -> PolymorphicNodePointer {
                 return root;
@@ -277,7 +292,7 @@ namespace Hill {
                 auto leaf = traverse_node(k, k_sz);
                 auto fp = CityHash64(k, k_sz);
                 int i = 0;
-                for (i = 0; i < Constants::iDEGREE; i++) {
+                for (i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                     if (leaf->keys[i] == nullptr) {
                         return {leaf, -1};
                     }

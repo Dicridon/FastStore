@@ -38,7 +38,7 @@ namespace Hill {
             static constexpr double dNODE_CAPPACITY_LIMIT = 0.1;
 #else
             static constexpr double dNODE_CAPPACITY_LIMIT = 0.8;
-#endif                
+#endif
             // fake constants
             using tBOOST_QUEUE_CAP = boost::lockfree::capacity<iMSG_QUEUE_CAP>;
         }
@@ -71,6 +71,11 @@ namespace Hill {
                 const char *key;
                 size_t key_size;
                 const char *value;
+                /*
+                 * this filed serves as
+                 * 1) length of the value or the end key in a scan(start key, end key)
+                 * 2) scan length in a scan(key, number_of_keys)
+                 */
                 size_t value_size;
                 Enums::RPCOperations op;
                 Memory::RemoteMemoryAgent *agent;
@@ -81,6 +86,7 @@ namespace Hill {
                 std::atomic<Indexing::Enums::OpStatus> status;
                 Memory::PolymorphicPointer value;
                 size_t value_size;
+                std::vector<Indexing::ScanHolder> values;
             } output;
 
             IncomeMessage() {
@@ -107,7 +113,7 @@ namespace Hill {
         class StoreServer;
         struct ServerContext {
             StoreServer *self;
-            
+
             int thread_id;
             int node_id;
             Engine *server;
@@ -115,7 +121,7 @@ namespace Hill {
             erpc::Rpc<erpc::CTransport> *rpc;
             int num_launched_threads;
             erpc::Nexus *nexus;
-            
+
             int erpc_sessions[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
@@ -147,7 +153,7 @@ namespace Hill {
             uint64_t suc_search;
             uint64_t num_update;
             uint64_t suc_update;
-            
+
             ClientContext() : thread_id(0), is_done(false), cache(ReadCache::Constants::uCACHE_SIZE){
                 thread_id = 0;
                 is_done = false;
@@ -160,7 +166,7 @@ namespace Hill {
                 for (auto &s : erpc_sessions) {
                     s = -1;
                 }
-                
+
                 num_insert = suc_insert = num_search = suc_search = num_update = suc_update = 0;
             }
         };

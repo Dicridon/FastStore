@@ -73,20 +73,15 @@ namespace Hill {
             std::stringstream ss;
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
-            // std::cout << ">> Leaf " << c << " reporting with parent " << parent << "\n";
-            // std::cout << "-->> keys: ";
+            std::cout << ">> Leaf " << c << " reporting with parent " << parent << "\n";
+            std::cout << "-->> keys: ";
             for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                 if (keys[i] == nullptr) {
                     break;
                 }
-                auto ptr = (byte_ptr_t)this;
-                std::cout << "Leaf node " << this << " is in page " << Memory::Page::get_page(ptr) << "\n";
-                ptr = (byte_ptr_t)keys[i];
-                std::cout << ColorizedString(keys[i]->to_string(), Colors::Cyan) << " in page " << Memory::Page::get_page(ptr) << "\n";
+                std::cout << ColorizedString(keys[i]->to_string(), Colors::Cyan) << " ";
             }
-            std::cout << "\n";
-            /*
-            std::cout << "-->> values: ";
+            std::cout << "\n-->> values: ";
             for (int i = 0; i < Constants::iNUM_HIGHKEY; i++) {
                 if (values[i].is_nullptr()) {
                     break;
@@ -94,8 +89,7 @@ namespace Hill {
                 auto v = uint64_t(values[i].raw_ptr());
                 std::cout << ColorizedString(std::to_string(v), Colors::Cyan) << " ";
             }
-             std::cout << "\n";
-            */
+            std::cout << "\n\n";
         }
 
         auto InnerNode::insert(const hill_key_t *split_key, PolymorphicNodePointer child) -> Enums::OpStatus {
@@ -122,7 +116,6 @@ namespace Hill {
         }
 
         auto InnerNode::dump() const noexcept -> void {
-            /*
             std::stringstream ss;
             ss << this;
             ColorizedString c(ss.str(), Colors::Cyan);
@@ -146,7 +139,6 @@ namespace Hill {
                 std::cout << ColorizedString(ss.str(), Colors::Yellow) << " ";
             }
             std::cout << "\n";
-            */
             for (int i = 0; i < Constants::iDEGREE; i++) {
                 if (children[i].is_null()) {
                     break;
@@ -190,6 +182,8 @@ namespace Hill {
             alloc->allocate(tid, sizeof(LeafNode), ptr);
             auto n = LeafNode::make_leaf(ptr);
             n->parent = l->parent;
+            n->next = l->next;
+            l->next = n;
             Memory::Util::mfence();
 
             int i = 0;
@@ -425,6 +419,36 @@ namespace Hill {
             }
             logger->commit(tid);
             return Enums::OpStatus::Ok;
+        }
+
+        auto OLFIT::scan(const char *k, size_t k_sz, size_t num) -> std::vector<ScanHolder> {
+            std::vector<ScanHolder> ret;
+            ret.reserve(num);
+
+            auto leaf = traverse_node(k, k_sz);
+            auto cursor = 0;
+            for (; cursor < Constants::iNUM_HIGHKEY; cursor++) {
+                if (leaf->keys[cursor] == nullptr) {
+                    leaf = leaf->next;
+                    break;
+                }
+                if (leaf->keys[cursor]->compare(k, k_sz) >= 0)
+                    break;
+            }
+
+            while (num > 0 && leaf != nullptr) {
+                for (; cursor < Constants::iNUM_HIGHKEY && num > 0; cursor++) {
+                    if (leaf->keys[cursor] == nullptr)
+                        break;
+                    ret.emplace_back(leaf->keys[cursor], leaf->values[cursor]);
+                    --num;
+                }
+
+                leaf = leaf->next;
+                cursor = 0;
+            }
+
+            return ret;
         }
 
         auto OLFIT::dump() const noexcept -> void {

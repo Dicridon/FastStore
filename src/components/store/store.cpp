@@ -76,12 +76,20 @@ namespace Hill {
                                 msg->output.status.store(Indexing::Enums::OpStatus::Ok);
                             }
                                 break;
-                            case Enums::RPCOperations::Range:
+                            case Enums::RPCOperations::Range: {
+                                auto vec = olfit.scan(msg->input.key, msg->input.key_size, msg->input.value_size);
+                                msg->output.values = std::move(vec);
+                                if (vec.size() != 0) {
+                                    msg->output.status.store(Indexing::Enums::OpStatus::Ok);
+                                } else {
+                                    msg->output.status.store(Indexing::Enums::OpStatus::Failed);
+                                }
+                            }
                                 break;
-                                // TODO
                             case Enums::RPCOperations::CallForMemory:
                                 olfit.enable_agent(msg->input.agent);
                                 msg->output.status.store(Indexing::Enums::OpStatus::Ok);
+                                break;
                             default:
                                 msg->output.status.store(Indexing::Enums::OpStatus::Failed);
                                 break;
@@ -432,9 +440,24 @@ namespace Hill {
         }
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
-            UNUSED(req_handle);
-            UNUSED(context);
-            // TODO
+            auto ctx = reinterpret_cast<ServerContext *>(context);
+            auto [type, key, value] = parse_request_message(req_handle, context);
+            IncomeMessage msgs[Memory::Constants::iTHREAD_LIST_NUM];
+            for (auto i = 0; i < ctx->num_launched_threads; i++) {
+                msgs[i].input.key = key->raw_chars();
+                msgs[i].input.key_size = key->size();
+                msgs[i].input.value_size = *reinterpret_cast<size_t *>(value);
+                msgs[i].input.op = type;
+                msgs[i].output.status = Indexing::Enums::OpStatus::Unkown;
+                while(!ctx->queues[i].push(&msgs[i]));
+            }
+
+            for (auto i = 0; i < ctx->num_launched_threads; i++) {
+                while(msgs[i].output.status.load() == Indexing::Enums::OpStatus::Unkown);
+            }
+
+            // all partitions are collected
+            
         }
 
         auto StoreServer::memory_handler(erpc::ReqHandle *req_handle, void *context) -> void {
@@ -480,6 +503,10 @@ namespace Hill {
             switch(type){
             case Enums::RPCOperations::Insert:
                 [[fallthrough]];
+            case Enums::RPCOperations::Range:
+                // range here gets a HillString * for value,
+                // we should cast it to size_t outside this function
+                [[fallthrough]];
             case Enums::RPCOperations::Update:
                 key = reinterpret_cast<hill_key_t *>(buf);
                 buf += key->object_size();
@@ -488,8 +515,6 @@ namespace Hill {
             case Enums::RPCOperations::Search:
                 key = reinterpret_cast<hill_key_t *>(buf);
                 break;
-            case Enums::RPCOperations::Range:
-                [[fallthrough]];
             case Enums::RPCOperations::CallForMemory:
                 break;
             default:
