@@ -1,7 +1,7 @@
 #include "range_merger.hpp"
 namespace Hill {
     namespace Store {
-        auto Merger::merger(size_t total) -> std::vector<Indexing::ScanHolder> {
+        auto Merger::merge(size_t total) -> std::vector<Indexing::ScanHolder> {
             auto cmp = [](scanholder_iter_ptr_pair &lhs, scanholder_iter_ptr_pair &rhs) -> bool {
                 return *(*lhs.first)->key >= *(*rhs.first)->key;
             };

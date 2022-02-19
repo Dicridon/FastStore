@@ -30,7 +30,7 @@ namespace Hill {
                 return ret;
             }
 
-            auto merger(size_t total) -> std::vector<Indexing::ScanHolder>;
+            auto merge(size_t total) -> std::vector<Indexing::ScanHolder>;
             
         private:
             using scanholder_iter_ptr = std::vector<Indexing::ScanHolder>::iterator *;

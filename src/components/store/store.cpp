@@ -1,4 +1,5 @@
 #include "store.hpp"
+#include "store/range_merger/range_merger.hpp"
 
 #include <chrono>
 
@@ -452,12 +453,29 @@ namespace Hill {
                 while(!ctx->queues[i].push(&msgs[i]));
             }
 
+            std::vector<std::vector<Indexing::ScanHolder>> ranges;
             for (auto i = 0; i < ctx->num_launched_threads; i++) {
                 while(msgs[i].output.status.load() == Indexing::Enums::OpStatus::Unkown);
+                ranges.push_back(std::move(msgs[i].output.values));
             }
-
-            // all partitions are collected
             
+            // all partitions are collected
+            auto merger = Merger::make_merger(ranges);
+            auto holders = merger->merge(msgs[0].input.value_size);
+
+            auto& resp = req_handle->pre_resp_msgbuf;
+            constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
+                + sizeof(size_t) + sizeof(Enums::RPCStatus);
+
+            ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Search;
+
+            auto offset = sizeof(Enums::RPCOperations);
+            *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
+
+            offset += sizeof(Enums::RPCStatus);
+            *reinterpret_cast<size_t *>(resp.buf + offset) = holders.size();
+            ctx->rpc->enqueue_response(req_handle, &resp);
         }
 
         auto StoreServer::memory_handler(erpc::ReqHandle *req_handle, void *context) -> void {
