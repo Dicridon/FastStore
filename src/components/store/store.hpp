@@ -11,6 +11,7 @@
 #include "config/config.hpp"
 #include "city/city.hpp"
 #include "stats/stats.hpp"
+#include "sampler/sampler.hpp"
 
 #include "boost/lockfree/queue.hpp"
 /*
@@ -30,6 +31,7 @@ namespace Hill {
         using namespace Memory::TypeAliases;
         using namespace KVPair::TypeAliases;
         using namespace WAL::TypeAliases;
+        using namespace Sampling;
 
         namespace Constants {
             static constexpr size_t uMAX_MSG_SIZE = 512;
@@ -127,6 +129,8 @@ namespace Hill {
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
 
             bool is_done;
+
+            HandleSampler *handle_sampler;
 
             ServerContext() : thread_id(0), node_id(0), queues(nullptr) {
                 for (auto &s : erpc_sessions) {
@@ -285,7 +289,7 @@ namespace Hill {
             static auto range_handler(erpc::ReqHandle *req_handle, void *context) -> void;
             static auto memory_handler(erpc::ReqHandle *req_handle, void *context) -> void;
 
-            static auto parse_request_message(const erpc::ReqHandle *req_handle, const void *context) ->
+            static auto parse_request_message(const erpc::ReqHandle *req_handle, const void *s_ctx) ->
                 std::tuple<Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>;
         };
 

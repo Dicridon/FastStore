@@ -37,7 +37,7 @@ namespace Hill {
 
                     auto tid = atid.value();
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-            std::cout << ">> Launching background thread " << btid << "\n";
+                    std::cout << ">> Launching background thread " << btid << "\n";
 #endif
 
                     Indexing::OLFIT olfit(atid.value(), server->get_allocator(), server->get_logger());
@@ -151,6 +151,9 @@ namespace Hill {
                 s_ctx.server = this->server.get();
                 s_ctx.queues = this->req_queues;
                 s_ctx.num_launched_threads = this->num_launched_threads;
+
+                s_ctx.handle_sampler = new HandleSampler(1000);
+                s_ctx.handle_sampler->prepare();
 #ifdef __HILL_INFO__
                 std::cout << ">> Creating eRPC for thread " << tid << ", remote id is also " << tid << "\n";
 #endif
@@ -197,8 +200,8 @@ namespace Hill {
             s_ctx.is_done = false;
             *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::CallForMemory;
             s_ctx.rpc->enqueue_request(s_ctx.erpc_sessions[node_id], Enums::RPCOperations::CallForMemory,
-                                                 &s_ctx.req_bufs[node_id], &s_ctx.resp_bufs[node_id],
-                                                 response_continuation, &node_id);
+                                       &s_ctx.req_bufs[node_id], &s_ctx.resp_bufs[node_id],
+                                       response_continuation, &node_id);
             while (!s_ctx.is_done) {
                 s_ctx.rpc->run_event_loop_once();
             }
@@ -264,7 +267,17 @@ namespace Hill {
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
             auto server = ctx->server;
-            auto [type, key, value] = parse_request_message(req_handle, context);
+            auto handle_sampler = ctx->handle_sampler;
+            auto &sampler = handle_sampler->insert_sampler;
+
+            Enums::RPCOperations type; KVPair::HillString *key, *value;
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::PARSE));
+                auto r = parse_request_message(req_handle, context);
+                type = std::get<0>(r);
+                key = std::get<1>(r);
+                value = std::get<2>(r);
+            }
 
             IncomeMessage msg;
             msg.input.key = key->raw_chars();
@@ -272,59 +285,75 @@ namespace Hill {
             msg.input.op = type;
         retry:
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
+            // this is fast we do not need to sample
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
             auto allowed = Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm;
             auto insufficient = server->get_allocator()->get_consumed() >= allowed;
 
-            if (insufficient && !server->get_agent()->available(ctx->thread_id)) {
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
+                if (insufficient && !server->get_agent()->available(ctx->thread_id)) {
 
-                // a log should be used here, but for simiplicity, I omit it.
+                    // a log should be used here, but for simiplicity, I omit it.
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                std::cout << ">> Trying to get remote memory...\n";
+                    std::cout << ">> Trying to get remote memory...\n";
 #endif
-                auto ptr = check_available_mem(*ctx, ctx->thread_id);
-                ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
+                    auto ptr = check_available_mem(*ctx, ctx->thread_id);
+                    ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
 #if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                std::cout << ">> Got memory from node" << ptr.get_node() << "\n";;
+                    std::cout << ">> Got memory from node" << ptr.get_node() << "\n";;
 #endif
-                msg.input.op = Enums::RPCOperations::CallForMemory;
-                msg.input.agent = ctx->self->server->get_agent();
+                    msg.input.op = Enums::RPCOperations::CallForMemory;
+                    msg.input.agent = ctx->self->server->get_agent();
+                    while(!ctx->queues[pos].push(&msg));
+
+                    while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+                    msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
+                    msg.input.op = Enums::RPCOperations::Insert;
+                }
+            }
+
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::INDEXING));
                 while(!ctx->queues[pos].push(&msg));
 
                 while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
-                msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
-                msg.input.op = Enums::RPCOperations::Insert;
             }
-
-            while(!ctx->queues[pos].push(&msg));
-
-            while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
 
             auto &resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus) + sizeof(Memory::PolymorphicPointer);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP_MSG));
 
-            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Insert;
-            auto offset = sizeof(Enums::RPCOperations);
-            switch(msg.output.status.load()){
-            case Indexing::Enums::OpStatus::Ok:
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
-                break;
-            case Indexing::Enums::OpStatus::NoMemory:
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
-                // agent's memory is available but not sufficient;
-                ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
-                goto retry;
-                break;
-            default:
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
-                break;
+                *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Insert;
+                auto offset = sizeof(Enums::RPCOperations);
+                switch(msg.output.status.load()){
+                case Indexing::Enums::OpStatus::Ok:
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
+                    break;
+                case Indexing::Enums::OpStatus::NoMemory:
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
+                    // agent's memory is available but not sufficient;
+                    {
+                        SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_RECHECK));
+                        ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
+                    }
+                    goto retry;
+                    break;
+                default:
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
+                    break;
+                }
+
+                offset += sizeof(Enums::RPCStatus);
+                *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
             }
 
-            offset += sizeof(Enums::RPCStatus);
-            *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
-
-            ctx->rpc->enqueue_response(req_handle, &resp);
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP));
+                ctx->rpc->enqueue_response(req_handle, &resp);
+            }
 
             if (msg.output.status.load() == Indexing::Enums::OpStatus::Failed) {
                 std::cout << "Inserting " << key->to_string() << " failed\n";
@@ -334,7 +363,17 @@ namespace Hill {
         auto StoreServer::update_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
             auto server = ctx->server;
-            auto [type, key, value] = parse_request_message(req_handle, context);
+            auto handle_sampler = ctx->handle_sampler;
+            auto &sampler = handle_sampler->update_sampler;
+
+            Enums::RPCOperations type; KVPair::HillString *key, *value;
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::PARSE));
+                auto r = parse_request_message(req_handle, context);
+                type = std::get<0>(r);
+                key = std::get<1>(r);
+                value = std::get<2>(r);
+            }
 
             IncomeMessage msg;
             msg.input.key = key->raw_chars();
@@ -345,50 +384,63 @@ namespace Hill {
         retry:
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
+                if (server->get_allocator()->get_consumed() >= Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm &&
+                    !server->get_agent()->available(ctx->thread_id)) {
 
-            if (server->get_allocator()->get_consumed() >= Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm &&
-                !server->get_agent()->available(ctx->thread_id)) {
+                    // a log should be used here, but for simiplicity, I omit it.
+                    auto ptr = check_available_mem(*ctx, ctx->thread_id);
+                    ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
+                    msg.input.op = Enums::RPCOperations::CallForMemory;
+                    msg.input.agent = ctx->self->server->get_agent();
+                    while(!ctx->queues[pos].push(&msg));
 
-                // a log should be used here, but for simiplicity, I omit it.
-                auto ptr = check_available_mem(*ctx, ctx->thread_id);
-                ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
-                msg.input.op = Enums::RPCOperations::CallForMemory;
-                msg.input.agent = ctx->self->server->get_agent();
+                    while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+                    msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
+                }
+            }
+
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::INDEXING));
+
                 while(!ctx->queues[pos].push(&msg));
 
                 while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
-                msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
             }
-
-            while(!ctx->queues[pos].push(&msg));
-
-            while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
 
             auto &resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus) + sizeof(Memory::PolymorphicPointer);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP_MSG));
 
-            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Update;
-            auto offset = sizeof(Enums::RPCOperations);
-            switch(msg.output.status.load()){
-            case Indexing::Enums::OpStatus::Ok:
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
-                break;
-            case Indexing::Enums::OpStatus::NoMemory:
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
-                // agent's memory is available but not sufficient
-                ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
-                goto retry;
-                break;
-            default:
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
-                break;
+                *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Update;
+                auto offset = sizeof(Enums::RPCOperations);
+
+                switch(msg.output.status.load()){
+                case Indexing::Enums::OpStatus::Ok:
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
+                    break;
+                case Indexing::Enums::OpStatus::NoMemory:
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
+                    // agent's memory is available but not sufficient
+                    ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
+                    goto retry;
+                    break;
+                default:
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
+                    break;
+                }
+
+                offset += sizeof(Enums::RPCStatus);
+                *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
             }
 
-            offset += sizeof(Enums::RPCStatus);
-            *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
-
-            ctx->rpc->enqueue_response(req_handle, &resp);
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP));
+                ctx->rpc->enqueue_response(req_handle, &resp);
+            }
 
             if (msg.output.status.load() == Indexing::Enums::OpStatus::Failed) {
                 std::cout << "Updating " << key->to_string() << " failed\n";
@@ -397,7 +449,18 @@ namespace Hill {
 
         auto StoreServer::search_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
-            auto [type, key, value] = parse_request_message(req_handle, context);
+            auto handle_sampler = ctx->handle_sampler;
+            auto &sampler = handle_sampler->search_sampler;
+
+            Enums::RPCOperations type; KVPair::HillString *key, *value;
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::PARSE));
+                auto t = parse_request_message(req_handle, context);
+                type = std::get<0>(t);
+                key = std::get<1>(t);
+                value = std::get<2>(t);
+            }
+
             IncomeMessage msg;
             msg.input.key = key->raw_chars();
             msg.input.key_size = key->size();
@@ -405,35 +468,46 @@ namespace Hill {
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
 
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
-            while(!ctx->queues[pos].push(&msg));
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::INDEXING));
 
-            while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+                while(!ctx->queues[pos].push(&msg));
+
+                while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+            }
 
             auto& resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
                 + sizeof(size_t) + sizeof(Enums::RPCStatus);
+            
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP_MSG));
+                ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+                *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Search;
 
-            ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
-            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Search;
-
-            auto offset = sizeof(Enums::RPCOperations);
-            if (msg.output.value == nullptr) {
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
-            } else {
-                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
-
-                offset += sizeof(Enums::RPCStatus);
-                if (msg.output.value.is_remote()) {
-                    *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
+                auto offset = sizeof(Enums::RPCOperations);
+                if (msg.output.value == nullptr) {
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
                 } else {
-                    auto poly = Memory::PolymorphicPointer::make_polymorphic_pointer(Memory::RemotePointer::make_remote_pointer(ctx->node_id, msg.output.value.local_ptr()));
-                    *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = poly;
-                }
+                    *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
 
-                offset += sizeof(Memory::PolymorphicPointer);
-                *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;
+                    offset += sizeof(Enums::RPCStatus);
+                    if (msg.output.value.is_remote()) {
+                        *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = msg.output.value;
+                    } else {
+                        auto poly = Memory::PolymorphicPointer::make_polymorphic_pointer(Memory::RemotePointer::make_remote_pointer(ctx->node_id, msg.output.value.local_ptr()));
+                        *reinterpret_cast<Memory::PolymorphicPointer *>(resp.buf + offset) = poly;
+                    }
+
+                    offset += sizeof(Memory::PolymorphicPointer);
+                    *reinterpret_cast<size_t *>(resp.buf + offset) = msg.output.value_size;
+                }
             }
-            ctx->rpc->enqueue_response(req_handle, &resp);
+
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP));
+                ctx->rpc->enqueue_response(req_handle, &resp);
+            }
 
             if (msg.output.status.load() == Indexing::Enums::OpStatus::Failed) {
                 std::cout << "Searching " << key->to_string() << " failed\n";
@@ -442,40 +516,69 @@ namespace Hill {
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
-            auto [type, key, value] = parse_request_message(req_handle, context);
-            IncomeMessage msgs[Memory::Constants::iTHREAD_LIST_NUM];
-            for (auto i = 0; i < ctx->num_launched_threads; i++) {
-                msgs[i].input.key = key->raw_chars();
-                msgs[i].input.key_size = key->size();
-                msgs[i].input.value_size = *reinterpret_cast<size_t *>(value);
-                msgs[i].input.op = type;
-                msgs[i].output.status = Indexing::Enums::OpStatus::Unkown;
-                while(!ctx->queues[i].push(&msgs[i]));
+            
+            auto handle_sampler = ctx->handle_sampler;
+            auto &sampler = handle_sampler->scan_sampler;
+            Enums::RPCOperations type; KVPair::HillString *key, *value;
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::PARSE));
+                auto t = parse_request_message(req_handle, context);
+                type = std::get<0>(t);
+                key = std::get<1>(t);
+                value = std::get<2>(t);
             }
 
+            
+            IncomeMessage msgs[Memory::Constants::iTHREAD_LIST_NUM];
             std::vector<std::vector<Indexing::ScanHolder>> ranges;
-            for (auto i = 0; i < ctx->num_launched_threads; i++) {
-                while(msgs[i].output.status.load() == Indexing::Enums::OpStatus::Unkown);
-                ranges.push_back(std::move(msgs[i].output.values));
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::INDEXING));
+                for (auto i = 0; i < ctx->num_launched_threads; i++) {
+                    msgs[i].input.key = key->raw_chars();
+                    msgs[i].input.key_size = key->size();
+                    msgs[i].input.value_size = *reinterpret_cast<size_t *>(value);
+                    msgs[i].input.op = type;
+                    msgs[i].output.status = Indexing::Enums::OpStatus::Unkown;
+                    while(!ctx->queues[i].push(&msgs[i]));
+                }
+                
+                for (auto i = 0; i < ctx->num_launched_threads; i++) {
+                    while(msgs[i].output.status.load() == Indexing::Enums::OpStatus::Unkown);
+                    ranges.push_back(std::move(msgs[i].output.values));
+                }
             }
             
             // all partitions are collected
-            auto merger = Merger::make_merger(ranges);
-            auto holders = merger->merge(msgs[0].input.value_size);
+            size_t ret;
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::MERGE));
+                auto merger = Merger::make_merger(ranges);
+                auto holders = merger->merge(msgs[0].input.value_size);
+                ret = holders.size();
+            }
+
 
             auto& resp = req_handle->pre_resp_msgbuf;
-            constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
-                + sizeof(size_t) + sizeof(Enums::RPCStatus);
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP_MSG));
+                
+                constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
+                    + sizeof(size_t) + sizeof(Enums::RPCStatus);
 
-            ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
-            *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Search;
+                ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+                *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Search;
 
-            auto offset = sizeof(Enums::RPCOperations);
-            *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
+                auto offset = sizeof(Enums::RPCOperations);
+                *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
 
-            offset += sizeof(Enums::RPCStatus);
-            *reinterpret_cast<size_t *>(resp.buf + offset) = holders.size();
-            ctx->rpc->enqueue_response(req_handle, &resp);
+                offset += sizeof(Enums::RPCStatus);
+                *reinterpret_cast<size_t *>(resp.buf + offset) = ret;
+            }
+
+            {
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP));                
+                ctx->rpc->enqueue_response(req_handle, &resp);
+            }
         }
 
         auto StoreServer::memory_handler(erpc::ReqHandle *req_handle, void *context) -> void {
@@ -507,10 +610,10 @@ namespace Hill {
             logger->commit(tid);
         }
 
-        auto StoreServer::parse_request_message(const erpc::ReqHandle *req_handle, const void *context)
+        auto StoreServer::parse_request_message(const erpc::ReqHandle *req_handle, const void *ctx)
             -> std::tuple<Enums::RPCOperations, KVPair::HillString *, KVPair::HillString *>
         {
-            UNUSED(context);
+            UNUSED(ctx);
             auto requests = req_handle->get_req_msgbuf();
 
             auto buf = requests->buf;
