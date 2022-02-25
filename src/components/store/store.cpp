@@ -163,7 +163,16 @@ namespace Hill {
                 this->erpc_ids.push_back(tid);
                 rpc_id_lock.unlock();
                 s_ctx.nexus = this->nexus;
-                s_ctx.rpc->run_event_loop(10000000);
+
+                while(true) {
+                    s_ctx.rpc->run_event_loop(500);
+                    // report breakdown every 0.5 second
+                    std::cout << ">> Insert breakdown: "; s_ctx.handle_sampler->report_insert(); std::cout << "\n";
+                    std::cout << ">> Search breakdown: "; s_ctx.handle_sampler->report_search(); std::cout << "\n";
+                    std::cout << ">> Update breakdown: "; s_ctx.handle_sampler->report_update(); std::cout << "\n";
+                    std::cout << ">> Range breakdown: "; s_ctx.handle_sampler->report_scan(); std::cout << "\n";
+                }
+
                 this->server->unregister_thread(tid);
             }, tid);
         }
@@ -479,7 +488,7 @@ namespace Hill {
             auto& resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
                 + sizeof(size_t) + sizeof(Enums::RPCStatus);
-            
+
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP_MSG));
                 ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
@@ -516,7 +525,7 @@ namespace Hill {
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
-            
+
             auto handle_sampler = ctx->handle_sampler;
             auto &sampler = handle_sampler->scan_sampler;
             Enums::RPCOperations type; KVPair::HillString *key, *value;
@@ -528,7 +537,7 @@ namespace Hill {
                 value = std::get<2>(t);
             }
 
-            
+
             IncomeMessage msgs[Memory::Constants::iTHREAD_LIST_NUM];
             std::vector<std::vector<Indexing::ScanHolder>> ranges;
             {
@@ -541,13 +550,13 @@ namespace Hill {
                     msgs[i].output.status = Indexing::Enums::OpStatus::Unkown;
                     while(!ctx->queues[i].push(&msgs[i]));
                 }
-                
+
                 for (auto i = 0; i < ctx->num_launched_threads; i++) {
                     while(msgs[i].output.status.load() == Indexing::Enums::OpStatus::Unkown);
                     ranges.push_back(std::move(msgs[i].output.values));
                 }
             }
-            
+
             // all partitions are collected
             size_t ret;
             {
@@ -561,7 +570,7 @@ namespace Hill {
             auto& resp = req_handle->pre_resp_msgbuf;
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP_MSG));
-                
+
                 constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Memory::PolymorphicPointer)
                     + sizeof(size_t) + sizeof(Enums::RPCStatus);
 
@@ -576,7 +585,7 @@ namespace Hill {
             }
 
             {
-                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP));                
+                SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::RESP));
                 ctx->rpc->enqueue_response(req_handle, &resp);
             }
         }

@@ -9,6 +9,8 @@
 #include <iostream>
 #include <cmath>
 
+#include "misc/misc.hpp"
+
 namespace Hill {
     namespace Stats {
         struct ThroughputStats {
