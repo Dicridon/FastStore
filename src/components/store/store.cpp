@@ -136,6 +136,38 @@ namespace Hill {
             return true;
         }
 
+        auto StoreServer::launch_one_memory_monitor_thread() -> bool {
+            std::thread t([&] {
+                auto rm_rpc =  new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(this),
+                                                               Memory::Constants::iTHREAD_LIST_NUM,
+                                                               RPCWrapper::ghost_sm_handler);
+                IncomeMessage msg;
+                while(this->is_launched) {
+                    for (auto &i : this->contexts) {
+                        if (i == nullptr)
+                            continue;
+
+                        if (i->need_memory.load() == true) {
+                            auto ptr = check_available_mem(rm_rpc, *i, i->thread_id);
+                            server->get_agent()->add_region(i->thread_id, ptr);
+
+                            msg.input.op = Enums::RPCOperations::CallForMemory;
+                            msg.input.agent = server->get_agent();
+                            while(!i->queues[this->index_ids[i->thread_id]].push(&msg));
+                            
+                            while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
+
+                            i->need_memory.store(false);
+                        }
+                    }
+                    sleep(1);
+                }
+            });
+
+
+            return true;
+        }
+
         auto StoreServer::register_erpc_handler_thread() noexcept -> std::optional<std::thread> {
             if (!is_launched) {
                 return {};
@@ -159,21 +191,19 @@ namespace Hill {
 #endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
-
-                s_ctx.rm_rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
-                                                               tid, RPCWrapper::ghost_sm_handler);
                 rpc_id_lock.lock();
                 this->erpc_ids.push_back(tid);
                 rpc_id_lock.unlock();
                 s_ctx.nexus = this->nexus;
 
+                this->contexts[tid] = &s_ctx;
+                
                 while(true) {
-                    s_ctx.rpc->run_event_loop(500);
-                    // report breakdown every 0.5 second
+                    s_ctx.rpc->run_event_loop(2000);
                     std::cout << ">> Insert breakdown: "; s_ctx.handle_sampler->report_insert(); std::cout << "\n";
                     std::cout << ">> Search breakdown: "; s_ctx.handle_sampler->report_search(); std::cout << "\n";
                     std::cout << ">> Update breakdown: "; s_ctx.handle_sampler->report_update(); std::cout << "\n";
-                    std::cout << ">> Range breakdown: "; s_ctx.handle_sampler->report_scan(); std::cout << "\n";
+                    std::cout << ">> Range breakdown: "; s_ctx.handle_sampler->report_scan(); std::cout << "\n\n";
                 }
 
                 this->server->unregister_thread(tid);
@@ -184,7 +214,9 @@ namespace Hill {
 
         }
 
-        auto StoreServer::check_available_mem(ServerContext &s_ctx, int tid) -> Memory::RemotePointer {
+        auto StoreServer::check_available_mem(erpc::Rpc<erpc::CTransport> *rm_rpc, ServerContext &s_ctx, int tid)
+            -> Memory::RemotePointer
+        {
             size_t max = 0;
             size_t node_id;
             const auto &meta = s_ctx.server->get_node()->cluster_status;
@@ -202,7 +234,7 @@ namespace Hill {
                     return nullptr;
                 }
 
-                if (!establish_erpc(s_ctx, tid, node_id)) {
+                if (!establish_memory_erpc(rm_rpc, s_ctx, tid, node_id)) {
                     std::cerr << ">> Error: can't connect remote server " << node_id << "'s rpc\n";
                     return nullptr;
                 }
@@ -211,11 +243,8 @@ namespace Hill {
             auto buf = s_ctx.req_bufs[node_id].buf;
             s_ctx.is_done = false;
             *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::CallForMemory;
-            s_ctx.rm_rpc->enqueue_request(s_ctx.erpc_sessions[node_id], Enums::RPCOperations::CallForMemory,
-                                       &s_ctx.req_bufs[node_id], &s_ctx.resp_bufs[node_id],
-                                       response_continuation, &node_id);
             while (!s_ctx.is_done) {
-                s_ctx.rm_rpc->run_event_loop_once();
+                rm_rpc->run_event_loop_once();
             }
 
             auto pbuf = s_ctx.resp_bufs[node_id].buf;
@@ -228,7 +257,9 @@ namespace Hill {
             return ptr;
         }
 
-        auto StoreServer::establish_erpc(ServerContext &s_ctx, int tid, int node_id) -> bool {
+        auto StoreServer::establish_memory_erpc(erpc::Rpc<erpc::CTransport> *rm_rpc, ServerContext &s_ctx, int tid, int node_id)
+            -> bool
+        {
             if (s_ctx.erpc_sessions[node_id] != -1) {
                 return true;
             }
@@ -248,14 +279,13 @@ namespace Hill {
             read(socket, &remote_id, sizeof(remote_id));
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
-            auto rpc = s_ctx.rm_rpc;
-            s_ctx.erpc_sessions[node_id] = rpc->create_session(server_uri, remote_id);
-            while (!rpc->is_connected(s_ctx.erpc_sessions[node_id])) {
-                rpc->run_event_loop_once();
+            s_ctx.erpc_sessions[node_id] = rm_rpc->create_session(server_uri, remote_id);
+            while (!rm_rpc->is_connected(s_ctx.erpc_sessions[node_id])) {
+                rm_rpc->run_event_loop_once();
             }
 
-            s_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
-            s_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
+            s_ctx.req_bufs[node_id] = rm_rpc->alloc_msg_buffer_or_die(64);
+            s_ctx.resp_bufs[node_id] = rm_rpc->alloc_msg_buffer_or_die(64);
             shutdown(socket, 0);
             return true;
         }
@@ -299,28 +329,15 @@ namespace Hill {
             // this is fast we do not need to sample
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
             auto allowed = Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm;
-            auto insufficient = server->get_allocator()->get_consumed() >= allowed;
-
+            bool insufficient = false;
             {
+                insufficient = server->get_allocator()->get_consumed() >= allowed;
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
-                if (insufficient && !server->get_agent()->available(ctx->thread_id)) {
+                if (insufficient) {
+                    ctx->self->index_ids[ctx->thread_id] = pos;
+                    ctx->self->contexts[ctx->thread_id]->need_memory = true;
 
-                    // a log should be used here, but for simiplicity, I omit it.
-#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                    std::cout << ">> Trying to get remote memory...\n";
-#endif
-                    auto ptr = check_available_mem(*ctx, ctx->thread_id);
-                    ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
-#if defined(__HILL_DEBUG__) || defined(__HILL_INFO__)
-                    std::cout << ">> Got memory from node" << ptr.get_node() << "\n";;
-#endif
-                    msg.input.op = Enums::RPCOperations::CallForMemory;
-                    msg.input.agent = ctx->self->server->get_agent();
-                    while(!ctx->queues[pos].push(&msg));
-
-                    while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
-                    msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
-                    msg.input.op = Enums::RPCOperations::Insert;
+                    while(ctx->self->contexts[ctx->thread_id]->need_memory);
                 }
             }
 
@@ -346,10 +363,6 @@ namespace Hill {
                 case Indexing::Enums::OpStatus::NoMemory:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
                     // agent's memory is available but not sufficient;
-                    {
-                        SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_RECHECK));
-                        ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
-                    }
                     goto retry;
                     break;
                 default:
@@ -395,20 +408,16 @@ namespace Hill {
         retry:
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
+            auto allowed = Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm;
+            bool insufficient = false;
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
-                if (server->get_allocator()->get_consumed() >= Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm &&
-                    !server->get_agent()->available(ctx->thread_id)) {
+                insufficient = server->get_allocator()->get_consumed() >= allowed;
+                if (insufficient) {
+                    ctx->self->index_ids[ctx->thread_id] = pos;
+                    ctx->self->contexts[ctx->thread_id]->need_memory = true;
 
-                    // a log should be used here, but for simiplicity, I omit it.
-                    auto ptr = check_available_mem(*ctx, ctx->thread_id);
-                    ctx->self->server->get_agent()->add_region(ctx->thread_id, ptr);
-                    msg.input.op = Enums::RPCOperations::CallForMemory;
-                    msg.input.agent = ctx->self->server->get_agent();
-                    while(!ctx->queues[pos].push(&msg));
-
-                    while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
-                    msg.output.status.store(Indexing::Enums::OpStatus::Unkown);
+                    while(ctx->self->contexts[ctx->thread_id]->need_memory);
                 }
             }
 
@@ -436,7 +445,6 @@ namespace Hill {
                 case Indexing::Enums::OpStatus::NoMemory:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
                     // agent's memory is available but not sufficient
-                    ctx->self->server->get_agent()->add_region(ctx->thread_id, check_available_mem(*ctx, ctx->thread_id));
                     goto retry;
                     break;
                 default:

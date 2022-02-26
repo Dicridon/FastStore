@@ -125,7 +125,7 @@ namespace Hill {
             erpc::Nexus *nexus;
 
             // for remote memory only;
-            erpc::Rpc<erpc::CTransport> *rm_rpc;
+            std::atomic_bool need_memory;
             int erpc_sessions[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
@@ -138,6 +138,8 @@ namespace Hill {
                 for (auto &s : erpc_sessions) {
                     s = -1;
                 }
+
+                need_memory = false;
             }
         };
 
@@ -247,10 +249,16 @@ namespace Hill {
                 ret->nexus->register_req_func(Enums::RPCOperations::CallForMemory, memory_handler);
                 ret->erpc_id_cursor = 0;
 
+                for (auto &i : ret->contexts) {
+                    i = nullptr;
+                }
+
                 ret->is_launched = false;
                 return ret;
             }
 
+
+            // launch num_threads working threads handling indexing operations
             auto launch(int num_threads) -> bool;
 
             inline auto stop() -> void {
@@ -258,15 +266,21 @@ namespace Hill {
                 is_launched = false;
             }
 
+            // launch one thread wait for income erpc connection request
             auto launch_one_erpc_listen_thread() -> bool;
+
+            // launch one thread that periodically checks memory resource amount and
+            // apply for remote memory if it finds any thread is short of memory
+            auto launch_one_memory_monitor_thread() -> bool;
             /*
              * If a thread is successfully registered, a background thread would be launched handling
              * income eRPC requests.
              */
             auto register_erpc_handler_thread() noexcept -> std::optional<std::thread>;
             auto use_agent() noexcept -> void;
-            static auto check_available_mem(ServerContext &s_ctx, int tid) -> Memory::RemotePointer;
-            static auto establish_erpc(ServerContext &s_ctx, int tid, int node_id) -> bool;
+            static auto check_available_mem(erpc::Rpc<erpc::CTransport> *rm_rpc, ServerContext &s_ctx, int tid)
+                -> Memory::RemotePointer;
+            static auto establish_memory_erpc(erpc::Rpc<erpc::CTransport> *rm_rpc, ServerContext &s_ctx, int tid, int node_id) -> bool;
             static auto response_continuation(void *context, void *tag) -> void;
         private:
 
@@ -274,7 +288,10 @@ namespace Hill {
             std::unique_ptr<Engine> server;
             Indexing::LeafNode *leaves[Memory::Constants::iTHREAD_LIST_NUM];
             boost::lockfree::queue<IncomeMessage *, Constants::tBOOST_QUEUE_CAP> req_queues[Memory::Constants::iTHREAD_LIST_NUM];
+            ServerContext *contexts[Memory::Constants::iTHREAD_LIST_NUM];
+            uint64_t index_ids[Memory::Constants::iTHREAD_LIST_NUM];
             erpc::Nexus *nexus;
+            
             bool is_launched;
             int num_launched_threads;
 
