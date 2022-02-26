@@ -50,6 +50,8 @@ namespace Hill {
         template<typename T,
                  typename = std::enable_if_t<std::is_arithmetic_v<T>>>
         auto percentile(const std::vector<T> &sorted, double percent) -> T {
+            if (sorted.size() == 0)
+                return 0;
             auto partition = ceil(sorted.size() * (1 - percent / 100));
             return std::accumulate(sorted.begin(), sorted.begin() + partition, 0) / partition;
         }

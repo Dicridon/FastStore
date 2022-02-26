@@ -159,6 +159,9 @@ namespace Hill {
 #endif
                 s_ctx.rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
+
+                s_ctx.rm_rpc = new erpc::Rpc<erpc::CTransport>(this->nexus, reinterpret_cast<void *>(&s_ctx),
+                                                               tid, RPCWrapper::ghost_sm_handler);
                 rpc_id_lock.lock();
                 this->erpc_ids.push_back(tid);
                 rpc_id_lock.unlock();
@@ -208,11 +211,11 @@ namespace Hill {
             auto buf = s_ctx.req_bufs[node_id].buf;
             s_ctx.is_done = false;
             *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::CallForMemory;
-            s_ctx.rpc->enqueue_request(s_ctx.erpc_sessions[node_id], Enums::RPCOperations::CallForMemory,
+            s_ctx.rm_rpc->enqueue_request(s_ctx.erpc_sessions[node_id], Enums::RPCOperations::CallForMemory,
                                        &s_ctx.req_bufs[node_id], &s_ctx.resp_bufs[node_id],
                                        response_continuation, &node_id);
             while (!s_ctx.is_done) {
-                s_ctx.rpc->run_event_loop_once();
+                s_ctx.rm_rpc->run_event_loop_once();
             }
 
             auto pbuf = s_ctx.resp_bufs[node_id].buf;
@@ -243,10 +246,9 @@ namespace Hill {
 #endif
             auto remote_id = 0;
             read(socket, &remote_id, sizeof(remote_id));
-
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
-            auto rpc = s_ctx.rpc;
+            auto rpc = s_ctx.rm_rpc;
             s_ctx.erpc_sessions[node_id] = rpc->create_session(server_uri, remote_id);
             while (!rpc->is_connected(s_ctx.erpc_sessions[node_id])) {
                 rpc->run_event_loop_once();

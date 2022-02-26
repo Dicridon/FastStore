@@ -124,6 +124,8 @@ namespace Hill {
             int num_launched_threads;
             erpc::Nexus *nexus;
 
+            // for remote memory only;
+            erpc::Rpc<erpc::CTransport> *rm_rpc;
             int erpc_sessions[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer req_bufs[Cluster::Constants::uMAX_NODE];
             erpc::MsgBuffer resp_bufs[Cluster::Constants::uMAX_NODE];
