@@ -242,7 +242,14 @@ namespace Hill {
 
             auto buf = s_ctx.req_bufs[node_id].buf;
             s_ctx.is_done = false;
+
+#ifdef __HILL_INFO__
+            std::cout << ">> Requesting remote memory\n";
+#endif
             *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::CallForMemory;
+            rm_rpc->enqueue_request(s_ctx.erpc_sessions[node_id], Enums::RPCOperations::CallForMemory,
+                                       &s_ctx.req_bufs[node_id], &s_ctx.resp_bufs[node_id],
+                                       response_continuation, &node_id);
             while (!s_ctx.is_done) {
                 rm_rpc->run_event_loop_once();
             }
@@ -253,7 +260,9 @@ namespace Hill {
             if (ptr.is_nullptr()) {
                 throw std::runtime_error("Remote memory is also depleted");
             }
-
+#ifdef __HILL_INFO__
+            std::cout << ">> Got remote memory\n";
+#endif
             return ptr;
         }
 
@@ -277,13 +286,18 @@ namespace Hill {
 #endif
             auto remote_id = 0;
             read(socket, &remote_id, sizeof(remote_id));
+#ifdef __HILL_INFO__
+            std::cout << ">> Establishing eRPC connection for remote memory with ID " << remote_id << "\n";
+#endif
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
             s_ctx.erpc_sessions[node_id] = rm_rpc->create_session(server_uri, remote_id);
             while (!rm_rpc->is_connected(s_ctx.erpc_sessions[node_id])) {
                 rm_rpc->run_event_loop_once();
             }
-
+#ifdef __HILL_INFO__
+            std::cout << ">> eRPC connection established\n";
+#endif
             s_ctx.req_bufs[node_id] = rm_rpc->alloc_msg_buffer_or_die(64);
             s_ctx.resp_bufs[node_id] = rm_rpc->alloc_msg_buffer_or_die(64);
             shutdown(socket, 0);
@@ -291,17 +305,17 @@ namespace Hill {
         }
 
         auto StoreServer::response_continuation(void *context, void *tag) -> void {
-            auto node_id = *reinterpret_cast<int *>(tag);
+            // auto node_id = *reinterpret_cast<int *>(tag);
             auto ctx = reinterpret_cast<ServerContext *>(context);
-            auto buf = ctx->resp_bufs[node_id].buf;
-
-            auto op = *reinterpret_cast<Enums::RPCOperations *>(buf);
-            buf += sizeof(Enums::RPCOperations);
-            auto status = *reinterpret_cast<Enums::RPCStatus *>(buf);
-            buf += sizeof(Enums::RPCStatus);
-            auto ptr = *reinterpret_cast<Memory::RemotePointer *>(buf);
-
-            ctx->server->get_agent()->add_region(ctx->thread_id, ptr);
+            // auto buf = ctx->resp_bufs[node_id].buf;
+            // 
+            // auto op = *reinterpret_cast<Enums::RPCOperations *>(buf);
+            // buf += sizeof(Enums::RPCOperations);
+            // auto status = *reinterpret_cast<Enums::RPCStatus *>(buf);
+            // buf += sizeof(Enums::RPCStatus);
+            // auto ptr = *reinterpret_cast<Memory::RemotePointer *>(buf);
+            // 
+            // ctx->server->get_agent()->add_region(ctx->thread_id, ptr);
             ctx->is_done = true;
         }
 
