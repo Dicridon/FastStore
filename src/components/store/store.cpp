@@ -163,7 +163,7 @@ namespace Hill {
                     sleep(1);
                 }
             });
-
+            t.detach();
 
             return true;
         }
