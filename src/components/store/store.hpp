@@ -291,7 +291,7 @@ namespace Hill {
             ServerContext *contexts[Memory::Constants::iTHREAD_LIST_NUM];
             uint64_t index_ids[Memory::Constants::iTHREAD_LIST_NUM];
             erpc::Nexus *nexus;
-            
+
             bool is_launched;
             int num_launched_threads;
 

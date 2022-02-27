@@ -154,7 +154,7 @@ namespace Hill {
                             msg.input.op = Enums::RPCOperations::CallForMemory;
                             msg.input.agent = server->get_agent();
                             while(!i->queues[this->index_ids[i->thread_id]].push(&msg));
-                            
+
                             while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
 
                             i->need_memory.store(false);
@@ -197,7 +197,7 @@ namespace Hill {
                 s_ctx.nexus = this->nexus;
 
                 this->contexts[tid] = &s_ctx;
-                
+
                 while(true) {
                     s_ctx.rpc->run_event_loop(2000);
                     std::cout << ">> Insert breakdown: "; s_ctx.handle_sampler->report_insert(); std::cout << "\n";
@@ -309,13 +309,13 @@ namespace Hill {
             // auto node_id = *reinterpret_cast<int *>(tag);
             reinterpret_cast<ServerContext *>(tag)->is_done = true;
             // auto buf = ctx->resp_bufs[node_id].buf;
-            // 
+            //
             // auto op = *reinterpret_cast<Enums::RPCOperations *>(buf);
             // buf += sizeof(Enums::RPCOperations);
             // auto status = *reinterpret_cast<Enums::RPCStatus *>(buf);
             // buf += sizeof(Enums::RPCStatus);
             // auto ptr = *reinterpret_cast<Memory::RemotePointer *>(buf);
-            // 
+            //
             // ctx->server->get_agent()->add_region(ctx->thread_id, ptr);
         }
 
@@ -345,8 +345,10 @@ namespace Hill {
             auto allowed = Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm;
             bool insufficient = false;
             {
-                insufficient = server->get_allocator()->get_consumed() >= allowed;
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
+
+                insufficient = server->get_allocator()->get_consumed() >= allowed &&
+                    !server->get_agent()->available(ctx->thread_id);
                 if (insufficient) {
                     ctx->self->index_ids[ctx->thread_id] = pos;
                     ctx->self->contexts[ctx->thread_id]->need_memory = true;
@@ -426,7 +428,9 @@ namespace Hill {
             bool insufficient = false;
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
-                insufficient = server->get_allocator()->get_consumed() >= allowed;
+                insufficient = server->get_allocator()->get_consumed() >= allowed &&
+                    !server->get_agent()->available(ctx->thread_id);
+
                 if (insufficient) {
                     ctx->self->index_ids[ctx->thread_id] = pos;
                     ctx->self->contexts[ctx->thread_id]->need_memory = true;
