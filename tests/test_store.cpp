@@ -40,6 +40,11 @@ auto run_server(const std::string &config, int threads) -> void {
         return;
     }
 
+    if (!server->launch_one_memory_monitor_thread()) {
+        std::cout << "Can't launch memory monitor thread\n";
+        return;
+    }
+
     for (auto &t : handler_threads) {
         if (t.joinable()) {
             t.join();
