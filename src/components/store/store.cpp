@@ -338,7 +338,7 @@ namespace Hill {
             msg.input.key = key->raw_chars();
             msg.input.key_size = key->size();
             msg.input.op = type;
-        retry:
+
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
             // this is fast we do not need to sample
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
@@ -356,7 +356,7 @@ namespace Hill {
                     while(ctx->self->contexts[ctx->thread_id]->need_memory);
                 }
             }
-
+        retry:
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::INDEXING));
                 while(!ctx->queues[pos].push(&msg));
@@ -379,6 +379,10 @@ namespace Hill {
                 case Indexing::Enums::OpStatus::NoMemory:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
                     // agent's memory is available but not sufficient;
+                    ctx->self->index_ids[ctx->thread_id] = pos;
+                    ctx->self->contexts[ctx->thread_id]->need_memory = true;
+
+                    while(ctx->self->contexts[ctx->thread_id]->need_memory);
                     goto retry;
                     break;
                 default:
@@ -421,7 +425,7 @@ namespace Hill {
             msg.input.value = value->raw_chars();
             msg.input.value_size = value->size();
             msg.input.op = type;
-        retry:
+
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
             auto pos = CityHash64(msg.input.key, msg.input.key_size) % ctx->num_launched_threads;
             auto allowed = Constants::dNODE_CAPPACITY_LIMIT * server->get_node()->total_pm;
@@ -438,7 +442,7 @@ namespace Hill {
                     while(ctx->self->contexts[ctx->thread_id]->need_memory);
                 }
             }
-
+        retry:
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::INDEXING));
 
@@ -463,6 +467,11 @@ namespace Hill {
                 case Indexing::Enums::OpStatus::NoMemory:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
                     // agent's memory is available but not sufficient
+                    ctx->self->index_ids[ctx->thread_id] = pos;
+                    ctx->self->contexts[ctx->thread_id]->need_memory = true;
+
+                    while(ctx->self->contexts[ctx->thread_id]->need_memory);
+                    
                     goto retry;
                     break;
                 default:

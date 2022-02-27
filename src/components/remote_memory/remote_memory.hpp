@@ -227,11 +227,11 @@ namespace Hill {
                 meta = snap;
             }
 
-            auto available() const noexcept -> bool {
+            inline auto available() const noexcept -> bool {
                 return !base.is_nullptr() && meta.cursor < Constants::uREMOTE_REGION_SIZE;
             }
             
-            auto free(RemotePointer &ptr) noexcept -> void {
+            inline auto free(RemotePointer &ptr) noexcept -> void {
                 UNUSED(ptr);
                 --meta.counter;
             }
