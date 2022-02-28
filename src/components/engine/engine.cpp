@@ -53,11 +53,10 @@ namespace Hill {
         read(socket, &remote_id, sizeof(remote_id));
         if (remote_id != Cluster::Constants::iCLIENT_ID) {
             if (remote_id < 0 || size_t(remote_id) >= Cluster::Constants::uMAX_NODE) {
+#ifdef __HILL_INFO__
+                std::cout << "Invalid peer node id: " << remote_id << "\n";
+#endif
                 return -1;
-            }
-
-            if (peer_connections[tid][remote_id] != nullptr) {
-                return 0;
             }
         }
 
@@ -77,7 +76,7 @@ namespace Hill {
             // just keep this connection alive
             client_connections[tid].push_back(std::move(rdma_ctx));
         } else {
-            peer_connections[tid][remote_id] = std::move(rdma_ctx);
+            peer_connections[tid].push_back(std::move(rdma_ctx));
         }
 
         // no longer needed
