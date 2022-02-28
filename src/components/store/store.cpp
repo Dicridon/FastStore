@@ -149,7 +149,7 @@ namespace Hill {
 
                         if (i->need_memory.load() == true) {
                             auto ptr = check_available_mem(rm_rpc, *i, i->thread_id);
-                            server->get_agent()->add_region(i->thread_id, ptr);
+                            server->get_agent()->add_region(this->index_ids[i->thread_id], ptr);
 
                             msg.input.op = Enums::RPCOperations::CallForMemory;
                             msg.input.agent = server->get_agent();
@@ -184,7 +184,7 @@ namespace Hill {
                 s_ctx.queues = this->req_queues;
                 s_ctx.num_launched_threads = this->num_launched_threads;
 
-                s_ctx.handle_sampler = new HandleSampler(1000);
+                s_ctx.handle_sampler = new HandleSampler(10000);
                 s_ctx.handle_sampler->prepare();
 #ifdef __HILL_INFO__
                 std::cout << ">> Creating eRPC for thread " << tid << ", remote id is also " << tid << "\n";
@@ -337,6 +337,8 @@ namespace Hill {
             IncomeMessage msg;
             msg.input.key = key->raw_chars();
             msg.input.key_size = key->size();
+            msg.input.value = value->raw_chars();
+            msg.input.value_size = value->size();
             msg.input.op = type;
 
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
