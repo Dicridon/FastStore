@@ -176,8 +176,7 @@ namespace Hill {
         std::atomic_int tids;
 
         int sock;
-        // std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
-        std::vector<std::unique_ptr<RDMAContext>> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
+        std::array<std::shared_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
         std::vector<std::unique_ptr<RDMAContext>> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
         Memory::RemoteMemoryAgent *agent;
 

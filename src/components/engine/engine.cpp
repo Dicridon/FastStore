@@ -14,7 +14,7 @@ namespace Hill {
         node->stop();
         for (auto &_p : peer_connections) {
             for (auto &p : _p)
-                p.reset(nullptr);
+                p = nullptr;
         }
 
         for (auto &_c : client_connections) {
@@ -53,10 +53,11 @@ namespace Hill {
         read(socket, &remote_id, sizeof(remote_id));
         if (remote_id != Cluster::Constants::iCLIENT_ID) {
             if (remote_id < 0 || size_t(remote_id) >= Cluster::Constants::uMAX_NODE) {
-#ifdef __HILL_INFO__
-                std::cout << "Invalid peer node id: " << remote_id << "\n";
-#endif
                 return -1;
+            }
+
+            if (peer_connections[tid][remote_id] != nullptr) {
+                return 0;
             }
         }
 
@@ -76,7 +77,7 @@ namespace Hill {
             // just keep this connection alive
             client_connections[tid].push_back(std::move(rdma_ctx));
         } else {
-            peer_connections[tid].push_back(std::move(rdma_ctx));
+            peer_connections[tid][remote_id] = std::move(rdma_ctx);
         }
 
         // no longer needed
@@ -91,6 +92,14 @@ namespace Hill {
 
         if (peer_connections[tid][node_id] != nullptr) {
             return true;
+        }
+
+
+        for (int i = 0; i < Memory::Constants::iTHREAD_LIST_NUM; i++) {
+            if (peer_connections[i][node_id] != nullptr) {
+                peer_connections[tid][node_id] = peer_connections[i][node_id];
+                return true;
+            }
         }
 
         auto [rdma, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
@@ -119,6 +128,7 @@ namespace Hill {
 
         peer_connections[tid][node_id] = std::move(rdma);
         shutdown(socket, 0);
+
         return true;
     }
 
