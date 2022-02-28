@@ -148,7 +148,7 @@ namespace Hill {
                             continue;
 
                         if (i->need_memory.load() == true) {
-                            auto ptr = check_available_mem(rm_rpc, *i, i->thread_id);
+                            auto ptr = check_available_mem(rm_rpc, *i, this->index_ids[i->thread_id]);
                             server->get_agent()->add_region(this->index_ids[i->thread_id], ptr);
 
                             msg.input.op = Enums::RPCOperations::CallForMemory;
@@ -350,7 +350,7 @@ namespace Hill {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
 
                 insufficient = server->get_allocator()->get_consumed() >= allowed &&
-                    !server->get_agent()->available(ctx->thread_id);
+                    !server->get_agent()->available(pos);
                 if (insufficient) {
                     ctx->self->index_ids[ctx->thread_id] = pos;
                     ctx->self->contexts[ctx->thread_id]->need_memory = true;
@@ -435,7 +435,7 @@ namespace Hill {
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
                 insufficient = server->get_allocator()->get_consumed() >= allowed &&
-                    !server->get_agent()->available(ctx->thread_id);
+                    !server->get_agent()->available(pos);
 
                 if (insufficient) {
                     ctx->self->index_ids[ctx->thread_id] = pos;
