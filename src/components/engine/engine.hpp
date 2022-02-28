@@ -129,6 +129,9 @@ namespace Hill {
          */
         auto check_rdma_request(int tid) noexcept -> int;
         auto connect_server(int tid, int node_id) -> bool;
+        inline auto server_connected(int tid, int node_id) -> bool {
+            return peer_connections[tid][node_id] != nullptr;
+        }
 
         inline auto get_node() noexcept -> Cluster::Node * {
             return node.get();

@@ -297,6 +297,7 @@ namespace Hill {
 
             std::mutex rpc_id_lock;
             std::mutex tid_lock;
+            std::mutex agent_locks[Memory::Constants::iTHREAD_LIST_NUM];
 
             // available eRPC IDs
             std::vector<int> erpc_ids;

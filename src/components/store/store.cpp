@@ -228,12 +228,14 @@ namespace Hill {
                 }
             }
 
-            if (s_ctx.erpc_sessions[node_id] == -1) {
+            if (!s_ctx.server->server_connected(tid, node_id)) {
                 if (!s_ctx.server->connect_server(tid, node_id)) {
                     std::cerr << ">> Error: can't connect remote server " << node_id << " for more memory\n";
                     return nullptr;
                 }
+            }
 
+            if (s_ctx.erpc_sessions[node_id] == -1) {
                 if (!establish_memory_erpc(rm_rpc, s_ctx, tid, node_id)) {
                     std::cerr << ">> Error: can't connect remote server " << node_id << "'s rpc\n";
                     return nullptr;
@@ -291,7 +293,12 @@ namespace Hill {
 #endif
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
+            
             s_ctx.erpc_sessions[node_id] = rm_rpc->create_session(server_uri, remote_id);
+            if (s_ctx.erpc_sessions[node_id] == -1) {
+                throw std::runtime_error("Failed to create eRPC session for server");
+            }
+            
             while (!rm_rpc->is_connected(s_ctx.erpc_sessions[node_id])) {
                 rm_rpc->run_event_loop_once();
             }
@@ -352,10 +359,17 @@ namespace Hill {
                 insufficient = server->get_allocator()->get_consumed() >= allowed &&
                     !server->get_agent()->available(pos);
                 if (insufficient) {
-                    ctx->self->index_ids[ctx->thread_id] = pos;
-                    ctx->self->contexts[ctx->thread_id]->need_memory = true;
+                    ctx->self->agent_locks[pos].lock();
+                    insufficient = server->get_allocator()->get_consumed() >= allowed &&
+                        !server->get_agent()->available(pos);
 
-                    while(ctx->self->contexts[ctx->thread_id]->need_memory);
+                    if (insufficient) {
+                        ctx->self->index_ids[ctx->thread_id] = pos;
+                        ctx->self->contexts[ctx->thread_id]->need_memory = true;
+
+                        while(ctx->self->contexts[ctx->thread_id]->need_memory);
+                    }
+                    ctx->self->agent_locks[pos].unlock();
                 }
             }
         retry:
@@ -381,12 +395,14 @@ namespace Hill {
                 case Indexing::Enums::OpStatus::NoMemory:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
                     // agent's memory is available but not sufficient;
+                    ctx->self->agent_locks[pos].lock();
                     ctx->self->index_ids[ctx->thread_id] = pos;
                     ctx->self->contexts[ctx->thread_id]->need_memory = true;
 
                     while(ctx->self->contexts[ctx->thread_id]->need_memory);
+                    ctx->self->agent_locks[pos].unlock();
+                    
                     goto retry;
-                    break;
                 default:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
                     break;
