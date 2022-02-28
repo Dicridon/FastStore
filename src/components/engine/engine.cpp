@@ -104,12 +104,14 @@ namespace Hill {
         auto addr = node->cluster_status.cluster.nodes[node_id].addr;
         auto port = node->cluster_status.cluster.nodes[node_id].port;
 
+        std::cout << "RDMA handshaking\n";
         auto socket = Misc::socket_connect(false, port, addr.to_string().c_str());
         if (socket == -1) {
             return false;
         }
 
         write(socket, &node->node_id, sizeof(node->node_id));
+        std::cout << "RDMA handshaking\n";        
         if (rdma->default_connect(socket) != 0) {
             return false;
         }
