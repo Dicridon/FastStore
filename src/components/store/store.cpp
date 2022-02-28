@@ -228,13 +228,16 @@ namespace Hill {
                 }
             }
 
+            std::cout << "Establishing RDMA connection for Bthread " << tid << "\n";
             if (!s_ctx.server->server_connected(tid, node_id)) {
                 if (!s_ctx.server->connect_server(tid, node_id)) {
                     std::cerr << ">> Error: can't connect remote server " << node_id << " for more memory\n";
                     return nullptr;
                 }
             }
+            std::cout << "Done\n";
 
+            std::cout << "Establishing eRPC connection for Bthread " << tid << "\n";
             if (s_ctx.erpc_sessions[node_id] == -1) {
                 if (!establish_memory_erpc(rm_rpc, s_ctx, tid, node_id)) {
                     std::cerr << ">> Error: can't connect remote server " << node_id << "'s rpc\n";
@@ -364,10 +367,12 @@ namespace Hill {
                         !server->get_agent()->available(pos);
 
                     if (insufficient) {
+                        std::cout << "Fthread " << ctx->thread_id << " asking for remote memory for Bthread " << pos << "\n";
                         ctx->self->index_ids[ctx->thread_id] = pos;
                         ctx->self->contexts[ctx->thread_id]->need_memory = true;
 
                         while(ctx->self->contexts[ctx->thread_id]->need_memory);
+
                     }
                     ctx->self->agent_locks[pos].unlock();
                 }
