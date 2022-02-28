@@ -111,10 +111,12 @@ namespace Hill {
         }
 
         write(socket, &node->node_id, sizeof(node->node_id));
-        std::cout << "RDMA handshaking\n";        
+        std::cout << "RDMA handshaking done\n";
+        std::cout << "RDMA default connecting\n";
         if (rdma->default_connect(socket) != 0) {
             return false;
         }
+        std::cout << "RDMA default connecting done\n";
 
         peer_connections[tid][node_id] = std::move(rdma);
         shutdown(socket, 0);
@@ -150,7 +152,7 @@ namespace Hill {
 
         if (auto f = ConfigReader::read_pmem_file(content); f.has_value()) {
             pmem_file = f.value();
-            return true;            
+            return true;
         } else {
             return false;
         }
@@ -265,7 +267,7 @@ namespace Hill {
         if (node_id <= 0 || size_t(node_id) >= Cluster::Constants::uMAX_NODE) {
             return;
         }
-        
+
         server_connections[tid][node_id]->poll_one_completion();
     }
 
