@@ -56,9 +56,9 @@ namespace Hill {
                 return -1;
             }
 
-            if (peer_connections[tid][remote_id] != nullptr) {
-                return 0;
-            }
+            // if (peer_connections[tid][remote_id] != nullptr) {
+            //     return 0;
+            // }
         }
 
         auto [rdma_ctx, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
@@ -72,13 +72,14 @@ namespace Hill {
             std::cerr << "RDMA connection failed\n";
             return err;
         }
-
-        if (remote_id == Cluster::Constants::iCLIENT_ID) {
-            // just keep this connection alive
-            client_connections[tid].push_back(std::move(rdma_ctx));
-        } else {
-            peer_connections[tid][remote_id] = std::move(rdma_ctx);
-        }
+        
+        client_connections[tid].push_back(std::move(rdma_ctx));
+        // if (remote_id == Cluster::Constants::iCLIENT_ID) {
+        //     // just keep this connection alive
+        // 
+        // } else {
+        //     peer_connections[tid][remote_id] = std::move(rdma_ctx);
+        // }
 
         // no longer needed
         shutdown(socket, 0);
@@ -92,14 +93,6 @@ namespace Hill {
 
         if (peer_connections[tid][node_id] != nullptr) {
             return true;
-        }
-
-
-        for (int i = 0; i < Memory::Constants::iTHREAD_LIST_NUM; i++) {
-            if (peer_connections[i][node_id] != nullptr) {
-                peer_connections[tid][node_id] = peer_connections[i][node_id];
-                return true;
-            }
         }
 
         auto [rdma, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
