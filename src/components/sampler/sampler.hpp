@@ -92,7 +92,7 @@ namespace Hill {
         template<typename T>
         class Sampler {
         public:
-            Sampler() = default;
+            Sampler() : cursor(0) {};
             ~Sampler() = default;
             Sampler(const Sampler &) = default;
             Sampler(Sampler &&) = default;
@@ -117,8 +117,8 @@ namespace Hill {
             }
 
         private:
-            Sample<T> samples[Memory::Constants::iTHREAD_LIST_NUM];
             size_t cursor;
+            Sample<T> samples[Memory::Constants::iTHREAD_LIST_NUM];
         };
 
         /*
@@ -198,7 +198,7 @@ namespace Hill {
 
             static const std::string RDMA;
             static const std::string CACHE;
-            static const std::string CACHE_RDMA;            
+            static const std::string CACHE_RDMA;
             static const std::string CHECK_RPC;
             static const std::string PRE_REQ;
             static const std::string RPC;
