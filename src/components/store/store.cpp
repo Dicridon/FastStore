@@ -963,6 +963,7 @@ namespace Hill {
                         ctx->cache.insert(key, poly, size);
                     }
 #ifdef __HILL_FETCH_VALUE__
+                    node_id = poly.remote_ptr().get_node();
                     ctx->client->read_from(ctx->thread_id, node_id, poly.get_as<byte_ptr_t>(), size);
                     ctx->client->poll_completion_once(ctx->thread_id, node_id);
 #endif
