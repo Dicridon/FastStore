@@ -942,46 +942,50 @@ namespace Hill {
             buf += sizeof(Memory::PolymorphicPointer);
             auto size = *reinterpret_cast<size_t *>(buf);
 
-            switch(op) {
-            case Enums::RPCOperations::Insert: {
-                if (status == Enums::RPCStatus::Ok) {
-                    ++ctx->suc_insert;
-                    ctx->cache.insert(key, poly, size);
+            {
+                SampleRecorder<uint64_t> _(ctx->client_sampler->common_sampler,
+                                           ctx->client_sampler->to_sample_type(ClientSampler::CONTI));
+                switch(op) {
+                case Enums::RPCOperations::Insert: {
+                    if (status == Enums::RPCStatus::Ok) {
+                        ++ctx->suc_insert;
+                        ctx->cache.insert(key, poly, size);
+                    }
+                    ++ctx->num_insert;
+                    break;
                 }
-                ++ctx->num_insert;
-                break;
-            }
 
-            case Enums::RPCOperations::Search: {
-                if (status == Enums::RPCStatus::Ok) {
-                    ++ctx->suc_search;
-                    ctx->cache.insert(key, poly, size);
-                }
+                case Enums::RPCOperations::Search: {
+                    if (status == Enums::RPCStatus::Ok) {
+                        ++ctx->suc_search;
+                        ctx->cache.insert(key, poly, size);
+                    }
 #ifdef __HILL_FETCH_VALUE__
-                ctx->client->read_from(ctx->thread_id, node_id, poly.get_as<byte_ptr_t>(), size);
-                ctx->client->poll_completion_once(ctx->thread_id, node_id);
+                    ctx->client->read_from(ctx->thread_id, node_id, poly.get_as<byte_ptr_t>(), size);
+                    ctx->client->poll_completion_once(ctx->thread_id, node_id);
 #endif
-                ++ctx->num_search;
-                break;
-            }
-
-            case Enums::RPCOperations::Update: {
-                if (status == Enums::RPCStatus::Ok) {
-                    ++ctx->suc_update;
-                    ctx->cache.expire(key);
+                    ++ctx->num_search;
+                    break;
                 }
-                ++ctx->num_update;
-                break;
-            }
 
-            case Enums::RPCOperations::Range: {
-                break;
-            }
+                case Enums::RPCOperations::Update: {
+                    if (status == Enums::RPCStatus::Ok) {
+                        ++ctx->suc_update;
+                        ctx->cache.expire(key);
+                    }
+                    ++ctx->num_update;
+                    break;
+                }
 
-            default:
-                break;
+                case Enums::RPCOperations::Range: {
+                    break;
+                }
+
+                default:
+                    break;
+                }
+                ctx->is_done = true;
             }
-            ctx->is_done = true;
         }
     }
 }
