@@ -762,6 +762,7 @@ namespace Hill {
                                                             tid, RPCWrapper::ghost_sm_handler);
 
                 c_ctx.client_sampler = new Sampling::ClientSampler(10000);
+                c_ctx.client_sampler->prepare(); 
 
                 stats.throughputs.timing_now();
                 start = std::chrono::steady_clock::now();
@@ -823,10 +824,6 @@ namespace Hill {
                         double t = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
                         stats.latencies.record(t / 1000);
                         start = std::chrono::steady_clock::now();
-                        std::cout << ">> Insert breakdown: "; c_ctx.client_sampler->report_insert(); std::cout << "\n";
-                        std::cout << ">> Search breakdown: "; c_ctx.client_sampler->report_search(); std::cout << "\n";
-                        std::cout << ">> Update breakdown: "; c_ctx.client_sampler->report_update(); std::cout << "\n";
-                        std::cout << ">> Range breakdown: "; c_ctx.client_sampler->report_scan(); std::cout << "\n\n";
                     }
                 }
                 stats.throughputs.timing_stop();
@@ -839,6 +836,11 @@ namespace Hill {
                 std::cout << "-->> insert: " << c_ctx.suc_insert << "/" << c_ctx.num_insert << "\n";
                 std::cout << "-->> search: " << c_ctx.suc_search << "/" << c_ctx.num_search << "\n";
                 std::cout << "-->> update: " << c_ctx.suc_update << "/" << c_ctx.num_update << "\n";
+                std::cout << ">> Insert breakdown: "; c_ctx.client_sampler->report_insert(); std::cout << "\n";
+                std::cout << ">> Search breakdown: "; c_ctx.client_sampler->report_search(); std::cout << "\n";
+                std::cout << ">> Update breakdown: "; c_ctx.client_sampler->report_update(); std::cout << "\n";
+                std::cout << ">> Range breakdown: "; c_ctx.client_sampler->report_scan(); std::cout << "\n\n"; 
+               
             }, tid.value());
         }
 
