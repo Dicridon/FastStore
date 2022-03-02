@@ -72,11 +72,11 @@ namespace Hill {
             std::cerr << "RDMA connection failed\n";
             return err;
         }
-        
+
         client_connections[tid].push_back(std::move(rdma_ctx));
         // if (remote_id == Cluster::Constants::iCLIENT_ID) {
         //     // just keep this connection alive
-        // 
+        //
         // } else {
         //     peer_connections[tid][remote_id] = std::move(rdma_ctx);
         // }
@@ -95,7 +95,12 @@ namespace Hill {
             return true;
         }
 
-        auto [rdma, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
+        if (bufs[tid][node_id] == nullptr) {
+            bufs[tid][node_id] = std::make_unique<byte_t[]>(Constants::uLOCAL_BUF_SIZE);
+        }
+
+        auto [rdma, status] = rdma_device->open(bufs[tid][node_id].get(), Constants::uLOCAL_BUF_SIZE,
+                                                12, RDMADevice::get_default_mr_access(),
                                                 *RDMADevice::get_default_qp_init_attr());
         if (!rdma) {
             std::cerr << "Failed to create RDMA, error code: " << decode_rdma_status(status) << "\n";

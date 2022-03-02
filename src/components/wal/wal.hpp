@@ -272,7 +272,7 @@ namespace Hill {
             auto operator=(const Logger &) -> Logger & = delete;
             auto operator=(Logger &&) -> Logger & = delete;
 
-        private:
+        public:
             LogRegions *regions;
             bool in_use[Constants::iREGION_NUM];
             size_t counters[Constants::iREGION_NUM];

@@ -266,7 +266,7 @@ namespace Hill {
                 throw std::runtime_error("Remote memory is also depleted");
             }
 #ifdef __HILL_INFO__
-            std::cout << ">> Got remote memory\n";
+            std::cout << ">> Got remote memory at " << ptr.raw_ptr() << "\n";
 #endif
             return ptr;
         }
@@ -296,12 +296,12 @@ namespace Hill {
 #endif
             auto &node = meta.cluster.nodes[node_id];
             auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
-            
+
             s_ctx.erpc_sessions[node_id] = rm_rpc->create_session(server_uri, remote_id);
             if (s_ctx.erpc_sessions[node_id] == -1) {
                 throw std::runtime_error("Failed to create eRPC session for server");
             }
-            
+
             while (!rm_rpc->is_connected(s_ctx.erpc_sessions[node_id])) {
                 rm_rpc->run_event_loop_once();
             }
@@ -367,7 +367,9 @@ namespace Hill {
                         !server->get_agent()->available(pos);
 
                     if (insufficient) {
+#ifdef __HILL_INFO__
                         std::cout << "Fthread " << ctx->thread_id << " asking for remote memory for Bthread " << pos << "\n";
+#endif
                         ctx->self->index_ids[ctx->thread_id] = pos;
                         ctx->self->contexts[ctx->thread_id]->need_memory = true;
 
@@ -406,7 +408,7 @@ namespace Hill {
 
                     while(ctx->self->contexts[ctx->thread_id]->need_memory);
                     ctx->self->agent_locks[pos].unlock();
-                    
+
                     goto retry;
                 default:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
@@ -455,14 +457,25 @@ namespace Hill {
             bool insufficient = false;
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::CAP_CHECK));
+
                 insufficient = server->get_allocator()->get_consumed() >= allowed &&
                     !server->get_agent()->available(pos);
-
                 if (insufficient) {
-                    ctx->self->index_ids[ctx->thread_id] = pos;
-                    ctx->self->contexts[ctx->thread_id]->need_memory = true;
+                    ctx->self->agent_locks[pos].lock();
+                    insufficient = server->get_allocator()->get_consumed() >= allowed &&
+                        !server->get_agent()->available(pos);
 
-                    while(ctx->self->contexts[ctx->thread_id]->need_memory);
+                    if (insufficient) {
+#ifdef __HILL_INFO__
+                        std::cout << "Fthread " << ctx->thread_id << " asking for remote memory for Bthread " << pos << "\n";
+#endif
+                        ctx->self->index_ids[ctx->thread_id] = pos;
+                        ctx->self->contexts[ctx->thread_id]->need_memory = true;
+
+                        while(ctx->self->contexts[ctx->thread_id]->need_memory);
+
+                    }
+                    ctx->self->agent_locks[pos].unlock();
                 }
             }
         retry:
@@ -489,14 +502,15 @@ namespace Hill {
                     break;
                 case Indexing::Enums::OpStatus::NoMemory:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::NoMemory;
-                    // agent's memory is available but not sufficient
+                    // agent's memory is available but not sufficient;
+                    ctx->self->agent_locks[pos].lock();
                     ctx->self->index_ids[ctx->thread_id] = pos;
                     ctx->self->contexts[ctx->thread_id]->need_memory = true;
 
                     while(ctx->self->contexts[ctx->thread_id]->need_memory);
-                    
+                    ctx->self->agent_locks[pos].unlock();
+
                     goto retry;
-                    break;
                 default:
                     *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Failed;
                     break;
@@ -673,7 +687,11 @@ namespace Hill {
             }
             offset += sizeof(Enums::RPCStatus);
 
-            *reinterpret_cast<Memory::RemotePointer *>(resp.buf + offset) = Memory::RemotePointer::make_remote_pointer(ctx->node_id, ptr);
+            auto rptr = Memory::RemotePointer::make_remote_pointer(ctx->node_id, ptr);
+            *reinterpret_cast<Memory::RemotePointer *>(resp.buf + offset) = rptr;
+#ifdef __HILL_INFO__
+            std::cout << ">> Offering remote memory " << (void *)rptr.raw_ptr() << "\n";
+#endif
 
             ctx->rpc->enqueue_response(req_handle, &resp);
             logger->commit(tid);

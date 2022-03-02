@@ -42,24 +42,24 @@ namespace Hill {
 
             // crashing here is ok because valid keys can not find their corresponding values, so just roll
             // the keys
-            ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
+            auto &v_ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
             auto total = sizeof(KVPair::HillStringHeader) + v_sz;
             if (!agent) {
-                alloc->allocate(tid, total, ptr);
-                KVPair::HillString::make_string(ptr, v, v_sz);
-                values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(ptr);
+                alloc->allocate(tid, total, v_ptr);
+                KVPair::HillString::make_string(v_ptr, v, v_sz);
+                values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(v_ptr);
                 value_sizes[i] = total;
             } else {
-                agent->allocate(tid, total, ptr);
-                if (ptr == nullptr) {
+                agent->allocate(tid, total, v_ptr);
+                if (v_ptr == nullptr) {
                     return {Enums::OpStatus::NoMemory, nullptr};
                 }
-                values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(ptr);
+                values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(v_ptr);
                 value_sizes[i] = total;
                 auto &connection = agent->get_peer_connection(tid, values[i].remote_ptr().get_node());
                 auto buf = std::make_unique<byte_t[]>(total);
 
-                Memory::RemotePointer rp(ptr);
+                Memory::RemotePointer rp(v_ptr);
                 auto &t = KVPair::HillString::make_string(buf.get(), v, v_sz);
                 connection->post_write(rp.get_as<byte_ptr_t>(), t.raw_bytes(), total);
                 connection->poll_completion_once();
@@ -221,7 +221,7 @@ namespace Hill {
             // Here node split is done in terms of recovery, because inner nodes are reconstructed from
             // leaf nodes, thus though new node is not added to ancestors, split is still finished.
             logger->commit(tid);
-             return {n, ret_ptr};
+            return {n, ret_ptr};
         }
 
         auto OLFIT::split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child) -> std::pair<InnerNode *, hill_key_t *> {

@@ -109,6 +109,12 @@ namespace Hill {
                     c = nullptr;
                 }
             }
+
+            for (auto &b : ret->bufs) {
+                for (auto &p : b) {
+                    p = nullptr;
+                }
+            }
             
             ret->sock = 0;
             ret->run = false;
@@ -177,8 +183,10 @@ namespace Hill {
 
         int sock;
         std::array<std::unique_ptr<RDMAContext>, Cluster::Constants::uMAX_NODE> peer_connections[Memory::Constants::iTHREAD_LIST_NUM];
-        std::vector<std::unique_ptr<RDMAContext>> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
+        std::array<std::unique_ptr<byte_t[]>, Cluster::Constants::uMAX_NODE> bufs[Memory::Constants::iTHREAD_LIST_NUM];
         Memory::RemoteMemoryAgent *agent;
+
+        std::vector<std::unique_ptr<RDMAContext>> client_connections[Memory::Constants::iTHREAD_LIST_NUM];
 
         auto parse_ib(const std::string &config) noexcept -> bool;
         auto parse_pmem(const std::string &config) noexcept -> bool;
