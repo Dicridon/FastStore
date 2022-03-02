@@ -196,7 +196,7 @@ namespace Hill {
                       << Misc::avg(common_sampler.get_sample(to_sample_type(PRE_REQ)).content())
                       << "]], "
                       << "[[" << RPC << ": "
-                      << Misc::avg(insert_sampler.get_sample(to_sample_type(RPC)).content())
+                      << Misc::avg(common_sampler.get_sample(to_sample_type(RPC)).content())
                       << "]], "
                       << "[[" << CONTI << ": "
                       << Misc::avg(insert_sampler.get_sample(to_sample_type(CONTI)).content())
@@ -220,7 +220,7 @@ namespace Hill {
                       << Misc::avg(common_sampler.get_sample(to_sample_type(PRE_REQ)).content())
                       << "]], "
                       << "[[" << RPC << ": "
-                      << Misc::avg(search_sampler.get_sample(to_sample_type(RPC)).content())
+                      << Misc::avg(common_sampler.get_sample(to_sample_type(RPC)).content())
                       << "]], "
                       << "[[" << CONTI << ": "
                       << Misc::avg(search_sampler.get_sample(to_sample_type(CONTI)).content())
@@ -268,7 +268,7 @@ namespace Hill {
                       << Misc::avg(common_sampler.get_sample(to_sample_type(PRE_REQ)).content())
                       << "]], "
                       << "[[" << RPC << ": "
-                      << Misc::avg(scan_sampler.get_sample(to_sample_type(RPC)).content())
+                      << Misc::avg(common_sampler.get_sample(to_sample_type(RPC)).content())
                       << "]], "
                       << "[[" << CONTI << ": "
 
