@@ -88,6 +88,10 @@ namespace Hill {
                 return ptr;
             }
 
+            inline auto void_ptr() const noexcept -> void * {
+                return (void *)ptr;
+            }
+
             inline auto is_nullptr() const noexcept -> bool {
                 return ptr == nullptr;
             }

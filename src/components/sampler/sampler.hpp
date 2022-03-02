@@ -166,143 +166,60 @@ namespace Hill {
             // range
             static const std::string MERGE;
 
-            auto prepare() -> void {
-                auto total = 0;
-                auto i = insert_sampler.new_sampling_type(batch_size).value();
-                sample_map.insert({PARSE, i});
-                ++total;
-
-                i = insert_sampler.new_sampling_type(batch_size).value();
-                sample_map.insert({CAP_CHECK, i});
-                ++total;
-
-                i = insert_sampler.new_sampling_type(batch_size).value();
-                sample_map.insert({INDEXING, i});
-                ++total;
-
-                i = insert_sampler.new_sampling_type(batch_size).value();
-                sample_map.insert({CAP_RECHECK, i});
-                ++total;
-
-                i = insert_sampler.new_sampling_type(batch_size).value();
-                sample_map.insert({RESP_MSG, i});
-                ++total;
-
-                i = insert_sampler.new_sampling_type(batch_size).value();
-                sample_map.insert({RESP, i});
-                ++total;
-
-                i = insert_sampler.new_sampling_type(batch_size).value();
-                sample_map.insert({MERGE, i});
-                ++total;
-
-                for (int i = 0; i < total; i++) {
-                    search_sampler.new_sampling_type(batch_size);
-                    update_sampler.new_sampling_type(batch_size);
-                    remove_sampler.new_sampling_type(batch_size);
-                    scan_sampler.new_sampling_type(batch_size);
-                }
-            }
-
             Sampler<uint64_t> insert_sampler;
             Sampler<uint64_t> search_sampler;
             Sampler<uint64_t> update_sampler;
             Sampler<uint64_t> remove_sampler;
             Sampler<uint64_t> scan_sampler;
 
-            auto to_sample_type(const std::string &in) const noexcept -> SampleType {
+            auto prepare() -> void;
+            inline auto to_sample_type(const std::string &in) const noexcept -> SampleType {
                 return sample_map.find(in)->second;
             }
+            auto report_insert() const noexcept -> void;
+            auto report_search() const noexcept -> void;
+            auto report_update() const noexcept -> void;
+            auto report_remove() const noexcept -> void;
+            auto report_scan() const noexcept -> void;
 
-            auto report_insert() const noexcept -> void {
-                std::cout << "[[" << PARSE << ": "
-                          << Misc::avg(insert_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]], "
-                          << "[[" << CAP_CHECK << ": "
-                          << Misc::avg(insert_sampler.get_sample(to_sample_type(CAP_CHECK)).content())
-                          << "]], "
-                          << "[[" << INDEXING << ": "
-                          << Misc::avg(insert_sampler.get_sample(to_sample_type(INDEXING)).content())
-                          << "]], "
-                          << "[[" << CAP_RECHECK << ": "
-                          << Misc::avg(insert_sampler.get_sample(to_sample_type(CAP_RECHECK)).content())
-                          << "]], "
-                          << "[[" << RESP_MSG << ": "
-                          << Misc::avg(insert_sampler.get_sample(to_sample_type(RESP_MSG)).content())
-                          << "]], "
-                          << "[[" << RESP << ": "
-                          << Misc::avg(insert_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]]";
-            }
+        private:
+            size_t batch_size;
+            std::unordered_map<std::string, SampleType> sample_map;
+        };
 
-            auto report_search() const noexcept -> void {
-                std::cout << "[[" << PARSE << ": "
-                          << Misc::avg(search_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]], "
-                          << "[[" << INDEXING << ": "
-                          << Misc::avg(search_sampler.get_sample(to_sample_type(INDEXING)).content())
-                          << "]], "
-                          << "[[" << RESP_MSG << ": "
-                          << Misc::avg(search_sampler.get_sample(to_sample_type(RESP_MSG)).content())
-                          << "]], "
-                          << "[[" << RESP << ": "
-                          << Misc::avg(search_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]]";
-            }
+        class ClientSampler {
+        public:
+            ClientSampler(size_t b) : batch_size(b) {};
+            ~ClientSampler() = default;
+            ClientSampler(const ClientSampler &) = delete;
+            ClientSampler(ClientSampler &&) = delete;
+            auto operator=(const ClientSampler &) -> ClientSampler & = delete;
+            auto operator=(ClientSampler &&) -> ClientSampler & = delete;
 
-            auto report_update() const noexcept -> void {
-                std::cout << "[[" << PARSE << ": "
-                          << Misc::avg(update_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]], "
-                          << "[[" << CAP_CHECK << ": "
-                          << Misc::avg(update_sampler.get_sample(to_sample_type(CAP_CHECK)).content())
-                          << "]], "
-                          << "[[" << INDEXING << ": "
-                          << Misc::avg(update_sampler.get_sample(to_sample_type(INDEXING)).content())
-                          << "]], "
-                          << "[[" << CAP_RECHECK << ": "
-                          << Misc::avg(update_sampler.get_sample(to_sample_type(CAP_RECHECK)).content())
-                          << "]], "
-                          << "[[" << RESP_MSG << ": "
-                          << Misc::avg(update_sampler.get_sample(to_sample_type(RESP_MSG)).content())
-                          << "]], "
-                          << "[[" << RESP << ": "
-                          << Misc::avg(update_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]]";
-            }
+            static const std::string RDMA;
+            static const std::string CACHE;
+            static const std::string CACHE_RDMA;            
+            static const std::string CHECK_RPC;
+            static const std::string PRE_REQ;
+            static const std::string RPC;
+            static const std::string CONTI;
 
-            auto report_remove() const noexcept -> void {
-                std::cout << "[[" << PARSE << ": "
-                          << Misc::avg(remove_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]], "
-                          << "[[" << INDEXING << ": "
-                          << Misc::avg(remove_sampler.get_sample(to_sample_type(INDEXING)).content())
-                          << "]], "
-                          << "[[" << RESP_MSG << ": "
-                          << Misc::avg(remove_sampler.get_sample(to_sample_type(RESP_MSG)).content())
-                          << "]], "
-                          << "[[" << RESP << ": "
-                          << Misc::avg(remove_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]]";
-            }
+            Sampler<uint64_t> insert_sampler;
+            Sampler<uint64_t> search_sampler;
+            Sampler<uint64_t> update_sampler;
+            Sampler<uint64_t> remove_sampler;
+            Sampler<uint64_t> scan_sampler;
+            Sampler<uint64_t> common_sampler;
 
-            auto report_scan() const noexcept -> void {
-                std::cout << "[[" << PARSE << ": "
-                          << Misc::avg(scan_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]], "
-                          << "[[" << INDEXING << ": "
-                          << Misc::avg(scan_sampler.get_sample(to_sample_type(INDEXING)).content())
-                          << "]], "
-                          << "[[" << MERGE << ": "
-                          << Misc::avg(scan_sampler.get_sample(to_sample_type(MERGE)).content())
-                          << "]], "
-                          << "[[" << RESP_MSG << ": "
-                          << Misc::avg(scan_sampler.get_sample(to_sample_type(RESP_MSG)).content())
-                          << "]], "
-                          << "[[" << RESP << ": "
-                          << Misc::avg(scan_sampler.get_sample(to_sample_type(RESP)).content())
-                          << "]]";
+            auto prepare() -> void;
+            inline auto to_sample_type(const std::string &in) const noexcept -> SampleType {
+                return sample_map.find(in)->second;
             }
+            auto report_insert() const noexcept -> void;
+            auto report_search() const noexcept -> void;
+            auto report_update() const noexcept -> void;
+            auto report_remove() const noexcept -> void;
+            auto report_scan() const noexcept -> void;
 
         private:
             size_t batch_size;

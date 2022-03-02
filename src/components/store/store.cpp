@@ -266,7 +266,7 @@ namespace Hill {
                 throw std::runtime_error("Remote memory is also depleted");
             }
 #ifdef __HILL_INFO__
-            std::cout << ">> Got remote memory at " << ptr.raw_ptr() << "\n";
+            std::cout << ">> Got remote memory at " << ptr.void_ptr() << "\n";
 #endif
             return ptr;
         }
@@ -690,7 +690,7 @@ namespace Hill {
             auto rptr = Memory::RemotePointer::make_remote_pointer(ctx->node_id, ptr);
             *reinterpret_cast<Memory::RemotePointer *>(resp.buf + offset) = rptr;
 #ifdef __HILL_INFO__
-            std::cout << ">> Offering remote memory " << (void *)rptr.raw_ptr() << "\n";
+            std::cout << ">> Offering remote memory " << rptr.void_ptr() << "\n";
 #endif
 
             ctx->rpc->enqueue_response(req_handle, &resp);
@@ -761,45 +761,72 @@ namespace Hill {
                 c_ctx.rpc = new erpc::Rpc<erpc::CTransport>(nexus, reinterpret_cast<void *>(&c_ctx),
                                                             tid, RPCWrapper::ghost_sm_handler);
 
+                c_ctx.client_sampler = new Sampling::ClientSampler(10000);
+
                 stats.throughputs.timing_now();
                 start = std::chrono::steady_clock::now();
                 for (auto &i : load) {
                     if (i.type == Workload::Enums::Search) {
-                        auto ret = c_ctx.cache.get(i.key);
-                        if (ret != nullptr) {
+                        {
+                            SampleRecorder<size_t> _(c_ctx.client_sampler->search_sampler,
+                                                     c_ctx.client_sampler->to_sample_type(ClientSampler::CACHE));
+                            auto ret = c_ctx.cache.get(i.key);
+                            if (ret != nullptr) {
 #ifdef __HILL_FETCH_VALUE__
-                            auto re_ptr = ret->value_ptr.remote_ptr();
-                            c_ctx.client->read_from(c_ctx.thread_id, re_ptr.get_node(), re_ptr.get_as<byte_ptr_t>(), ret->value_size);
-                            c_ctx.client->poll_completion_once(c_ctx.thread_id, re_ptr.get_node());
+                                SampleRecorder<size_t> _(c_ctx.client_sampler->search_sampler,
+                                                         c_ctx.client_sampler->to_sample_type(ClientSampler::CACHE_RDMA));
+                                auto re_ptr = ret->value_ptr.remote_ptr();
+                                c_ctx.client->read_from(c_ctx.thread_id, re_ptr.get_node(),
+                                                        re_ptr.get_as<byte_ptr_t>(), ret->value_size);
+                                c_ctx.client->poll_completion_once(c_ctx.thread_id, re_ptr.get_node());
 #endif
-                            ++c_ctx.num_search;
-                            ++c_ctx.suc_search;
-                            goto sample;
+                                ++c_ctx.num_search;
+                                ++c_ctx.suc_search;
+                                goto sample;
+                            }
                         }
                     }
 
                     c_ctx.is_done = false;
-                    _node_id = check_rpc_connection(tid, i, c_ctx);
+                    {
+                        SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler,
+                                                 c_ctx.client_sampler->to_sample_type(ClientSampler::CHECK_RPC));
+                        _node_id = check_rpc_connection(tid, i, c_ctx);
+                    }
                     if (!_node_id.has_value()) {
                         continue;
                     }
 
                     node_id = _node_id.value();
-                    prepare_request(node_id, i, c_ctx);
 
+                    {
+                        SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler,
+                                                 c_ctx.client_sampler->to_sample_type(ClientSampler::PRE_REQ));
+                        prepare_request(node_id, i, c_ctx);                        
+                    }
+                    
                     // cache is updated in the response_continuation
-                    c_ctx.rpc->enqueue_request(c_ctx.erpc_sessions[node_id], i.type,
-                                               &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
-                                               response_continuation, &node_id);
-                    while(!c_ctx.is_done) {
-                        c_ctx.rpc->run_event_loop_once();
+                    {
+                        SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler,
+                                                 c_ctx.client_sampler->to_sample_type(ClientSampler::RPC));
+                    
+                        c_ctx.rpc->enqueue_request(c_ctx.erpc_sessions[node_id], i.type,
+                                                   &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
+                                                   response_continuation, &node_id);
+                        while(!c_ctx.is_done) {
+                            c_ctx.rpc->run_event_loop_once();
+                        }
                     }
                 sample:
-                    if ((++counter) % 1000 == 0) {
+                    if ((++counter) % 10000 == 0) {
                         end = std::chrono::steady_clock::now();
                         double t = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
                         stats.latencies.record(t / 1000);
                         start = std::chrono::steady_clock::now();
+                        std::cout << ">> Insert breakdown: "; c_ctx.client_sampler->report_insert(); std::cout << "\n";
+                        std::cout << ">> Search breakdown: "; c_ctx.client_sampler->report_search(); std::cout << "\n";
+                        std::cout << ">> Update breakdown: "; c_ctx.client_sampler->report_update(); std::cout << "\n";
+                        std::cout << ">> Range breakdown: "; c_ctx.client_sampler->report_scan(); std::cout << "\n\n";
                     }
                 }
                 stats.throughputs.timing_stop();

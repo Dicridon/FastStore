@@ -162,6 +162,8 @@ namespace Hill {
             uint64_t num_update;
             uint64_t suc_update;
 
+            ClientSampler *client_sampler;
+
             ClientContext() : thread_id(0), is_done(false), cache(ReadCache::Constants::uCACHE_SIZE){
                 thread_id = 0;
                 is_done = false;
