@@ -774,12 +774,14 @@ namespace Hill {
                             auto ret = c_ctx.cache.get(i.key);
                             if (ret != nullptr) {
 #ifdef __HILL_FETCH_VALUE__
-                                SampleRecorder<size_t> _(c_ctx.client_sampler->search_sampler,
-                                                         c_ctx.client_sampler->to_sample_type(ClientSampler::CACHE_RDMA));
-                                auto re_ptr = ret->value_ptr.remote_ptr();
-                                c_ctx.client->read_from(c_ctx.thread_id, re_ptr.get_node(),
-                                                        re_ptr.get_as<byte_ptr_t>(), ret->value_size);
-                                c_ctx.client->poll_completion_once(c_ctx.thread_id, re_ptr.get_node());
+                                {
+                                    SampleRecorder<size_t> _(c_ctx.client_sampler->search_sampler,
+                                                             c_ctx.client_sampler->to_sample_type(ClientSampler::CACHE_RDMA));
+                                    auto re_ptr = ret->value_ptr.remote_ptr();
+                                    c_ctx.client->read_from(c_ctx.thread_id, re_ptr.get_node(),
+                                                            re_ptr.get_as<byte_ptr_t>(), ret->value_size);
+                                    c_ctx.client->poll_completion_once(c_ctx.thread_id, re_ptr.get_node());
+                                }
 #endif
                                 ++c_ctx.num_search;
                                 ++c_ctx.suc_search;
