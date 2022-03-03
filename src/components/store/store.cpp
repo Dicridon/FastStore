@@ -891,6 +891,7 @@ namespace Hill {
                 c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
                 shutdown(socket, 0);
             }
+            return true;
         }
 
         auto StoreClient::prepare_request(int node_id, const Workload::WorkloadItem &item,
