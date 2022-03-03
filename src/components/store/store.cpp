@@ -762,7 +762,12 @@ namespace Hill {
                                                             tid, RPCWrapper::ghost_sm_handler);
 
                 c_ctx.client_sampler = new Sampling::ClientSampler(10000);
-                c_ctx.client_sampler->prepare(); 
+                c_ctx.client_sampler->prepare();
+
+                if (!connect_all_servers(tid, c_ctx)) {
+                    std::cerr << ">> Failed to connect all servers\n";
+                    return ;
+                }
 
                 stats.throughputs.timing_now();
                 start = std::chrono::steady_clock::now();
@@ -794,7 +799,7 @@ namespace Hill {
                     {
                         SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler,
                                                  c_ctx.client_sampler->to_sample_type(ClientSampler::CHECK_RPC));
-                        _node_id = check_rpc_connection(tid, i, c_ctx);
+                        _node_id = c_ctx.client->get_cluster_meta().filter_node(i.key);
                     }
                     if (!_node_id.has_value()) {
                         continue;
@@ -846,53 +851,46 @@ namespace Hill {
             }, tid.value());
         }
 
-        auto StoreClient::check_rpc_connection(int tid, const Workload::WorkloadItem &item,
-                                               ClientContext &c_ctx) -> std::optional<int>
-        {
+        auto StoreClient::connect_all_servers(int tid, ClientContext &c_ctx) -> bool {
             const auto &meta = this->client->get_cluster_meta();
-            auto node_id = meta.filter_node(item.key);
+            const auto &cluster = meta.cluster;
 
-            if (c_ctx.erpc_sessions[node_id] != -1) {
-                return node_id;
-            }
-
-            if (node_id == 0) {
-                return {};
-            }
-
-            if (!client->is_connected(tid, node_id)) {
-                if (!client->connect_server(tid, node_id)) {
-                    std::cerr << "Client can not connect to server " << node_id << "\n";
-                    return {};
+            // skip the monitor
+            for (int i = 1; i < cluster.node_num; i++) {
+                auto node_id = cluster.nodes[i].node_id;
+                if (!client->is_connected(tid, node_id)) {
+                    if (!client->connect_server(tid, node_id)) {
+                        std::cerr << "Client can not connect to server " << node_id << "\n";
+                        return false;
+                    }
                 }
-            }
 
 #ifdef __HILL_INFO__
-            std::cout << ">> Creating eRPC for thread " << tid << "\n";
-            std::cout << ">> Connecting to node " << node_id << " at listen port: "
-                      << meta.cluster.nodes[node_id].erpc_listen_port << "\n";
+                std::cout << ">> Creating eRPC for thread " << tid << "\n";
+                std::cout << ">> Connecting to node " << node_id << " at listen port: "
+                          << meta.cluster.nodes[node_id].erpc_listen_port << "\n";
 #endif
-            auto socket = Misc::socket_connect(false,
-                                               meta.cluster.nodes[node_id].erpc_listen_port,
-                                               meta.cluster.nodes[node_id].addr.to_string().c_str());
+                auto socket = Misc::socket_connect(false,
+                                                   meta.cluster.nodes[node_id].erpc_listen_port,
+                                                   meta.cluster.nodes[node_id].addr.to_string().c_str());
 #ifdef __HILL_INFO__
-            std::cout << ">> Connected\n";
+                std::cout << ">> Connected\n";
 #endif
-            auto remote_id = 0;
-            read(socket, &remote_id, sizeof(remote_id));
+                auto remote_id = 0;
+                read(socket, &remote_id, sizeof(remote_id));
 
-            auto &node = meta.cluster.nodes[node_id];
-            auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
-            auto rpc = c_ctx.rpc;
-            c_ctx.erpc_sessions[node_id] = rpc->create_session(server_uri, remote_id);
-            while (!rpc->is_connected(c_ctx.erpc_sessions[node_id])) {
-                rpc->run_event_loop_once();
+                auto &node = meta.cluster.nodes[node_id];
+                auto server_uri = node.addr.to_string() + ":" + std::to_string(node.erpc_port);
+                auto rpc = c_ctx.rpc;
+                c_ctx.erpc_sessions[node_id] = rpc->create_session(server_uri, remote_id);
+                while (!rpc->is_connected(c_ctx.erpc_sessions[node_id])) {
+                    rpc->run_event_loop_once();
+                }
+
+                c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
+                c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
+                shutdown(socket, 0);
             }
-
-            c_ctx.req_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
-            c_ctx.resp_bufs[node_id] = rpc->alloc_msg_buffer_or_die(64);
-            shutdown(socket, 0);
-            return node_id;
         }
 
         auto StoreClient::prepare_request(int node_id, const Workload::WorkloadItem &item,
