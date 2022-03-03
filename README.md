@@ -3,7 +3,9 @@
 
 Perhaps I will need a simple object system to support recovery
 
-Remember to test a B+ Tree on NMV and RDMA. Find out which one will be exhausted, CPU or NIC?
+Remember to test a B+ Tree on NVM and RDMA. Find out which one will be exhausted, CPU or NIC?
+
+Can't believe this mess is working and working correctly
 
 ## Compilation
 Compiling this project can be a little annoying due to external dependencies. Make sure `libpmem`, `libnuma`, `libibverbs` are installed (Linux package manager `apt` or `yum` would be sufficient). 
