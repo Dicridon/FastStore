@@ -481,7 +481,6 @@ namespace Hill {
         retry:
             {
                 SampleRecorder<uint64_t> _(sampler, handle_sampler->to_sample_type(HandleSampler::INDEXING));
-
                 while(!ctx->queues[pos].push(&msg));
 
                 while(msg.output.status.load() == Indexing::Enums::OpStatus::Unkown);
