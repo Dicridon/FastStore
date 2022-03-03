@@ -856,7 +856,7 @@ namespace Hill {
             const auto &cluster = meta.cluster;
 
             // skip the monitor
-            for (int i = 1; i < cluster.node_num; i++) {
+            for (int i = 1; i <= cluster.node_num; i++) {
                 auto node_id = cluster.nodes[i].node_id;
                 if (!client->is_connected(tid, node_id)) {
                     if (!client->connect_server(tid, node_id)) {
