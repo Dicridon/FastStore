@@ -58,30 +58,25 @@ auto client(const std::string &uri, const std::string &server) -> void {
     ctx.resp_buf = ctx.rpc->alloc_msg_buffer_or_die(32);
     auto session = ctx.rpc->create_session(server, 0);
     while (!ctx.rpc->is_connected(session)) {
-        std::cout << "waiting connection\n";
+        std::cout << "Waiting connection\n";
         ctx.rpc->run_event_loop_once();
     }
 
-    std::vector<std::string> workload;
-    uint64_t start = (1UL << 63) + (1UL << 62);
-    for (auto i = 0UL; i < 1000000; i++) {
-        workload.emplace_back(std::to_string(start - i));
-    }
+    std::cout << "Connected\n";
 
-    auto s = std::chrono::steady_clock::now();
-    for (auto &i : workload) {
+    uint64_t msg = 0;
+    std::vector<std::string> workload;
+    while(true) {
         ctx.done = false;        
-        memcpy(ctx.req_buf.buf, i.c_str(), i.size());
+        *reinterpret_cast<uint64_t *>(ctx.req_buf.buf) = msg;
         ctx.rpc->enqueue_request(session, 0, &ctx.req_buf, &ctx.resp_buf, res_cont, nullptr);
-        // sleepp(1)
-        // ctx.rpc->run_event_loop_once();
         while (!ctx.done.load()) {
             ctx.rpc->run_event_loop_once();
         }
+
+        msg = *reinterpret_cast<uint64_t *>(ctx.resp_buf.buf);
+        sleep(1);
     }
-    auto e = std::chrono::steady_clock::now();
-    auto throughput = 1000000.0 / std::chrono::duration_cast<std::chrono::milliseconds>(e - s).count();
-    std::cout << "Throughput is " << throughput << "\n";
 }
 
 auto main(int argc, char *argv[]) -> int {
