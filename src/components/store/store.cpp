@@ -324,9 +324,10 @@ namespace Hill {
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
             auto server = ctx->server;
+#ifdef __HILL_SAMPLE__
             auto handle_sampler = ctx->handle_sampler;
             auto &sampler = handle_sampler->insert_sampler;
-
+#endif
             Enums::RPCOperations type; KVPair::HillString *key, *value;
 #ifdef __HILL_SAMPLE__
             {
@@ -439,9 +440,10 @@ namespace Hill {
         auto StoreServer::update_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
             auto server = ctx->server;
+#ifdef __HILL_SAMPLE__
             auto handle_sampler = ctx->handle_sampler;
             auto &sampler = handle_sampler->update_sampler;
-
+#endif
             Enums::RPCOperations type; KVPair::HillString *key, *value;
 #ifdef __HILL_SAMPLE__
             {
@@ -552,9 +554,10 @@ namespace Hill {
 
         auto StoreServer::search_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
+#ifdef __HILL_SAMPLE__
             auto handle_sampler = ctx->handle_sampler;
             auto &sampler = handle_sampler->search_sampler;
-
+#endif
             Enums::RPCOperations type; KVPair::HillString *key, *value;
 #ifdef __HILL_SAMPLE__
             {
@@ -630,9 +633,10 @@ namespace Hill {
 
         auto StoreServer::range_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
-
+#ifdef __HILL_SAMPLE__
             auto handle_sampler = ctx->handle_sampler;
             auto &sampler = handle_sampler->scan_sampler;
+#endif
             Enums::RPCOperations type; KVPair::HillString *key, *value;
 #ifdef __HILL_SAMPLE__
             {
@@ -826,13 +830,17 @@ namespace Hill {
                             auto ret = c_ctx.cache.get(i.key);
                             if (ret != nullptr) {
 #ifdef __HILL_FETCH_VALUE__
+#ifdef __HILL_SAMPLE__
                                 {
                                     SampleRecorder<size_t> _(c_ctx.client_sampler->search_sampler, ClientSampler::CACHE_RDMA);
+#endif
                                     auto re_ptr = ret->value_ptr.remote_ptr();
                                     c_ctx.client->read_from(c_ctx.thread_id, re_ptr.get_node(),
                                                             re_ptr.get_as<byte_ptr_t>(), ret->value_size);
                                     c_ctx.client->poll_completion_once(c_ctx.thread_id, re_ptr.get_node());
+#ifdef __HILL_SAMPLE__
                                 }
+#endif
 #endif
                                 ++c_ctx.num_search;
                                 ++c_ctx.suc_search;
@@ -844,12 +852,12 @@ namespace Hill {
                     }
 
                     c_ctx.is_done = false;
-#ifdef __HILL_FETCH_VALUE__
+#ifdef __HILL_SAMPLE__
                     {
                         SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler, ClientSampler::CHECK_RPC);
 #endif
                         _node_id = c_ctx.client->get_cluster_meta().filter_node(i.key);
-#ifdef __HILL_FETCH_VALUE__
+#ifdef __HILL_SAMPLE__
                     }
 #endif
                     if (!_node_id.has_value()) {
