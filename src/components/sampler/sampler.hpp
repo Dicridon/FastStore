@@ -166,6 +166,17 @@ namespace Hill {
             // range
             static const SampleType MERGE;
 
+            // insert, search, update
+            static const std::string sPARSE;
+            static const std::string sCAP_CHECK;
+            static const std::string sCAP_RECHECK;
+            static const std::string sINDEXING;
+            static const std::string sRESP_MSG;
+            static const std::string sRESP;
+
+            // range
+            static const std::string sMERGE;
+
             Sampler<uint64_t> insert_sampler;
             Sampler<uint64_t> search_sampler;
             Sampler<uint64_t> update_sampler;
@@ -199,6 +210,14 @@ namespace Hill {
             static const SampleType PRE_REQ;
             static const SampleType RPC;
             static const SampleType CONTI;
+
+            static const std::string sRDMA;
+            static const std::string sCACHE;
+            static const std::string sCACHE_RDMA;
+            static const std::string sCHECK_RPC;
+            static const std::string sPRE_REQ;
+            static const std::string sRPC;
+            static const std::string sCONTI;
             
             Sampler<uint64_t> insert_sampler;
             Sampler<uint64_t> search_sampler;

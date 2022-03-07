@@ -16,10 +16,27 @@ namespace Hill {
         const SampleType ClientSampler::PRE_REQ = 4;
         const SampleType ClientSampler::RPC = 5;
         const SampleType ClientSampler::CONTI = 6;
-        
+
+        const std::string HandleSampler::sPARSE = "parsing";
+        const std::string HandleSampler::sCAP_CHECK = "cap check";
+        const std::string HandleSampler::sCAP_RECHECK = "cap recheck";
+        const std::string HandleSampler::sINDEXING = "indexing";
+        const std::string HandleSampler::sRESP_MSG = "resp msg";
+        const std::string HandleSampler::sRESP = "resp";
+        const std::string HandleSampler::sMERGE = "merge";
+
+        const std::string ClientSampler::sRDMA = "rdma";
+        const std::string ClientSampler::sCACHE = "cache";
+        const std::string ClientSampler::sCACHE_RDMA = "cache rdma";
+        const std::string ClientSampler::sCHECK_RPC = "check rpc";
+        const std::string ClientSampler::sPRE_REQ = "pre req";
+        const std::string ClientSampler::sRPC = "rpc";
+        const std::string ClientSampler::sCONTI = "conti";
+
+
         auto HandleSampler::prepare() -> void {
             for (int i = 0; i < 7; i++) {
-                insert_sampler.new_sampling_type(batch_size).value();                
+                insert_sampler.new_sampling_type(batch_size).value();
                 search_sampler.new_sampling_type(batch_size);
                 update_sampler.new_sampling_type(batch_size);
                 remove_sampler.new_sampling_type(batch_size);
@@ -28,98 +45,98 @@ namespace Hill {
         }
 
         auto HandleSampler::report_insert() const noexcept -> void {
-            std::cout << "[[" << PARSE << ": "
+            std::cout << "[[" << sPARSE << ": "
                       << Misc::avg(insert_sampler.get_sample(RESP).content())
                       << "]], "
-                      << "[[" << CAP_CHECK << ": "
+                      << "[[" << sCAP_CHECK << ": "
                       << Misc::avg(insert_sampler.get_sample((CAP_CHECK)).content())
                       << "]], "
-                      << "[[" << INDEXING << ": "
+                      << "[[" << sINDEXING << ": "
                       << Misc::avg(insert_sampler.get_sample((INDEXING)).content())
                       << "]], "
-                      << "[[" << CAP_RECHECK << ": "
+                      << "[[" << sCAP_RECHECK << ": "
                       << Misc::avg(insert_sampler.get_sample((CAP_RECHECK)).content())
                       << "]], "
-                      << "[[" << RESP_MSG << ": "
+                      << "[[" << sRESP_MSG << ": "
                       << Misc::avg(insert_sampler.get_sample((RESP_MSG)).content())
                       << "]], "
-                      << "[[" << RESP << ": "
+                      << "[[" << sRESP << ": "
                       << Misc::avg(insert_sampler.get_sample((RESP)).content())
                       << "]]";
         }
 
         auto HandleSampler::report_search() const noexcept -> void {
-            std::cout << "[[" << PARSE << ": "
+            std::cout << "[[" << sPARSE << ": "
                       << Misc::avg(search_sampler.get_sample((RESP)).content())
                       << "]], "
-                      << "[[" << INDEXING << ": "
+                      << "[[" << sINDEXING << ": "
                       << Misc::avg(search_sampler.get_sample((INDEXING)).content())
                       << "]], "
-                      << "[[" << RESP_MSG << ": "
+                      << "[[" << sRESP_MSG << ": "
                       << Misc::avg(search_sampler.get_sample((RESP_MSG)).content())
                       << "]], "
-                      << "[[" << RESP << ": "
+                      << "[[" << sRESP << ": "
                       << Misc::avg(search_sampler.get_sample((RESP)).content())
                       << "]]";
         }
 
         auto HandleSampler::report_update() const noexcept -> void {
-            std::cout << "[[" << PARSE << ": "
+            std::cout << "[[" << sPARSE << ": "
                       << Misc::avg(update_sampler.get_sample((RESP)).content())
                       << "]], "
-                      << "[[" << CAP_CHECK << ": "
+                      << "[[" << sCAP_CHECK << ": "
                       << Misc::avg(update_sampler.get_sample((CAP_CHECK)).content())
                       << "]], "
-                      << "[[" << INDEXING << ": "
+                      << "[[" << sINDEXING << ": "
                       << Misc::avg(update_sampler.get_sample((INDEXING)).content())
                       << "]], "
-                      << "[[" << CAP_RECHECK << ": "
+                      << "[[" << sCAP_RECHECK << ": "
                       << Misc::avg(update_sampler.get_sample((CAP_RECHECK)).content())
                       << "]], "
-                      << "[[" << RESP_MSG << ": "
+                      << "[[" << sRESP_MSG << ": "
                       << Misc::avg(update_sampler.get_sample((RESP_MSG)).content())
                       << "]], "
-                      << "[[" << RESP << ": "
+                      << "[[" << sRESP << ": "
                       << Misc::avg(update_sampler.get_sample((RESP)).content())
                       << "]]";
         }
 
         auto HandleSampler::report_remove() const noexcept -> void {
-            std::cout << "[[" << PARSE << ": "
+            std::cout << "[[" << sPARSE << ": "
                       << Misc::avg(remove_sampler.get_sample((RESP)).content())
                       << "]], "
-                      << "[[" << INDEXING << ": "
+                      << "[[" << sINDEXING << ": "
                       << Misc::avg(remove_sampler.get_sample((INDEXING)).content())
                       << "]], "
-                      << "[[" << RESP_MSG << ": "
+                      << "[[" << sRESP_MSG << ": "
                       << Misc::avg(remove_sampler.get_sample((RESP_MSG)).content())
                       << "]], "
-                      << "[[" << RESP << ": "
+                      << "[[" << sRESP << ": "
                       << Misc::avg(remove_sampler.get_sample((RESP)).content())
                       << "]]";
         }
 
         auto HandleSampler::report_scan() const noexcept -> void {
-            std::cout << "[[" << PARSE << ": "
+            std::cout << "[[" << sPARSE << ": "
                       << Misc::avg(scan_sampler.get_sample((RESP)).content())
                       << "]], "
-                      << "[[" << INDEXING << ": "
+                      << "[[" << sINDEXING << ": "
                       << Misc::avg(scan_sampler.get_sample((INDEXING)).content())
                       << "]], "
-                      << "[[" << MERGE << ": "
+                      << "[[" << sMERGE << ": "
                       << Misc::avg(scan_sampler.get_sample((MERGE)).content())
                       << "]], "
-                      << "[[" << RESP_MSG << ": "
+                      << "[[" << sRESP_MSG << ": "
                       << Misc::avg(scan_sampler.get_sample((RESP_MSG)).content())
                       << "]], "
-                      << "[[" << RESP << ": "
+                      << "[[" << sRESP << ": "
                       << Misc::avg(scan_sampler.get_sample((RESP)).content())
                       << "]]";
         }
 
         auto ClientSampler::prepare() -> void {
             for (int i = 0; i < 7; i++) {
-                insert_sampler.new_sampling_type(batch_size).value();                
+                insert_sampler.new_sampling_type(batch_size).value();
                 search_sampler.new_sampling_type(batch_size);
                 update_sampler.new_sampling_type(batch_size);
                 remove_sampler.new_sampling_type(batch_size);
@@ -129,91 +146,91 @@ namespace Hill {
         }
 
         auto ClientSampler::report_insert() const noexcept -> void {
-            std::cout << "[[" << CACHE << ": "
+            std::cout << "[[" << sCACHE << ": "
                       << Misc::avg(insert_sampler.get_sample((CACHE)).content())
                       << "]], "
-                      << "[[" << CHECK_RPC << ": "
+                      << "[[" << sCHECK_RPC << ": "
                       << Misc::avg(common_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
-                      << "[[" << PRE_REQ << ": "
+                      << "[[" << sPRE_REQ << ": "
                       << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
-                      << "[[" << RPC << ": "
+                      << "[[" << sRPC << ": "
                       << Misc::avg(common_sampler.get_sample((RPC)).content())
                       << "]], "
-                      << "[[" << CONTI << ": "
+                      << "[[" << sCONTI << ": "
                       << Misc::avg(common_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
         auto ClientSampler::report_search() const noexcept -> void {
-            std::cout << "[[" << RDMA << ": "
+            std::cout << "[[" << sRDMA << ": "
                       << Misc::avg(search_sampler.get_sample((RDMA)).content())
                       << "]], "
-                      << "[[" << CACHE << ": "
+                      << "[[" << sCACHE << ": "
                       << Misc::avg(search_sampler.get_sample((CACHE)).content())
                       << "]], "
-                      << "[[" << CACHE_RDMA << ": "
+                      << "[[" << sCACHE_RDMA << ": "
                       << Misc::avg(search_sampler.get_sample((CACHE_RDMA)).content())
                       << "]], "
-                      << "[[" << CHECK_RPC << ": "
+                      << "[[" << sCHECK_RPC << ": "
                       << Misc::avg(common_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
-                      << "[[" << PRE_REQ << ": "
+                      << "[[" << sPRE_REQ << ": "
                       << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
-                      << "[[" << RPC << ": "
+                      << "[[" << sRPC << ": "
                       << Misc::avg(common_sampler.get_sample((RPC)).content())
                       << "]], "
-                      << "[[" << CONTI << ": "
+                      << "[[" << sCONTI << ": "
                       << Misc::avg(common_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
         auto ClientSampler::report_update() const noexcept -> void {
-            std::cout << "[[" << CHECK_RPC << ": "
+            std::cout << "[[" << sCHECK_RPC << ": "
                       << Misc::avg(update_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
-                      << "[[" << PRE_REQ << ": "
+                      << "[[" << sPRE_REQ << ": "
                       << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
-                      << "[[" << RPC << ": "
+                      << "[[" << sRPC << ": "
                       << Misc::avg(common_sampler.get_sample((RPC)).content())
                       << "]], "
-                      << "[[" << CONTI << ": "
+                      << "[[" << sCONTI << ": "
                       << Misc::avg(common_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
         auto ClientSampler::report_remove() const noexcept -> void {
-            std::cout << "[[" << CHECK_RPC << ": "
+            std::cout << "[[" << sCHECK_RPC << ": "
                       << Misc::avg(remove_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
-                      << "[[" << PRE_REQ << ": "
+                      << "[[" << sPRE_REQ << ": "
                       << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
-                      << "[[" << RPC << ": "
+                      << "[[" << sRPC << ": "
                       << Misc::avg(common_sampler.get_sample((RPC)).content())
                       << "]], "
-                      << "[[" << CONTI << ": "
+                      << "[[" << sCONTI << ": "
                       << Misc::avg(common_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
         auto ClientSampler::report_scan() const noexcept -> void {
-            std::cout << "[[" << RDMA << ": "
+            std::cout << "[[" << sRDMA << ": "
                       << Misc::avg(scan_sampler.get_sample((RDMA)).content())
                       << "]], "
-                      << "[[" << CHECK_RPC << ": "
+                      << "[[" << sCHECK_RPC << ": "
                       << Misc::avg(common_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
-                      << "[[" << PRE_REQ << ": "
+                      << "[[" << sPRE_REQ << ": "
                       << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
-                      << "[[" << RPC << ": "
+                      << "[[" << sRPC << ": "
                       << Misc::avg(common_sampler.get_sample((RPC)).content())
                       << "]], "
-                      << "[[" << CONTI << ": "
+                      << "[[" << sCONTI << ": "
                       << Misc::avg(common_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
