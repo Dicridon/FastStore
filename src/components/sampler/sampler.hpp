@@ -156,15 +156,15 @@ namespace Hill {
             auto operator=(HandleSampler &&) -> HandleSampler & = delete;
 
             // insert, search, update
-            static const std::string PARSE;
-            static const std::string CAP_CHECK;
-            static const std::string CAP_RECHECK;
-            static const std::string INDEXING;
-            static const std::string RESP_MSG;
-            static const std::string RESP;
+            static const SampleType PARSE;
+            static const SampleType CAP_CHECK;
+            static const SampleType CAP_RECHECK;
+            static const SampleType INDEXING;
+            static const SampleType RESP_MSG;
+            static const SampleType RESP;
 
             // range
-            static const std::string MERGE;
+            static const SampleType MERGE;
 
             Sampler<uint64_t> insert_sampler;
             Sampler<uint64_t> search_sampler;
@@ -173,9 +173,6 @@ namespace Hill {
             Sampler<uint64_t> scan_sampler;
 
             auto prepare() -> void;
-            inline auto to_sample_type(const std::string &in) const noexcept -> SampleType {
-                return sample_map.find(in)->second;
-            }
             auto report_insert() const noexcept -> void;
             auto report_search() const noexcept -> void;
             auto report_update() const noexcept -> void;
@@ -184,7 +181,6 @@ namespace Hill {
 
         private:
             size_t batch_size;
-            std::unordered_map<std::string, SampleType> sample_map;
         };
 
         class ClientSampler {
@@ -196,14 +192,14 @@ namespace Hill {
             auto operator=(const ClientSampler &) -> ClientSampler & = delete;
             auto operator=(ClientSampler &&) -> ClientSampler & = delete;
 
-            static const std::string RDMA;
-            static const std::string CACHE;
-            static const std::string CACHE_RDMA;
-            static const std::string CHECK_RPC;
-            static const std::string PRE_REQ;
-            static const std::string RPC;
-            static const std::string CONTI;
-
+            static const SampleType RDMA;
+            static const SampleType CACHE;
+            static const SampleType CACHE_RDMA;
+            static const SampleType CHECK_RPC;
+            static const SampleType PRE_REQ;
+            static const SampleType RPC;
+            static const SampleType CONTI;
+            
             Sampler<uint64_t> insert_sampler;
             Sampler<uint64_t> search_sampler;
             Sampler<uint64_t> update_sampler;
@@ -212,9 +208,6 @@ namespace Hill {
             Sampler<uint64_t> common_sampler;
 
             auto prepare() -> void;
-            inline auto to_sample_type(const std::string &in) const noexcept -> SampleType {
-                return sample_map.find(in)->second;
-            }
             auto report_insert() const noexcept -> void;
             auto report_search() const noexcept -> void;
             auto report_update() const noexcept -> void;
