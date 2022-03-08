@@ -323,6 +323,7 @@ namespace Hill {
 
         auto StoreServer::insert_handler(erpc::ReqHandle *req_handle, void *context) -> void {
             auto ctx = reinterpret_cast<ServerContext *>(context);
+            /*
             auto server = ctx->server;
 #ifdef __HILL_SAMPLE__
             auto handle_sampler = ctx->handle_sampler;
@@ -389,9 +390,11 @@ namespace Hill {
 #ifdef __HILL_SAMPLE__
             }
 #endif
+            */
             auto &resp = req_handle->pre_resp_msgbuf;
             constexpr auto total_msg_size = sizeof(Enums::RPCOperations) + sizeof(Enums::RPCStatus) + sizeof(Memory::PolymorphicPointer);
             ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
+            /*
 #ifdef __HILL_SAMPLE__
             {
                 SampleRecorder<uint64_t> _(sampler, HandleSampler::RESP_MSG);
@@ -428,13 +431,16 @@ namespace Hill {
             {
                 SampleRecorder<uint64_t> _(sampler, HandleSampler::RESP);
 #endif
+            */
                 ctx->rpc->enqueue_response(req_handle, &resp);
 #ifdef __HILL_SAMPLE__
             }
 #endif
+        /*
             if (msg.output.status.load() == Indexing::Enums::OpStatus::Failed) {
                 std::cout << "Inserting " << key->to_string() << " failed\n";
             }
+        */
         }
 
         auto StoreServer::update_handler(erpc::ReqHandle *req_handle, void *context) -> void {
