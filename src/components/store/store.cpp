@@ -822,18 +822,37 @@ namespace Hill {
 
                 stats.throughputs.timing_now();
                 start = std::chrono::steady_clock::now();
+                Sampling::Sampler<uint64_t> *sampler = nullptr;
                 for (auto &i : load) {
+#ifdef __HILL_SAMPLE__
+                    switch (i.type) {
+                    case Workload::Enums::Insert:
+                        sampler = &c_ctx.client_sampler->insert_sampler;
+                        break;
+                    case Workload::Enums::Search:
+                        sampler = &c_ctx.client_sampler->search_sampler;
+                        break;
+                    case Workload::Enums::Update:
+                        sampler = &c_ctx.client_sampler->update_sampler;
+                        break;
+                    case Workload::Enums::Range:
+                        sampler = &c_ctx.client_sampler->scan_sampler;
+                        break;
+                    default:
+                        break;
+                    }
+#endif
                     if (i.type == Workload::Enums::Search) {
 #ifdef __HILL_SAMPLE__
                         {
-                            SampleRecorder<size_t> _(c_ctx.client_sampler->search_sampler, ClientSampler::CACHE);
+                            SampleRecorder<size_t> _(*sampler, ClientSampler::CACHE);
 #endif
                             auto ret = c_ctx.cache.get(i.key);
                             if (ret != nullptr) {
 #ifdef __HILL_FETCH_VALUE__
 #ifdef __HILL_SAMPLE__
                                 {
-                                    SampleRecorder<size_t> _(c_ctx.client_sampler->search_sampler, ClientSampler::CACHE_RDMA);
+                                    SampleRecorder<size_t> _(*sampler, ClientSampler::CACHE_RDMA);
 #endif
                                     auto re_ptr = ret->value_ptr.remote_ptr();
                                     c_ctx.client->read_from(c_ctx.thread_id, re_ptr.get_node(),
@@ -855,7 +874,7 @@ namespace Hill {
                     c_ctx.is_done = false;
 #ifdef __HILL_SAMPLE__
                     {
-                        SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler, ClientSampler::CHECK_RPC);
+                        SampleRecorder<size_t> _(*sampler, ClientSampler::CHECK_RPC);
 #endif
                         _node_id = c_ctx.client->get_cluster_meta().filter_node(i.key);
 #ifdef __HILL_SAMPLE__
@@ -869,7 +888,7 @@ namespace Hill {
 
 #ifdef __HILL_SAMPLE__
                     {
-                        SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler, ClientSampler::PRE_REQ);
+                        SampleRecorder<size_t> _(*sampler, ClientSampler::PRE_REQ);
 #endif
                         prepare_request(node_id, i, c_ctx);
 #ifdef __HILL_SAMPLE__
@@ -878,7 +897,7 @@ namespace Hill {
                     // cache is updated in the response_continuation
 #ifdef __HILL_SAMPLE__
                     {
-                        SampleRecorder<size_t> _(c_ctx.client_sampler->common_sampler, ClientSampler::RPC);
+                        SampleRecorder<size_t> _(*sampler, ClientSampler::RPC);
 #endif
                         c_ctx.rpc->enqueue_request(c_ctx.erpc_sessions[node_id], i.type,
                                                    &c_ctx.req_bufs[node_id], &c_ctx.resp_bufs[node_id],
@@ -1009,8 +1028,26 @@ namespace Hill {
             auto size = *reinterpret_cast<size_t *>(buf);
 
 #ifdef __HILL_SAMPLE__
+            Sampling::Sampler<uint64_t> *sampler = nullptr;
+            switch (op) {
+            case Enums::RPCOperations::Insert:
+                sampler = &ctx->client_sampler->insert_sampler;
+                break;
+            case Enums::RPCOperations::Search:
+                sampler = &ctx->client_sampler->search_sampler;
+                break;
+            case Enums::RPCOperations::Update:
+                sampler = &ctx->client_sampler->update_sampler;
+                break;
+            case Enums::RPCOperations::Range:
+                sampler = &ctx->client_sampler->scan_sampler;
+                break;
+            default:
+                break;
+            }
+            
             {
-                SampleRecorder<uint64_t> _(ctx->client_sampler->common_sampler, ClientSampler::CONTI);
+                SampleRecorder<uint64_t> _(*sampler, ClientSampler::CONTI);
 #endif
                 switch(op) {
                 case Enums::RPCOperations::Insert: {
