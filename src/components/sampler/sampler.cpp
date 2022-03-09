@@ -150,16 +150,16 @@ namespace Hill {
                       << Misc::avg(insert_sampler.get_sample((CACHE)).content())
                       << "]], "
                       << "[[" << sCHECK_RPC << ": "
-                      << Misc::avg(common_sampler.get_sample((CHECK_RPC)).content())
+                      << Misc::avg(insert_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
                       << "[[" << sPRE_REQ << ": "
-                      << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
+                      << Misc::avg(insert_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
                       << "[[" << sRPC << ": "
-                      << Misc::avg(common_sampler.get_sample((RPC)).content())
+                      << Misc::avg(insert_sampler.get_sample((RPC)).content())
                       << "]], "
                       << "[[" << sCONTI << ": "
-                      << Misc::avg(common_sampler.get_sample((CONTI)).content())
+                      << Misc::avg(insert_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
@@ -174,16 +174,16 @@ namespace Hill {
                       << Misc::avg(search_sampler.get_sample((CACHE_RDMA)).content())
                       << "]], "
                       << "[[" << sCHECK_RPC << ": "
-                      << Misc::avg(common_sampler.get_sample((CHECK_RPC)).content())
+                      << Misc::avg(search_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
                       << "[[" << sPRE_REQ << ": "
-                      << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
+                      << Misc::avg(search_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
                       << "[[" << sRPC << ": "
-                      << Misc::avg(common_sampler.get_sample((RPC)).content())
+                      << Misc::avg(search_sampler.get_sample((RPC)).content())
                       << "]], "
                       << "[[" << sCONTI << ": "
-                      << Misc::avg(common_sampler.get_sample((CONTI)).content())
+                      << Misc::avg(search_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
@@ -192,13 +192,13 @@ namespace Hill {
                       << Misc::avg(update_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
                       << "[[" << sPRE_REQ << ": "
-                      << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
+                      << Misc::avg(update_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
                       << "[[" << sRPC << ": "
-                      << Misc::avg(common_sampler.get_sample((RPC)).content())
+                      << Misc::avg(update_sampler.get_sample((RPC)).content())
                       << "]], "
                       << "[[" << sCONTI << ": "
-                      << Misc::avg(common_sampler.get_sample((CONTI)).content())
+                      << Misc::avg(update_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
@@ -207,13 +207,13 @@ namespace Hill {
                       << Misc::avg(remove_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
                       << "[[" << sPRE_REQ << ": "
-                      << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
+                      << Misc::avg(remove_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
                       << "[[" << sRPC << ": "
-                      << Misc::avg(common_sampler.get_sample((RPC)).content())
+                      << Misc::avg(remove_sampler.get_sample((RPC)).content())
                       << "]], "
                       << "[[" << sCONTI << ": "
-                      << Misc::avg(common_sampler.get_sample((CONTI)).content())
+                      << Misc::avg(remove_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
 
@@ -222,16 +222,16 @@ namespace Hill {
                       << Misc::avg(scan_sampler.get_sample((RDMA)).content())
                       << "]], "
                       << "[[" << sCHECK_RPC << ": "
-                      << Misc::avg(common_sampler.get_sample((CHECK_RPC)).content())
+                      << Misc::avg(scan_sampler.get_sample((CHECK_RPC)).content())
                       << "]], "
                       << "[[" << sPRE_REQ << ": "
-                      << Misc::avg(common_sampler.get_sample((PRE_REQ)).content())
+                      << Misc::avg(scan_sampler.get_sample((PRE_REQ)).content())
                       << "]], "
                       << "[[" << sRPC << ": "
-                      << Misc::avg(common_sampler.get_sample((RPC)).content())
+                      << Misc::avg(scan_sampler.get_sample((RPC)).content())
                       << "]], "
                       << "[[" << sCONTI << ": "
-                      << Misc::avg(common_sampler.get_sample((CONTI)).content())
+                      << Misc::avg(scan_sampler.get_sample((CONTI)).content())
                       << "]]";
         }
     }
