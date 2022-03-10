@@ -55,10 +55,9 @@ namespace Hill {
             if (remote_id < 0 || size_t(remote_id) >= Cluster::Constants::uMAX_NODE) {
                 return -1;
             }
-
-            // if (peer_connections[tid][remote_id] != nullptr) {
-            //     return 0;
-            // }
+            std::cout << "Got peer " << remote_id << "\n";
+        } else {
+            std::cout << "Got client\n";
         }
 
         auto [rdma_ctx, status] = rdma_device->open(base, node->total_pm, 12, RDMADevice::get_default_mr_access(),
@@ -239,7 +238,13 @@ namespace Hill {
         auto addr = meta.cluster.nodes[node_id].addr;
         auto port = meta.cluster.nodes[node_id].port;
 
+#ifdef __HILL_INFO__
+        std::cout << ">> Connecting to " << addr.to_string() << ":" << port << "\n";
+#endif
         auto socket = Misc::socket_connect(false, port, addr.to_string().c_str());
+#ifdef __HILL_INFO__
+        std::cout << ">> Done\n";
+#endif
         if (socket == -1) {
             return false;
         }

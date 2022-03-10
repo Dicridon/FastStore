@@ -14,6 +14,7 @@
  */
 #ifndef __HILL__RDMA__RDMA__
 #define __HILL__RDMA__RDMA__
+#include "config/config.hpp"
 
 #include <memory>
 #include <optional>

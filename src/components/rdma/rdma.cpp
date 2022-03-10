@@ -89,13 +89,23 @@ namespace Hill {
             tmp.qp_num = htonl(local.qp_num);
             tmp.lid = htons(local.lid);
             memcpy(tmp.gid, local.gid, 16);
+#ifdef __HILL_INFO__
+            std::cout << ">> Sending certi\n";
+#endif
             if (write(sockfd, &tmp, normal) != normal) {
                 return Status::WriteError;
             }
-
+            
+#ifdef __HILL_INFO__
+            std::cout << ">> Done\n";
+            std::cout << ">> Reading certi\n";
+#endif
             if (read(sockfd, &tmp, normal) != normal) {
                 return Status::ReadError;
             }
+#ifdef __HILL_INFO__
+            std::cout << ">> Done\n";
+#endif
 
             remote.addr = ntohll(tmp.addr);
             remote.rkey = ntohl(tmp.rkey);
