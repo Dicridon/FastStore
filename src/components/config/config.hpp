@@ -5,5 +5,5 @@
 #define __HILL_INFO__
 #define __HILL_PMEM__
 #define __HILL_FETCH_VALUE__
-#define __HILL_SAMPLE__
+// #define __HILL_SAMPLE__
 #endif

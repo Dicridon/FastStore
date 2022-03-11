@@ -1006,6 +1006,9 @@ namespace Hill {
                 break;
             case Hill::Workload::Enums::WorkloadType::Range:
                 *reinterpret_cast<Enums::RPCOperations *>(buf) = Enums::RPCOperations::Range;
+                buf += sizeof(Enums::RPCOperations);
+                KVPair::HillString::make_string(buf, item.key.c_str(), item.key.size());
+                *reinterpret_cast<size_t *>(buf) = Constants::dRANGE_SIZE;
                 break;
             default:
                 return false;

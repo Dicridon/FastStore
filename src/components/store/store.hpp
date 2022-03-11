@@ -43,6 +43,8 @@ namespace Hill {
 #endif
             // fake constants
             using tBOOST_QUEUE_CAP = boost::lockfree::capacity<iMSG_QUEUE_CAP>;
+
+            static constexpr double dRANGE_SIZE = 86;
         }
 
         namespace Enums {
