@@ -66,8 +66,7 @@ namespace Hill {
                 } else if (op == "DELETE") {
                     continue;
                 } else if (op == "RANGE") {
-                    // TODO
-                    continue;
+                    item = WorkloadItem::make_workload_item(Enums::WorkloadType::Range, key);
                 } else {
                     continue;
                 }
