@@ -11,6 +11,8 @@ namespace Hill {
                                 decltype(cmp)> heap(cmp);
 
             for (auto i = 0UL; i < iters.size(); i++) {
+                if (iters[i] == ends[i])
+                    continue;
                 heap.push({&iters[i], &ends[i]});
             }
 

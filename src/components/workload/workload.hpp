@@ -35,7 +35,7 @@ namespace Hill {
             static auto make_workload_item(const Enums::WorkloadType &type, const std::string &key)
                 -> WorkloadItem
             {
-                if (type != Enums::WorkloadType::Search || type != Enums::WorkloadType::Range) {
+                if (type != Enums::WorkloadType::Search && type != Enums::WorkloadType::Range) {
                     throw std::invalid_argument("WorkloadItem should be search");
                 }
                 

@@ -65,7 +65,7 @@ namespace Hill {
                     item = WorkloadItem::make_workload_item(Enums::WorkloadType::Update, key, key);
                 } else if (op == "DELETE") {
                     continue;
-                } else if (op == "RANGE") {
+                } else if (op == "SCAN") {
                     item = WorkloadItem::make_workload_item(Enums::WorkloadType::Range, key);
                 } else {
                     continue;
