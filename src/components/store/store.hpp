@@ -163,6 +163,8 @@ namespace Hill {
             uint64_t suc_search;
             uint64_t num_update;
             uint64_t suc_update;
+            uint64_t num_range;
+            uint64_t suc_range;
 
             ClientSampler *client_sampler;
 
@@ -179,7 +181,7 @@ namespace Hill {
                     s = -1;
                 }
 
-                num_insert = suc_insert = num_search = suc_search = num_update = suc_update = 0;
+                num_insert = suc_insert = num_search = suc_search = num_update = suc_update = num_range = suc_range = 0;
             }
         };
 

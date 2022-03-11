@@ -695,7 +695,7 @@ namespace Hill {
                     + sizeof(size_t) + sizeof(Enums::RPCStatus);
 
                 ctx->rpc->resize_msg_buffer(&resp, total_msg_size);
-                *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Search;
+                *reinterpret_cast<Enums::RPCOperations *>(resp.buf) = Enums::RPCOperations::Range;
 
                 auto offset = sizeof(Enums::RPCOperations);
                 *reinterpret_cast<Enums::RPCStatus *>(resp.buf + offset) = Enums::RPCStatus::Ok;
@@ -917,8 +917,8 @@ namespace Hill {
                     }
                 }
                 stats.throughputs.timing_stop();
-                stats.throughputs.num_ops = c_ctx.num_insert + c_ctx.num_search + c_ctx.num_update;
-                stats.throughputs.suc_ops = c_ctx.suc_insert + c_ctx.suc_search + c_ctx.suc_update;
+                stats.throughputs.num_ops = c_ctx.num_insert + c_ctx.num_search + c_ctx.num_update + c_ctx.num_update;
+                stats.throughputs.suc_ops = c_ctx.suc_insert + c_ctx.suc_search + c_ctx.suc_update + c_ctx.suc_update;
                 stats.cache_hit_ratio = c_ctx.cache.hit_ratio();
                 this->client->unregister_thread(tid);
 
@@ -926,6 +926,7 @@ namespace Hill {
                 std::cout << "-->> insert: " << c_ctx.suc_insert << "/" << c_ctx.num_insert << "\n";
                 std::cout << "-->> search: " << c_ctx.suc_search << "/" << c_ctx.num_search << "\n";
                 std::cout << "-->> update: " << c_ctx.suc_update << "/" << c_ctx.num_update << "\n";
+                std::cout << "-->> range: " << c_ctx.suc_range << "/" << c_ctx.num_range << "\n";                
 #ifdef __HILL_SAMPLE__
                 std::cout << ">> Insert breakdown: "; c_ctx.client_sampler->report_insert(); std::cout << "\n";
                 std::cout << ">> Search breakdown: "; c_ctx.client_sampler->report_search(); std::cout << "\n";
@@ -1086,7 +1087,11 @@ namespace Hill {
                 }
 
                 case Enums::RPCOperations::Range: {
-                    break;
+                    if (status == Enums::RPCStatus::Ok) {
+                        ++ctx->suc_range;
+                    }
+                    ++ctx->num_range;
+                    break;                    
                 }
 
                 default:
