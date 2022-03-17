@@ -917,8 +917,8 @@ namespace Hill {
                     }
                 }
                 stats.throughputs.timing_stop();
-                stats.throughputs.num_ops = c_ctx.num_insert + c_ctx.num_search + c_ctx.num_update + c_ctx.num_update;
-                stats.throughputs.suc_ops = c_ctx.suc_insert + c_ctx.suc_search + c_ctx.suc_update + c_ctx.suc_update;
+                stats.throughputs.num_ops = c_ctx.num_insert + c_ctx.num_search + c_ctx.num_update + c_ctx.num_range;
+                stats.throughputs.suc_ops = c_ctx.suc_insert + c_ctx.suc_search + c_ctx.suc_update + c_ctx.suc_range;
                 stats.cache_hit_ratio = c_ctx.cache.hit_ratio();
                 this->client->unregister_thread(tid);
 

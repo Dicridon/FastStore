@@ -350,14 +350,17 @@ namespace Hill {
 
                 logger->commit(tid);
             } else {
-                agent->allocate(tid, v_sz, ptr);
+                agent->allocate(tid, total, ptr);
                 if (ptr == nullptr) {
                     return {Enums::OpStatus::NoMemory, nullptr};
                 }
 
-                KVPair::HillString::make_string(ptr, v, v_sz);
                 auto &old = logger->make_log(tid, WAL::Enums::Ops::Delete);
                 old = leaf->values[i].remote_ptr().raw_ptr();
+
+                auto r = leaf->values[i];
+                leaf->values[i] = ptr;
+                leaf->value_sizes[i] = v_sz;
 
                 auto &connection = agent->get_peer_connection(tid, leaf->values[i].remote_ptr().get_node());
                 auto buf = std::make_unique<byte_t[]>(total);
@@ -366,10 +369,6 @@ namespace Hill {
                 Memory::RemotePointer rp(ptr);
                 connection->post_write(rp.get_as<byte_ptr_t>(), t.raw_bytes(), total);
                 connection->poll_completion_once();
-
-                auto r = leaf->values[i];
-                leaf->values[i] = ptr;
-                leaf->value_sizes[i] = v_sz;
 
                 if (r.is_local()) {
                     alloc->free(tid, old);
