@@ -368,7 +368,7 @@ namespace Hill {
 
                 Memory::RemotePointer rp(ptr);
                 connection->post_write(rp.get_as<byte_ptr_t>(), t.raw_bytes(), total);
-                connection->poll_completion_once();
+                connection->poll_completion_once() ;
 
                 if (r.is_local()) {
                     alloc->free(tid, old);
