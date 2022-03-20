@@ -863,12 +863,9 @@ namespace Hill {
                                 }
 #endif
 #endif
-                                auto valid = (*c_ctx.client->rdma_buf_as_char(c_ctx.thread_id, re_ptr.get_node())) & 0x10;
-                                if (valid) {
-                                    ++c_ctx.num_search;
-                                    ++c_ctx.suc_search;
-                                    goto sample;
-                                }
+                                ++c_ctx.num_search;
+                                ++c_ctx.suc_search;
+                                goto sample;
                             }
 #ifdef __HILL_SAMPLE__
                         }
