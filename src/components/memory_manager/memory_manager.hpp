@@ -33,9 +33,9 @@ namespace Hill {
             static constexpr int iTHREAD_LIST_NUM = 64;
             static constexpr size_t uPAGE_SIZE = 4 * 1024UL;
 #endif
-            static constexpr uint64_t uPAGE_MASK = ~(uPAGE_SIZE - 1);            
+            static constexpr uint64_t uPAGE_MASK = ~(uPAGE_SIZE - 1);
             static constexpr uint64_t uALLOCATOR_MAGIC = 0xabcddcbaabcddcbaUL;
-            static constexpr size_t uPREALLOCATION = 1;
+            static constexpr size_t uPREALLOCATION = 16;
             static constexpr uint64_t uREMOTE_REGION_SIZE = 1UL << 30;
         }
 
@@ -206,6 +206,8 @@ namespace Hill {
                     allocator->header.thread_busy_pages[i] = nullptr;
                     allocator->header.to_be_freed[i] = nullptr;
                     allocator->header.in_use[i] = false;
+                    allocator->header.write_cache[i] = reinterpret_cast<Page *>(new byte_t[sizeof(Constants::uPAGE_SIZE)]);
+                    allocator->header.write_cache[i]->next = nullptr;
                 }
                 allocator->header.consumed = 0;
                 return allocator;
@@ -252,11 +254,13 @@ namespace Hill {
             auto allocate(int id, size_t size, byte_ptr_t &ptr) -> void;
             auto allocate_for_remote(byte_ptr_t &ptr) -> void;
             auto free(int id, byte_ptr_t &ptr) -> void;
+            auto drain(int id) -> void;
 
             auto recover() -> Enums::AllocatorRecoveryStatus;
             inline auto get_consumed() const noexcept -> uint64_t {
                 return header.consumed.load();
             }
+
         private:
             struct AllocatorHeader {
                 uint64_t magic;
@@ -276,8 +280,14 @@ namespace Hill {
                 Page *to_be_freed[Constants::iTHREAD_LIST_NUM];
                 Page *thread_busy_pages[Constants::iTHREAD_LIST_NUM];
                 bool in_use[Constants::iTHREAD_LIST_NUM];
+
+                // A DRAM buffer caching writes for future sequential writes to PM
+                Page *write_cache[Constants::iTHREAD_LIST_NUM];
+
                 std::atomic_uint64_t consumed;
             } header;
+
+            auto preallocate(int id) -> void;
 
             auto recover_global_free_list() -> void {
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
@@ -336,6 +346,7 @@ namespace Hill {
                     }
                 }
             }
+
         };
     }
 }

@@ -19,9 +19,8 @@ namespace Hill {
             auto tmp_ptr = reinterpret_cast<byte_ptr_t>(this);
             ptr = tmp_ptr + snapshot.record_cursor - size;
 
-            // order here matters;
+            // order here matters, we exploit x86 write order to wipe out fences
             ++snapshot.records;
-            Util::mfence();
             ++snapshot.valid;
             snapshot.record_cursor -= size;
             auto record_header = get_headers();
@@ -30,7 +29,6 @@ namespace Hill {
 
             // atomic write, fence required
             header = snapshot;
-            Util::mfence();
         }
 
         // Delete rarely occurs, we put some heavy work in it
@@ -50,11 +48,58 @@ namespace Hill {
             --page_address->header.valid;
         }
 
+        auto Allocator::drain(int id) -> void {
+            pmem_memcpy_nodrain(header.thread_busy_pages[id], header.write_cache[id], Constants::uPAGE_SIZE);
+            memset(header.write_cache[id], 0, Constants::uPAGE_SIZE);
+        }
+
+        auto Allocator::preallocate(int id) -> void {
+            // the 1 is for current page
+            auto to_be_used = header.cursor + Constants::uPREALLOCATION + 1;
+            auto remain = header.base + (header.total_size / Constants::uPAGE_SIZE) - 1;
+
+            if (to_be_used >= remain) {
+                throw std::runtime_error("Insufficient PM\n");
+            } else {
+                if (header.freelist) {
+                    // check global free list
+                    auto begin = header.freelist;
+                    auto end = header.freelist;
+                    for (size_t i = 0; i < Constants::uPREALLOCATION; i++) {
+                        if (end) {
+                            end = end->next;
+                        }
+                    }
+
+                    // on recovery, should check
+                    header.thread_free_lists[id] = begin;
+                    header.freelist = end->next;
+                    end->next = nullptr;
+                } else {
+                    // from global heap
+                    auto tmp = header.cursor;
+                    for (size_t i = 0; i < Constants::uPREALLOCATION; i++) {
+                        // dependent read/write;
+                        Page::make_page(reinterpret_cast<byte_ptr_t>(tmp), tmp + 1);
+                        tmp = tmp->next;
+                    }
+                    Page::make_page(reinterpret_cast<byte_ptr_t>(tmp), nullptr);
+                    Util::mfence();
+                    // on recovery, should check if any thread_free_list
+                    // matches cursor, if so, cursor should be incremented
+                    header.thread_free_lists[id] =  header.cursor;
+                    Util::mfence();
+                    header.cursor += Constants::uPREALLOCATION + 1; // next usable page
+                }
+            }
+        }
+
         auto Allocator::allocate(int id, size_t size, byte_ptr_t &ptr) -> void {
             if (size > Constants::uPAGE_SIZE) {
                 throw std::invalid_argument("Object size too large");
             }
 
+            // auto page = header.thread_busy_pages[id];
             auto page = header.thread_busy_pages[id];
             // on start, or the page is on busy_list but freed(an allocation followed by a free)
             if (page)  {
@@ -66,48 +111,10 @@ namespace Hill {
             }
 
             {
-                std::unique_lock l(allocator_global_lock);
                 // busy page has no enough space and no thread-local free pages are available
                 if (header.thread_free_lists[id] == nullptr) {
-                    // the 1 is for current page
-                    auto to_be_used = header.cursor + Constants::uPREALLOCATION + 1;
-                    auto remain = header.base + (header.total_size / Constants::uPAGE_SIZE) - 1;
-
-                    if (to_be_used >= remain) {
-                        ptr = nullptr;
-                        throw std::runtime_error("Insufficient PM\n");
-                    } else {
-                        if (header.freelist) {
-                            // check global free list
-                            auto begin = header.freelist;
-                            auto end = header.freelist;
-                            for (size_t i = 0; i < Constants::uPREALLOCATION; i++) {
-                                if (end) {
-                                    end = end->next;
-                                }
-                            }
-
-                            // on recovery, should check
-                            header.thread_free_lists[id] = begin;
-                            header.freelist = end->next;
-                            end->next = nullptr;
-                        } else {
-                            // from global heap
-                            auto tmp = header.cursor;
-                            for (size_t i = 0; i < Constants::uPREALLOCATION; i++) {
-                                // dependent read/write;
-                                Page::make_page(reinterpret_cast<byte_ptr_t>(tmp), tmp + 1);
-                                tmp = tmp->next;
-                            }
-                            Page::make_page(reinterpret_cast<byte_ptr_t>(tmp), nullptr);
-                            Util::mfence();
-                            // on recovery, should check if any thread_free_list
-                            // matches cursor, if so, cursor should be incremented
-                            header.thread_free_lists[id] =  header.cursor;
-                            Util::mfence();
-                            header.cursor += Constants::uPREALLOCATION + 1; // next usable page
-                        }
-                    }
+                    std::unique_lock l(allocator_global_lock);                    
+                    preallocate(id);
                 }
             }
 
