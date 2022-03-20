@@ -1074,7 +1074,7 @@ namespace Hill {
                     }
 #ifdef __HILL_FETCH_VALUE__
                     // value is embeded
-                    if (size > 64) {
+                    if (size < 64) {
                         ++ctx->num_search;
                         break;
                     }
