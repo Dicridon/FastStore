@@ -224,6 +224,9 @@ namespace Hill {
             const auto &meta = s_ctx.server->get_node()->cluster_status;
             // skip monitor
             for (size_t i = 1; i <= meta.cluster.node_num; i++) {
+                if (i == s_ctx.server->get_node()->node_id)
+                    continue;
+
                 if (max < meta.cluster.nodes[i].available_pm) {
                     max = meta.cluster.nodes[i].available_pm;
                     node_id = i;
