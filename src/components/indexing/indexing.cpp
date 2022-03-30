@@ -178,8 +178,12 @@ namespace Hill {
 
         auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz)
             -> std::pair<LeafNode *, Memory::PolymorphicPointer> {
+#ifdef __HILL_PMEM__
             auto &ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
             alloc->allocate(tid, sizeof(LeafNode), ptr);
+#else
+            auto ptr = new byte_t[sizeof(LeafNode)];
+#endif
             auto n = LeafNode::make_leaf(ptr);
             n->parent = l->parent;
             n->next = l->next;
