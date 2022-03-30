@@ -69,6 +69,7 @@ namespace Hill {
                             case Enums::RPCOperations::Search: {
                                 auto [v, v_sz] = olfit.search(msg->input.key, msg->input.key_size);
                                 if (v == nullptr) {
+                                    msg->output.value = nullptr;
                                     msg->output.status.store(Indexing::Enums::OpStatus::Failed);
                                     break;
                                 }

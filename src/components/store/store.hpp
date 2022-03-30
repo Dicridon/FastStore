@@ -114,6 +114,7 @@ namespace Hill {
                 output.value_size = 0;
             }
         };
+
         class StoreServer;
         struct ServerContext {
             StoreServer *self;
