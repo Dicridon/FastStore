@@ -200,8 +200,8 @@ namespace Hill {
                 auto aligned = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(base + sizeof(AllocatorHeader)) & Constants::uPAGE_MASK);
                 allocator->header.base = reinterpret_cast<byte_ptr_t>(aligned + 1);
                 allocator->header.offset = 0;
-                allocator->header.consumed = 0;
 #else
+
                 auto allocator = reinterpret_cast<Allocator *>(base);
                 allocator->header.magic = Constants::uALLOCATOR_MAGIC;
                 allocator->header.total_size = size;
@@ -210,7 +210,7 @@ namespace Hill {
                 auto aligned = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(base + sizeof(AllocatorHeader)) & Constants::uPAGE_MASK);
                 allocator->header.base = reinterpret_cast<Page *>(aligned + 1);
                 allocator->header.cursor = allocator->header.base;
-
+#endif
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                     allocator->header.thread_free_lists[i] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
                     allocator->header.thread_pending_pages[i] = nullptr;
@@ -221,7 +221,7 @@ namespace Hill {
                     allocator->header.write_cache[i]->next = nullptr;
                 }
                 allocator->header.consumed = 0;
-#endif
+
                 return allocator;
             }
 
