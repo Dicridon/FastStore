@@ -183,7 +183,11 @@ namespace Hill {
 
         class Allocator {
         public:
+#ifdef __HILL_LOG_ALLOCATOR__
+            Allocator() = default;
+#else
             Allocator() = delete;
+#endif
             ~Allocator() = default;
             Allocator(const Allocator &) = delete;
             Allocator(Allocator &&) = delete;
@@ -191,6 +195,13 @@ namespace Hill {
             auto operator=(Allocator &&) -> Allocator & = delete;
 
             static auto make_allocator(const byte_ptr_t &base, size_t size) -> Allocator * {
+#ifdef __HILL_LOG_ALLOCATOR__
+                auto allocator = new Allocator;
+                auto aligned = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(base + sizeof(AllocatorHeader)) & Constants::uPAGE_MASK);
+                allocator->header.base = reinterpret_cast<byte_ptr_t>(aligned + 1);
+                allocator->header.offset = 0;
+                allocator->header.consumed = 0;
+#else
                 auto allocator = reinterpret_cast<Allocator *>(base);
                 allocator->header.magic = Constants::uALLOCATOR_MAGIC;
                 allocator->header.total_size = size;
@@ -210,6 +221,7 @@ namespace Hill {
                     allocator->header.write_cache[i]->next = nullptr;
                 }
                 allocator->header.consumed = 0;
+#endif
                 return allocator;
             }
 
@@ -235,9 +247,10 @@ namespace Hill {
                 allocator->header.freelist = nullptr;
 
                 auto aligned = reinterpret_cast<Page *>(reinterpret_cast<uint64_t>(base + sizeof(AllocatorHeader)) & Constants::uPAGE_MASK);
+#ifndef __HILL_LOG_ALLOCATOR__
                 allocator->header.base = reinterpret_cast<Page *>(aligned + 1);
                 allocator->header.cursor = allocator->header.base;
-
+#endif
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                     allocator->header.thread_free_lists[i] = const_cast<Page *>(Constants::pTHREAD_LIST_AVAILABLE);
                     allocator->header.thread_pending_pages[i] = nullptr;
@@ -266,7 +279,13 @@ namespace Hill {
                 uint64_t magic;
                 size_t total_size;
                 Page *freelist;              // only for page reuse
+
+#ifdef __HILL_LOG_ALLOCATOR__
+                byte_ptr_t base;
+                std::atomic_uint64_t offset;
+#else
                 Page *base;
+#endif                
                 Page *cursor;
                 Page *thread_free_lists[Constants::iTHREAD_LIST_NUM]; // avoid memory leaks
 
@@ -287,8 +306,9 @@ namespace Hill {
                 std::atomic_uint64_t consumed;
             } header;
 
+#ifndef __HILL_LOG_ALLOCATOR__
             auto preallocate(int id) -> void;
-
+#endif
             auto recover_global_free_list() -> void {
                 for (int i = 0; i < Constants::iTHREAD_LIST_NUM; i++) {
                     // on-going allocation is detected

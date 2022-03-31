@@ -53,6 +53,7 @@ namespace Hill {
             memset(header.write_cache[id], 0, Constants::uPAGE_SIZE);
         }
 
+#ifndef __HILL_LOG_ALLOCATOR__
         auto Allocator::preallocate(int id) -> void {
             // the 1 is for current page
             auto to_be_used = header.cursor + Constants::uPREALLOCATION + 1;
@@ -93,8 +94,12 @@ namespace Hill {
                 }
             }
         }
+#endif
 
         auto Allocator::allocate(int id, size_t size, byte_ptr_t &ptr) -> void {
+#ifdef __HILL_LOG_ALLOCATOR__
+            ptr = header.base + header.offset.fetch_add(size);
+#else
             if (size > Constants::uPAGE_SIZE) {
                 throw std::invalid_argument("Object size too large");
             }
@@ -127,9 +132,13 @@ namespace Hill {
 
             header.thread_busy_pages[id]->allocate(size, ptr);
             header.consumed += size;
+#endif
         }
 
         auto Allocator::allocate_for_remote(byte_ptr_t &ptr) -> void {
+#ifdef __HILL_LOG_ALLOCATOR__
+            ptr = header.base + header.offset.fetch_add(Constants::uREMOTE_REGION_SIZE);
+#else
             {
                 std::scoped_lock<std::mutex> _(allocator_global_lock);
                 auto remote_pages = (Constants::uREMOTE_REGION_SIZE / Constants::uPAGE_SIZE);
@@ -144,6 +153,7 @@ namespace Hill {
                     header.cursor += remote_pages;
                 }
             }
+#endif
         }
 
         auto Allocator::register_thread() noexcept -> std::optional<int> {

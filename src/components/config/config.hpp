@@ -7,4 +7,5 @@
 #define __HILL_PINDEX__
 #define __HILL_FETCH_VALUE__
 // #define __HILL_SAMPLE__
+#define __HILL_LOG_ALLOCATOR__
 #endif
