@@ -28,7 +28,7 @@ auto set_up_pmem(const std::string &pmem_file, size_t size) -> void * {
 }
 
 auto run_server(int port, std::unique_ptr<RDMAContext> &rdma_ctx) -> void {
-    auto sock = Misc::make_socket(false, port);
+    auto sock = Misc::make_socket(true, port);
 
     while (true) {
         auto socket = Misc::accept_blocking(sock);
