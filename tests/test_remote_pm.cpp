@@ -46,7 +46,7 @@ auto run_server(int port, std::unique_ptr<RDMAContext> &rdma_ctx) -> void {
 }
 
 auto run_client(int tid, std::unique_ptr<RDMAContext> &rdma_ctx, size_t pmem_size,
-                int num_thread, std::mutex &lock, std::string &server) -> void
+                std::mutex &lock, std::string &server) -> void
 {
     auto socket = socket_connect(false, 2333, server.c_str());
     if (socket == -1) {
@@ -109,6 +109,8 @@ auto main(int argc, char *argv[]) -> int {
     parser.add_option<int>("--gid_idx", "-g", 2);
     parser.add_option<size_t>("--batch", "-b", 10);
 
+    parser.parse(argc, argv);
+
     auto pmem_file = parser.get_as<std::string>("--pmem_file").value();
     auto pmem_size = parser.get_as<size_t>("--pmem_size").value();
 
@@ -157,7 +159,7 @@ auto main(int argc, char *argv[]) -> int {
 
         for (size_t i = 0; i < num_thread; i++) {
             threads[i] = std::thread([&](int tid) {
-                run_client(tid, contexts[i], pmem_size, 2, output_lock, server.value());
+                run_client(tid, contexts[i], pmem_size, output_lock, server.value());
             }, i);
         }
 
