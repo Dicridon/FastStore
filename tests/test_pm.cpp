@@ -28,13 +28,15 @@ auto set_up_pmem(const std::string &pmem_file, size_t size) -> void * {
 }
 
 auto run_rand(const std::string &pmem_file, int num_threads, size_t size) -> void {
+    std::cout << ">> random mode\n";
     auto base = reinterpret_cast<byte_ptr_t>(set_up_pmem(pmem_file, size));
     std::mutex output_lock;
 
     std::thread threads[num_threads];
-    std::vector<double> latencies;
+
     for (int i = 0; i < num_threads; i++) {
         threads[i] = std::thread([&](int tid) {
+
             std::random_device rd;
             std::mt19937 gen(rd());
             std::uniform_int_distribution<> distrib(0, size - 32);
@@ -44,6 +46,8 @@ auto run_rand(const std::string &pmem_file, int num_threads, size_t size) -> voi
             for (int i = 0; i < batch; i++) {
                 offsets.push_back(distrib(gen));
             }
+            
+            std::vector<double> latencies;
 
             auto start = steady_clock::now();
             auto lat_s = steady_clock::now();
@@ -85,14 +89,17 @@ auto run_rand(const std::string &pmem_file, int num_threads, size_t size) -> voi
 }
 
 auto run_seq(const std::string &pmem_file, int num_threads, size_t size) -> void {
+    std::cout << ">> sequtial mode\n";
     auto base = reinterpret_cast<byte_ptr_t>(set_up_pmem(pmem_file, size));
     std::mutex output_lock;
 
     std::thread threads[num_threads];
-    std::vector<double> latencies;
+
     for (int i = 0; i < num_threads; i++) {
         threads[i] = std::thread([&](int tid) {
             int batch = 500000;
+            std::vector<double> latencies;        
+    
             auto start = steady_clock::now();
             auto lat_s = steady_clock::now();
             for (int i = 0; i < batch; i++) {
