@@ -159,7 +159,7 @@ auto main(int argc, char *argv[]) -> int {
 
         for (size_t i = 0; i < num_thread; i++) {
             threads[i] = std::thread([&](int tid) {
-                run_client(tid, contexts[i], pmem_size, output_lock, server.value());
+                run_client(tid, contexts[tid], pmem_size, output_lock, server.value());
             }, i);
         }
 
