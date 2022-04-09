@@ -131,14 +131,27 @@ auto main(int argc, char *argv[]) -> int {
 
     if (is_server) {
         auto buf = set_up_pmem(pmem_file.c_str(), pmem_size);
-        auto [rdma_ctx, cstatus] = rdma_device->open(buf, pmem_size, 12, RDMADevice::get_default_mr_access(),
-                                                     *RDMADevice::get_default_qp_init_attr());
-        if (!rdma_ctx) {
-            std::cerr << "Failed to open RDMA device, error code: " << decode_rdma_status(cstatus) << "\n";
-            return -1;
+        size_t num_thread = 4;
+        std::vector<std::unique_ptr<RDMAContext>> contexts;
+        for (size_t i = 0; i < num_thread; i++) {
+            auto [rdma_ctx, cstatus] = rdma_device->open(buf, pmem_size, 12, RDMADevice::get_default_mr_access(),
+                                                         *RDMADevice::get_default_qp_init_attr());
+            if (!rdma_ctx) {
+                std::cerr << "Failed to open RDMA device, error code: " << decode_rdma_status(cstatus) << "\n";
+                return -1;
+            }
+            contexts.push_back(std::move(rdma_ctx));
+
+            auto sockfd = socket_connect(true, socket_port);
+            if (rdma_ctx->default_connect(sockfd) != 0) {
+                std::cerr << "Default connection failed\n";
+                return -1;
+            }
         }
 
-        run_server(socket_port, rdma_ctx);
+        while(true)
+            ;
+        // run_server(socket_port, rdma_ctx);
     } else {
         size_t num_thread = 2;
         std::thread threads[num_thread];
