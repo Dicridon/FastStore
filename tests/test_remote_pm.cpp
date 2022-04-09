@@ -83,6 +83,7 @@ auto run_client(int tid, std::unique_ptr<RDMAContext> &rdma_ctx, size_t pmem_siz
     std::sort(latencies.begin(), latencies.end(), [&](double a, double b) {
         return a > b;
     });
+    
     auto average = accumulate(latencies.begin(), latencies.end(), 0) / latencies.size();
     auto p90 = Misc::p90(latencies);
     auto p99 = Misc::p99(latencies);
@@ -133,6 +134,8 @@ auto main(int argc, char *argv[]) -> int {
         auto buf = set_up_pmem(pmem_file.c_str(), pmem_size);
         size_t num_thread = 4;
         std::vector<std::unique_ptr<RDMAContext>> contexts;
+        auto sockfd = Misc::make_socket(true, socket_port);
+        
         for (size_t i = 0; i < num_thread; i++) {
             auto [rdma_ctx, cstatus] = rdma_device->open(buf, pmem_size, 12, RDMADevice::get_default_mr_access(),
                                                          *RDMADevice::get_default_qp_init_attr());
@@ -140,13 +143,15 @@ auto main(int argc, char *argv[]) -> int {
                 std::cerr << "Failed to open RDMA device, error code: " << decode_rdma_status(cstatus) << "\n";
                 return -1;
             }
-            contexts.push_back(std::move(rdma_ctx));
-
-            auto sockfd = socket_connect(true, socket_port);
-            if (rdma_ctx->default_connect(sockfd) != 0) {
+            // auto sockfd = socket_connect(true, socket_port);
+            std::cout << ">> Waiting for clients\n";
+            auto sock = Misc::accept_blocking(sockfd);
+            std::cout << ">> Got client\n";
+            if (rdma_ctx->default_connect(sock) != 0) {
                 std::cerr << "Default connection failed\n";
                 return -1;
             }
+            contexts.push_back(std::move(rdma_ctx));
         }
 
         while(true)
