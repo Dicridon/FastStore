@@ -83,6 +83,9 @@ namespace Hill {
                 size_t value_size;
                 Enums::RPCOperations op;
                 Memory::RemoteMemoryAgent *agent;
+
+                KVPair::HillString *hkey;
+                KVPair::HillString *hvalue;
             } input;
 
             // output

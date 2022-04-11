@@ -1,9 +1,13 @@
 #include "indexing.hpp"
 namespace Hill {
     namespace Indexing {
-        auto LeafNode::insert(int tid, WAL::Logger *log, Memory::Allocator *alloc,
-                              Memory::RemoteMemoryAgent *agent, const char *k, size_t k_sz,
-                              const char *v, size_t v_sz)
+        auto LeafNode::insert(int tid, WAL::Logger *log,
+                              Memory::Allocator *alloc,
+                              Memory::RemoteMemoryAgent *agent,
+                              const char *k, size_t k_sz,
+                              const char *v, size_t v_sz,
+                              const hill_key_t *hk,
+                              const hill_value_t *hv)
             -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>
         {
             if (is_full()) {
@@ -36,8 +40,10 @@ namespace Hill {
             auto &ptr = log->make_log(tid, WAL::Enums::Ops::Insert);
             alloc->allocate(tid, sizeof(KVPair::HillStringHeader) + k_sz, ptr);
             auto fp = CityHash64(k, k_sz);
+            memcpy(ptr, hk, hk->object_size());
             fingerprints[i] = fp;
-            keys[i] = &KVPair::HillString::make_string(ptr, k, k_sz);
+            keys[i] = reinterpret_cast<KVPair::HillString *>(ptr);
+            // keys[i] = &KVPair::HillString::make_string(ptr, k, k_sz);
             log->commit(tid);
 
             // crashing here is ok because valid keys can not find their corresponding values, so just roll
@@ -46,7 +52,8 @@ namespace Hill {
             auto total = sizeof(KVPair::HillStringHeader) + v_sz;
             if (!agent) {
                 alloc->allocate(tid, total, v_ptr);
-                KVPair::HillString::make_string(v_ptr, v, v_sz);
+                memcpy(v_ptr, hv, hv->object_size());
+                // KVPair::HillString::make_string(v_ptr, v, v_sz);
                 values[i] = Memory::PolymorphicPointer::make_polymorphic_pointer(v_ptr);
                 value_sizes[i] = total;
             } else {
@@ -151,16 +158,17 @@ namespace Hill {
             }
         }
 
-        auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
+        auto OLFIT::insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz,
+                           const hill_key_t *hk, const hill_value_t *hv)
             noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>
         {
             auto node = traverse_node(k, k_sz);
 
             if (!node->is_full()) {
-                return node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz);
+                return node->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz, hk, hv);
             }
 
-            auto [new_leaf, value] = split_leaf(tid, node, k, k_sz, v, v_sz);
+            auto [new_leaf, value] = split_leaf(tid, node, k, k_sz, v, v_sz, hk, hv);
             // root is a leaf
             if (!node->parent) {
                 auto new_root = InnerNode::make_inner();
@@ -176,7 +184,8 @@ namespace Hill {
             return {ret, value};
         }
 
-        auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz)
+        auto OLFIT::split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz,
+                               const hill_key_t *hk, const hill_value_t *hv)
             -> std::pair<LeafNode *, Memory::PolymorphicPointer> {
 #ifdef __HILL_PINDEX__
             auto &ptr = logger->make_log(tid, WAL::Enums::Ops::NodeSplit);
@@ -217,9 +226,9 @@ namespace Hill {
 
             Memory::PolymorphicPointer ret_ptr;
             if (i < Constants::iNUM_HIGHKEY / 2) {
-                ret_ptr = l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz).second;
+                ret_ptr = l->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz, hk, hv).second;
             } else {
-                ret_ptr = n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz).second;
+                ret_ptr = n->insert(tid, logger, alloc, agent, k, k_sz, v, v_sz, hk, hv).second;
             }
 
             // Here node split is done in terms of recovery, because inner nodes are reconstructed from

@@ -59,7 +59,8 @@ namespace Hill {
                                 break;
                             case Enums::RPCOperations::Insert: {
                                 auto [status, value_ptr] = olfit.insert(tid, msg->input.key, msg->input.key_size,
-                                                                        msg->input.value, msg->input.value_size);
+                                                                        msg->input.value, msg->input.value_size,
+                                                                        msg->input.hkey, msg->input.hvalue);
                                 msg->output.value = value_ptr;
                                 msg->output.status.store(status);
 
@@ -350,6 +351,9 @@ namespace Hill {
             msg.input.value = value->raw_chars();
             msg.input.value_size = value->size();
             msg.input.op = type;
+
+            msg.input.hkey = key;
+            msg.input.hvalue = value;
 
             msg.output.status = Indexing::Enums::OpStatus::Unkown;
             // this is fast we do not need to sample

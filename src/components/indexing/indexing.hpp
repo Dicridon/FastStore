@@ -82,7 +82,8 @@ namespace Hill {
             }
 
             auto insert(int tid, WAL::Logger *log, Memory::Allocator *alloc, Memory::RemoteMemoryAgent *agent,
-                        const char *k, size_t k_sz, const char *v, size_t v_sz)
+                        const char *k, size_t k_sz, const char *v, size_t v_sz,
+                        const hill_key_t *hk, const hill_value_t *hv)
                 -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>;
             auto dump() const noexcept -> void;
         };
@@ -249,8 +250,11 @@ namespace Hill {
             }
 
             // external interfaces use const char * as input
-            auto insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
+            // hk and hv are for PM write accelaration
+            auto insert(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz,
+                        const hill_key_t *hk, const hill_value_t *hv)
                 noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>;
+            
             auto search(const char *k, size_t k_sz) const noexcept -> std::pair<Memory::PolymorphicPointer, size_t>;
             auto update(int tid, const char *k, size_t k_sz, const char *v, size_t v_sz)
                 noexcept -> std::pair<Enums::OpStatus, Memory::PolymorphicPointer>;
@@ -323,7 +327,8 @@ namespace Hill {
             }
 
             // split an old node and return a new node with keys migrated
-            auto split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz)
+            auto split_leaf(int tid, LeafNode *l, const char *k, size_t k_sz, const char *v, size_t v_sz,
+                            const hill_key_t *hk, const hill_value_t *hv)
                 -> std::pair<LeafNode *, Memory::PolymorphicPointer>;
             // split_inner is seperated from split leaf because they have different memory policies
             auto split_inner(InnerNode *l, const hill_key_t *splitkey, PolymorphicNodePointer child)
