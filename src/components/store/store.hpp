@@ -170,6 +170,9 @@ namespace Hill {
             uint64_t num_range;
             uint64_t suc_range;
 
+            // record at most 8 RTTs
+            size_t RTTs[8];
+
             ClientSampler *client_sampler;
 
             ClientContext() : thread_id(0), is_done(false), cache(ReadCache::Constants::uCACHE_SIZE){
@@ -183,6 +186,10 @@ namespace Hill {
 
                 for (auto &s : erpc_sessions) {
                     s = -1;
+                }
+
+                for (auto & r : RTTs) {
+                    r = 0;
                 }
 
                 num_insert = suc_insert = num_search = suc_search = num_update = suc_update = num_range = suc_range = 0;

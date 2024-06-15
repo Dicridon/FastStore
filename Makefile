@@ -4,7 +4,7 @@ LDFLAGS=-Lthird-party/eRPC/build -lerpc
 LDLIBS=-libverbs -lpmem -lpthread -Lthird-party/eRPC/build -lerpc -lnuma -latomic
 
 TARGET_DIR=./target
-TARGET=$(TARGET_DIR)/hill
+TARGET=$(TARGET_DIR)/FastStore
 OBJ_DIR=./obj
 SRC_DIR=./src
 COMPONENTS_DIR=./src/components

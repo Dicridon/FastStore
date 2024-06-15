@@ -3,7 +3,7 @@
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -20,14 +20,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/hill.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -44,14 +44,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/main.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -68,14 +68,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/indexing/indexing.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -92,14 +92,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/coloring/coloring.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -116,14 +116,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/rpc_wrapper/rpc_wrapper.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -140,14 +140,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/kv_pair/kv_pair.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -164,14 +164,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/tests/tests.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -188,14 +188,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/stats/stats.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -212,14 +212,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/city/city.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -236,14 +236,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/wal/wal.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -260,14 +260,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/cmd_parser/cmd_parser.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -284,14 +284,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/remote_memory/remote_memory.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -308,14 +308,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/rdma/rdma.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -332,14 +332,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/cluster/cluster.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -356,14 +356,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/memory_manager/memory_manager.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -380,14 +380,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/config/config.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -404,14 +404,38 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/store/store.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./src/components/store/range_merger/range_merger.cpp",
+      "./obj/store_range_merger_range_merger.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./src/components/store/range_merger/range_merger.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -428,14 +452,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/read_cache/read_cache.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -452,14 +476,38 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/engine/engine.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./src/components/sampler/sampler.cpp",
+      "./obj/sampler_sampler.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./src/components/sampler/sampler.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -476,14 +524,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/config_reader/config_reader.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -500,14 +548,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/workload/workload.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -524,14 +572,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/misc/misc.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -548,14 +596,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./src/components/debug_logger/debug_logger.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -572,14 +620,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_cache.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -596,14 +644,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_memory_manager.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -620,14 +668,38 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_polymorphic_pointer.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/test_ud.cpp",
+      "./obj/test_ud.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./tests/test_ud.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -644,14 +716,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_coloring.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -668,14 +740,38 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_workload.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/pm_write.cpp",
+      "./obj/pm_write.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./tests/pm_write.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -692,14 +788,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_wal.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -716,14 +812,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_stats.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -740,14 +836,38 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_debug_logger.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/test_sampler.cpp",
+      "./obj/test_sampler.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./tests/test_sampler.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -764,14 +884,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_cmd_parser.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -788,14 +908,38 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_rdma.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/test_remote_pm.cpp",
+      "./obj/test_remote_pm.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./tests/test_remote_pm.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -812,14 +956,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_kv_pair.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -836,14 +980,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_store.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -860,14 +1004,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_erpc.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -884,14 +1028,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_engine.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -908,14 +1052,38 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_server.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/test_merge.cpp",
+      "./obj/test_merge.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./tests/test_merge.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -932,14 +1100,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_cluster.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -956,14 +1124,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_string.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -980,14 +1148,62 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_indexing.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/test_pm.cpp",
+      "./obj/test_pm.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./tests/test_pm.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
+      "-g",
+      "-Wunused-parameter",
+      "-Wunused-variable",
+      "-Wunused-private-field",
+      "-Wunused-const-variable",
+      "-std=c++17",
+      "-Ithird-party/boost_1_77_0",
+      "-Ithird-party/eRPC/src",
+      "-Ithird-party/eRPC/third_party/asio/include",
+      "-DERPC_INFINIBAND=true",
+      "-DROCE=true",
+      "./tests/test_city.cpp",
+      "./obj/test_city.o",
+      "-c",
+      "-o"
+    ],
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
+    "file": "./tests/test_city.cpp"
+  },
+  {
+    "arguments": [
+      "c++",
+      "-Isrc/components",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -1004,14 +1220,14 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_misc.cpp"
   },
   {
     "arguments": [
       "c++",
       "-Isrc/components",
-      "-O0",
+      "-O3",
       "-g",
       "-Wunused-parameter",
       "-Wunused-variable",
@@ -1028,7 +1244,7 @@
       "-c",
       "-o"
     ],
-    "directory": "/home/frostfall/LinuxDev/Research/RDMA/hill",
+    "directory": "/home/frostfall/LinuxDev/Research/RDMA/FastStore",
     "file": "./tests/test_remote_pointer.cpp"
   }
 ]

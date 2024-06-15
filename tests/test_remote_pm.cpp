@@ -92,10 +92,10 @@ auto run_client(int tid, std::unique_ptr<RDMAContext> &rdma_ctx, size_t pmem_siz
     lock.lock();
     std::cout << ">> Thread " << tid << ":\n";
     std::cout << "---->> ";
-    std::cout << "average: " << average << " ns, ";
-    std::cout << "p90: " << p90 << " ns, ";
-    std::cout << "p99: " << p99 << " ns, ";
-    std::cout << "p999: " << p999 << " ns\n";
+    std::cout << "average: " << average << " us, ";
+    std::cout << "p90: " << p90 << " us, ";
+    std::cout << "p99: " << p99 << " us, ";
+    std::cout << "p999: " << p999 << " us\n";
     lock.unlock();
 }
 

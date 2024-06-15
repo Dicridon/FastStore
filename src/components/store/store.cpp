@@ -873,6 +873,7 @@ namespace Hill {
 #endif
                                 ++c_ctx.num_search;
                                 ++c_ctx.suc_search;
+                                ++c_ctx.RTTs[1];
                                 goto sample;
                             }
 #ifdef __HILL_SAMPLE__
@@ -1081,12 +1082,14 @@ namespace Hill {
                     // value is embeded
                     if (size < 64) {
                         ++ctx->num_search;
+                        ++ctx->RTTs[1];
                         break;
                     }
 
                     node_id = poly.remote_ptr().get_node();
                     ctx->client->read_from(ctx->thread_id, node_id, poly.get_as<byte_ptr_t>(), size);
                     ctx->client->poll_completion_once(ctx->thread_id, node_id);
+                    ++ctx->RTTs[2];
 #endif
                     ++ctx->num_search;
                     break;

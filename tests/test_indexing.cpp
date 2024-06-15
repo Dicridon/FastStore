@@ -57,7 +57,6 @@ auto main(int argc, char *argv[]) -> int {
     if (logger == nullptr) {
         std::cout << ">> Logger moved\n";
     }
-    /*
     auto begin = 99999999999999UL;
     auto batch = 5000000;
     for (int i = 0; i < batch; i++) {
@@ -75,8 +74,8 @@ auto main(int argc, char *argv[]) -> int {
             return -1;
         }
     }
-    */
 
+    /*
     std::cout << "Loading file\n";
     auto load = Workload::read_ycsb_workload("third-party/ycsb-0.17.0/workloads/ycsb_load_" + type + "_debug.data");
     auto run = Workload::read_ycsb_workload("third-party/ycsb-0.17.0/workloads/ycsb_run_" + type + "_debug.data");
@@ -128,5 +127,6 @@ auto main(int argc, char *argv[]) -> int {
             break;
         }
     }
+    */
     return 0;
 }
